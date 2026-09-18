@@ -225,3 +225,27 @@ Three ways, from most to least capable:
 
 The app has no authentication: only expose it through a tunnel while you use it, and never on a public URL you
 leave running.
+
+### Visible SITL scenarios
+
+`POST /api/sim/scenario/start` takes a scenario object and runs it in the interactive simulator at 1× speed.
+It requires disarmed SITL and rejects overlapping runs. Push and verify parameters beforehand; the scenario
+object must omit `params`. `GET /api/sim/scenario` returns phase and metrics;
+`GET /api/sim/scenario/timeseries` returns recorded samples. The viewport shows the phase and a Stop test
+button. `POST /api/sim/scenario/stop` freezes the simulation. A failed run also freezes it for inspection.
+Reset/restart the simulated vehicle before another flight; do not use this endpoint for HITL.
+
+
+### Experimental near-level wing flight (SITL only)
+
+`wing_velocity` is an experimental scenario phase, not the stock PX4 position controller. It sends MAVLink2
+`SET_ATTITUDE_TARGET` with the `thrust_body` extension: PX4 still closes attitude/rate loops and allocates motors.
+The harness uses ideal simulator position/velocity and an offline `trim_table` of `[speed_m_s, Fx_N, Fy_N, Fz_N]`
+rows; it does not validate sensors or constitute an onboard controller. The installed older pymavlink lacks this
+extension, so `sim/wing_controller.py` packs the three extension floats explicitly, with wire-layout/CRC tests.
+
+Phases accept `speed`, `duration`, `ramp` (m/s²), and `trim_table`. The current implementation requires a zero-degree
+hover frame and CT proportional to physical effective thrust. It independently commands forward/vertical thrust,
+uses bank limited to ±8° for lateral tracking, and commands zero body pitch and yaw. A controller instance persists
+across these phases to maintain altitude and ramp continuity. Use a fresh scenario for each aircraft. HITL is rejected.
+Treat phase completion separately from performance: examine the settled speed, height and attitude time histories.

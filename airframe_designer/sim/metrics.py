@@ -172,4 +172,4 @@ class MetricsRecorder:
 
     def timeseries(self) -> dict:
         a = self.array()
-        return {"columns": self.COLS, "rows": [[round(float(v), 5) for v in r] for r in a.tolist()], "phase": self.phase_of_row}
+        return {"columns": self.COLS, "rows": [[round(float(v), 5) for v in r] for r in a.tolist()], "phase": list(self.phase_of_row)}

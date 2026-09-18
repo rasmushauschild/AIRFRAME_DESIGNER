@@ -259,6 +259,27 @@ class ScenarioRunner:
         if self._elapsed(simr) >= float(self.phase.get("duration", 10.0)):
             self._next(simr)
 
+    def _p_wing_velocity(self, simr) -> None:
+        """Experimental SITL body-vector controller; ideal state feedback, explicit trim table."""
+        from .wing_controller import WingVelocityController
+        if self.link.mode != "sitl":
+            self.fail(simr, "Experimental wing controller is SITL-only", fatal=True); return
+        if not hasattr(self, "_wing_controller"):
+            try:
+                self._wing_controller = WingVelocityController(simr, self.phase["trim_table"])
+            except (KeyError, ValueError) as exc:
+                self.fail(simr, f"Invalid experimental controller configuration: {exc}", fatal=True); return
+        target = float(self.phase.get("speed", 0.0))
+        self.targets[self._name()] = {"vel": [target, 0., 0.]}
+        if simr.step_count % max(1, round(simr.sensor_rate / 20)) == 0:
+            self._wing_controller.step(simr, target, float(self.phase.get("ramp", 1.0)))
+        st = self._state
+        if self._elapsed(simr) > .5 and ("mode_at" not in st or
+                (not self.link.mode_is("offboard") and simr.t-st["mode_at"] > 1.5)):
+            self.link.set_mode("offboard"); st["mode_at"] = simr.t
+        if self._elapsed(simr) >= float(self.phase.get("duration", 30)):
+            self._next(simr)
+
     def _p_offboard_position(self, simr) -> None:
         pos = [float(v) for v in self.phase.get("pos", [0, 0, -5])]
         yaw = self.phase.get("yaw", 0.0)

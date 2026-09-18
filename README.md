@@ -1,5 +1,7 @@
 # AIRFRAME_DESIGNER
 
+The current ATLAS simulator session (including the ATLAS_09 model, native PX4 takeoff/landing, and automatic landed pitch) is packaged in [experiments/atlas_nose_lift](experiments/atlas_nose_lift/README.md). Follow its build and launch instructions to run this version on port 8081.
+
 A real-time, physics-based aircraft simulator with **PX4 in the loop**, for designing unconventional airframes:
 wings and fins with their own dimensions, angles and coefficients; propellers, ducted fans and jetfoils with
 arbitrary thrust vectors; an explicit centre of gravity; individual landing legs. Fly it live with a USB remote

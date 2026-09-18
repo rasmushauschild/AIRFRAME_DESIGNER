@@ -48,6 +48,7 @@ class Wing:
     name: str = "wing"
     enabled: bool = True
     pos: list[float] = field(default_factory=lambda: [0.0, 0.0, 0.0])   # root leading edge, structural frame
+    root_y: float = 0.0         # mirrored lateral root offset for joined, non-overlapping wing segments
     span: float = 1.0
     root_chord: float = 0.3
     tip_chord: float = 0.3
@@ -135,7 +136,7 @@ def wing_panels(w: Wing) -> dict:
             inc = math.radians(w.incidence_deg + w.twist_deg * (sm / hs if hs > 0 else 0.0))
             R = rodrigues(pitch_axis, inc)
             ec, en = R @ ec0, R @ en0
-            le = root + es * sm - np.array([math.tan(swp) * sm, 0.0, 0.0])
+            le = root + np.array([0.0, sd * w.root_y, 0.0]) + es * sm - np.array([math.tan(swp) * sm, 0.0, 0.0])
             qc = le - ec * (cm / 4.0)
             if Rp is not None:                      # whole-wing pitch about the aircraft y axis through the root point
                 qc = root + Rp @ (qc - root); ec = Rp @ ec; en = Rp @ en
@@ -160,7 +161,7 @@ def wing_outline(w: Wing) -> list[list[list[float]]]:
         for s, c, inc in ((0.0, w.root_chord, w.incidence_deg), (hs, w.tip_chord, w.incidence_deg + w.twist_deg)):
             R = rodrigues(pitch_axis, math.radians(inc))
             ec = R @ np.array([1.0, 0.0, 0.0])
-            le = root + es * s - np.array([math.tan(swp) * s, 0.0, 0.0])
+            le = root + np.array([0.0, sd * w.root_y, 0.0]) + es * s - np.array([math.tan(swp) * s, 0.0, 0.0])
             le, te = root + Rp @ (le - root), root + Rp @ (le - ec * c - root)
             pts.append((le, te))
         (rle, rte), (tle, tte) = pts

@@ -412,6 +412,7 @@ function wingRowHtml(i, w) {
     ${c('cm0', 0.01, a.cm0, 'pitching moment about the quarter chord, nose-up positive')}
     ${c('stall_blend_deg', 1, a.stall_blend_deg, 'width of the blend into flat-plate behaviour')}
     ${c('cd_flat', 0.1, a.cd_flat, 'flat-plate drag past the stall')}
+    <label title="Mirrored distance from the centerline to each segment root, m">root offset <input type="number" step="0.01" min="0" data-k="root_y" value="${w.root_y ?? 0}"></label>
     <label title="spanwise strips per half">panels <input type="number" step="1" min="1" max="40" data-k="panels" value="${w.panels ?? 6}"></label>
     <label title="override the geometric aspect ratio used for lift slope / induced drag (blank = geometric)">AR override <input type="number" step="0.1" min="0" data-k="ar" value="${w.aspect_ratio ?? ''}"></label>
     <label class="row" style="align-self:end;padding-bottom:6px" title="polhamus: add the vortex-lift term"><input type="checkbox" data-k="vortex" ${a.vortex_lift === false ? '' : 'checked'}> vortex lift</label>
@@ -447,6 +448,7 @@ function applyWingCoeffs(i) {
   if (at_) a.airfoil_tip = at_.value.trim().toLowerCase().replace(/\s+/g, '');
   if (src) a.polar_source = src.value;
   if (nc && isFinite(parseFloat(nc.value))) a.ncrit = parseFloat(nc.value);
+  w.root_y = Math.max(0, g('root_y') || 0);
   w.panels = Math.max(1, Math.round(g('panels') || 6));
   const ar = g('ar'); w.aspect_ratio = isFinite(ar) && ar > 0 ? ar : null;
   const main = $(`#wing-table tr[data-w="${i}"] td.calc`); if (main) main.textContent = `${wingArea(w).toFixed(3)} · ${wingAR(w).toFixed(2)}`;
@@ -1026,7 +1028,7 @@ function applyState(st) {
   const parts = [];
   if (f.airspeed != null) parts.push(`airspeed ${(+f.airspeed).toFixed(1)} m/s`);
   if (f.lift != null) parts.push(`lift ${(+f.lift).toFixed(0)} N` + (f.stalled ? ' (stalled)' : ''));
-  if (f.alpha && f.alpha.length) parts.push(`α ${f.alpha.map(a => (+a).toFixed(0)).join('/')}°`);
+  if (f.alpha && f.alpha.length) parts.push(`α ${f.alpha.map(a => deg(+a).toFixed(1)).join('/')}°`);
   if (f.wing_drag != null || f.ram_drag != null || f.body_drag != null) parts.push(`drag wing ${(+f.wing_drag || 0).toFixed(0)} · ram ${(+f.ram_drag || 0).toFixed(0)} · body ${(+f.body_drag || 0).toFixed(0)} N`);
   if (f.power != null) parts.push(`power ${(+f.power).toFixed(0)} W`);
   if (st.rotor_health && st.rotor_health.some(h => h < 0.999)) parts.push('rotor health ' + st.rotor_health.map(h => (h * 100).toFixed(0) + '%').join(' '));
@@ -1451,6 +1453,7 @@ async function loadScenarios() {
       <div class="hint">${esc(s.description || '')}</div><div class="phases">${(s.phases || []).map(p => `<span class="phase">${esc(p)}</span>`).join('')}</div></div>
       <div class="row tight"><select class="sc-physics" data-sc="${esc(s.file)}" title="physics engine for this headless run"><option value="python">Python</option><option value="jsbsim">JSBSim</option></select>
       <button class="pill small primary" data-run="${esc(s.file)}">Run headless</button>
+      <button class="pill small" data-visible="${esc(s.file)}" title="Run at normal speed in the live viewport with the currently loaded aircraft and physics engine">Run visibly</button>
       <button class="pill small" data-compare="${esc(s.file)}" title="run this scenario on BOTH engines and show the differences">Compare physics</button></div></div></div>`).join('')
     : '<div class="hint">No scenarios in scenarios/.</div>';
   const start = async (file, physics) => {
@@ -1464,6 +1467,14 @@ async function loadScenarios() {
     const physics = ($(`.sc-physics[data-sc="${b.dataset.run}"]`) || {}).value || 'python';
     try { await start(b.dataset.run, physics); pollJobs(); } catch (e) { logLine('[batch] ' + e.message); }
     b.disabled = false; b.textContent = 'Run headless';
+  }));
+  $$('#scenario-list button[data-visible]').forEach(b => b.addEventListener('click', async () => {
+    b.disabled = true; b.textContent = 'Starting…';
+    try {
+      const r = await api('/api/sim/scenario/start', { scenario: b.dataset.visible });
+      logLine(`[live test] started ${r.name}`);
+    } catch (e) { logLine('[live test] ' + e.message); }
+    b.disabled = false; b.textContent = 'Run visibly';
   }));
   $$('#scenario-list button[data-compare]').forEach(b => b.addEventListener('click', async () => {
     b.disabled = true; b.textContent = 'Starting…';
@@ -1590,3 +1601,22 @@ function renderStudy(j) {
     } catch (e) { logLine('[study] apply failed: ' + e.message); ab.disabled = false; }
   });
 }
+
+// Keep scripted flights visible in the same scene as interactive flying.
+const liveBadge = document.createElement('div');
+liveBadge.style.cssText = 'position:absolute;top:12px;left:12px;background:#fff;color:#222;padding:10px 14px;border-radius:12px;z-index:4;display:none;box-shadow:0 2px 12px #0002';
+const liveLabel = document.createElement('span');
+const liveStop = document.createElement('button');
+liveStop.textContent = 'Stop test'; liveStop.style.marginLeft = '12px';
+liveStop.onclick = async () => { try { await api('/api/sim/scenario/stop', {}); } catch(e) { liveLabel.textContent = e.message; } };
+liveBadge.append(liveLabel, liveStop); $('#viewport').append(liveBadge);
+let livePolling = false;
+setInterval(async () => {
+  if (livePolling) return; livePolling = true;
+  try {
+    const r = await api('/api/sim/scenario');
+    liveBadge.style.display = r.phase ? 'block' : 'none';
+    liveLabel.textContent = r.phase ? `${r.running ? 'LIVE TEST' : r.status.toUpperCase()} · ${r.phase.name || r.phase.type}` : '';
+    liveStop.hidden = !r.running;
+  } catch {} finally { livePolling = false; }
+}, 1000);

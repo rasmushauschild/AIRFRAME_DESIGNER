@@ -1,17 +1,17 @@
 {
   "schema": 2,
-  "name": "ATLAS_07D",
+  "name": "ATLAS_09",
   "mass": {
-    "mass": 13,
+    "mass": 12,
     "cg": [
       0,
       0,
       0
     ],
     "inertia": [
-      0.07547,
-      0.12757,
-      0.18478
+      0.53072,
+      0.725487,
+      1.121629
     ],
     "inertia_products": [
       0,
@@ -314,9 +314,9 @@
       "attach": [
         0.6,
         0,
-        0.05
+        0
       ],
-      "length": 0.05,
+      "length": 0.3,
       "tilt_deg": 0,
       "cant_deg": 0,
       "foot_radius": 0,
@@ -328,11 +328,11 @@
     {
       "name": "L",
       "attach": [
-        -0.3,
-        -0.5,
-        0.1
+        -0.2,
+        -0.53,
+        0
       ],
-      "length": 0.2,
+      "length": 0.5,
       "tilt_deg": 0,
       "cant_deg": 0,
       "foot_radius": 0,
@@ -344,11 +344,11 @@
     {
       "name": "R",
       "attach": [
-        -0.3,
-        0.5,
-        0.1
+        -0.2,
+        0.53,
+        0
       ],
-      "length": 0.2,
+      "length": 0.5,
       "tilt_deg": 0,
       "cant_deg": 0,
       "foot_radius": 0,
@@ -359,7 +359,7 @@
     }
   ],
   "hover_pitch_deg": 25.0,
-  "landed_pitch_deg": 0.0,
+  "landed_pitch_deg": -14.04,
   "px4_overrides": {
     "MIS_TAKEOFF_ALT": 1,
     "MPC_TKO_RAMP_T": 1,
@@ -398,7 +398,9 @@
     "MC_ROLLRATE_MAX": 220,
     "MC_YAWRATE_MAX": 200,
     "NLF_LAND_V": 0.1,
-    "NLF_DOWN_R": 4
+    "NLF_DOWN_R": 4,
+    "NLF_TARGET": 24,
+    "NLF_LAND_ANG": -14.04
   },
   "design": {
     "cruise_speed_kmh": 50,

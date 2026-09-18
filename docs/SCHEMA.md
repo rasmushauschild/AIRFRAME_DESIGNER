@@ -39,6 +39,7 @@ CG never means re-entering positions. Angles are degrees in JSON.
   "wings": [ {
     "name": "main", "enabled": true,
     "pos": [0.42, 0.0, 0.06],     // ROOT LEADING EDGE on the centreline
+    "root_y": 0.0,                // optional mirrored lateral root offset; lets adjacent segments join without overlap
     "span": 1.075,                // tip to tip (symmetric) or panel length (single panel)
     "root_chord": 0.93, "tip_chord": 0.0,
     "sweep_deg": 60,              // leading-edge sweep, back positive
@@ -101,3 +102,9 @@ Any numeric leaf can be addressed by a string, used by `--set`, studies and the 
 | `design.cruise_speed_kmh` | design settings |
 
 `airframe-designer paths --airframe X` prints every path with its current value.
+
+For joined wing segments, `span` covers the segment itself (both halves if symmetric), excluding `root_y`.
+`root_y` offsets the two roots by ±y; it adds no aerodynamic area. Adjacent segments should meet at their
+leading and trailing edges. A shared whole-planform aspect-ratio override is only a strip-theory approximation
+to aerodynamic interaction between segments, not a validated blended-body flow solution. Optional
+`design.visual.wing_colors` supplies CSS colors in wing order for the 3-D solid surfaces.

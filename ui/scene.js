@@ -238,7 +238,10 @@ export function createScene(canvas, handlers) {
         const rc = airfoilCache.get(rootName), tc = airfoilCache.get(tipName);
         if (rc && tc) {
           for (const geo of wingLoft(w, rc, tc)) {
-            const mesh = new THREE.Mesh(geo, on ? wingSolidMat : wingMatOff);
+            const color = af.design?.visual?.wing_colors?.[(af.wings || []).indexOf(w)];
+            const material = on && color ? wingSolidMat.clone() : (on ? wingSolidMat : wingMatOff);
+            if (on && color) material.color.set(color);
+            const mesh = new THREE.Mesh(geo, material);
             frame.add(mesh); wingNodes.push(mesh);
           }
         } else {
@@ -403,7 +406,20 @@ export function createScene(canvas, handlers) {
 
   return {
     setAirframe, updateState, select, updateRotorNode, setTheme,
-    setCameraMode: (m) => { camMode = m; if (m === 'static') orbit.target.set(0, 0.1, 0); if (m === 'follow') lastVehiclePos.copy(vehicle.position); },
+    setCameraMode: (m) => {
+      camMode = m;
+      if (m === 'static') orbit.target.set(0, 0.1, 0);
+      if (m === 'follow') {
+        // Acquire the vehicle even when follow is enabled after it has flown far from the origin.
+        const size = new THREE.Box3().setFromObject(frame).getSize(new THREE.Vector3());
+        const distance = Math.max(2, size.length() * 1.6);
+        const offset = new THREE.Vector3(1.4, 1.0, 1.6).normalize().multiplyScalar(distance);
+        camera.position.copy(vehicle.position).add(offset);
+        orbit.target.copy(vehicle.position);
+        lastVehiclePos.copy(vehicle.position);
+        orbit.update();
+      }
+    },
     setFollow: (b) => { camMode = b ? 'track' : 'static'; if (!b) orbit.target.set(0, 0.1, 0); },
     setMode: (m) => gizmo.setMode(m),
     get selected() { return selected; },
@@ -556,7 +572,7 @@ export function wingLoft(w, rootPts, tipPts, nSpan = 10, nPts = 64) {
       const f = j / nSpan, s = hs * f, c = rc + (tc - rc) * f, inc = inc0 + tw * f;
       const ec = new THREE.Vector3(1, 0, 0).applyAxisAngle(pitchAxis, rad(inc));
       const en = en0.clone().applyAxisAngle(pitchAxis, rad(inc));
-      const le = root.clone().add(es.clone().multiplyScalar(s)).sub(new THREE.Vector3(Math.tan(swp) * s, 0, 0));
+      const le = root.clone().add(new THREE.Vector3(0, sd * (+w.root_y || 0), 0)).add(es.clone().multiplyScalar(s)).sub(new THREE.Vector3(Math.tan(swp) * s, 0, 0));
       const pr = rad(w.pitch_deg || 0), yAxis = new THREE.Vector3(0, 1, 0);
       for (let k = 0; k < nPts; k++) {
         const x = R[k][0] * (1 - f) + T[k][0] * f, y = R[k][1] * (1 - f) + T[k][1] * f;
@@ -594,7 +610,7 @@ export function wingOutline(w) {
     const pts = [];
     for (const [s, c, inc] of [[0, rc, inc0], [hs, tc, inc0 + tw]]) {
       const ec = new THREE.Vector3(1, 0, 0).applyAxisAngle(pitchAxis, rad(inc));
-      const le = root.clone().add(es.clone().multiplyScalar(s)).sub(new THREE.Vector3(Math.tan(swp) * s, 0, 0));
+      const le = root.clone().add(new THREE.Vector3(0, sd * (+w.root_y || 0), 0)).add(es.clone().multiplyScalar(s)).sub(new THREE.Vector3(Math.tan(swp) * s, 0, 0));
       pts.push([le, le.clone().sub(ec.multiplyScalar(c))]);
     }
     const [[rle, rte], [tle, tte]] = pts;

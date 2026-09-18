@@ -1,17 +1,17 @@
 {
   "schema": 2,
-  "name": "ATLAS_07D",
+  "name": "ATLAS_MVP_03_WING_REVISED",
   "mass": {
-    "mass": 13,
+    "mass": 115,
     "cg": [
       0,
       0,
       0
     ],
     "inertia": [
-      0.07547,
-      0.12757,
-      0.18478
+      50.709044,
+      66.33742,
+      104.642319
     ],
     "inertia_products": [
       0,
@@ -47,19 +47,19 @@
     {
       "name": "M1",
       "pos": [
-        -0.3,
-        -0.37,
-        0.14
+        -0.9,
+        -1.2,
+        0.4
       ],
       "axis": [
-        0.42260624405338415,
+        0.08719920300292681,
         0.0,
-        -0.9063133908792761
+        -0.9961908948568314
       ],
-      "km": 0.01,
-      "max_thrust": 36,
+      "km": -0.01,
+      "max_thrust": 360,
       "tau": 0.12,
-      "diameter": 0.08,
+      "diameter": 0.25,
       "thrust_exponent": 2,
       "kind": "ducted",
       "ram_drag": true,
@@ -74,19 +74,19 @@
     {
       "name": "M2",
       "pos": [
-        -0.3,
-        0.37,
-        0.14
+        -0.9,
+        1.2,
+        0.4
       ],
       "axis": [
-        0.42260624405338415,
+        0.08719920300292681,
         0.0,
-        -0.9063133908792761
+        -0.9961908948568314
       ],
       "km": 0.01,
-      "max_thrust": 36,
+      "max_thrust": 360,
       "tau": 0.12,
-      "diameter": 0.08,
+      "diameter": 0.25,
       "thrust_exponent": 2,
       "kind": "ducted",
       "ram_drag": true,
@@ -101,19 +101,19 @@
     {
       "name": "M3",
       "pos": [
-        -0.275,
-        -0.28,
-        0.09
+        -0.8,
+        1,
+        0.3
       ],
       "axis": [
-        0.5000110003630134,
+        0.1736027776666642,
         0.0,
-        -0.8660190526287391
+        -0.9848157571781734
       ],
-      "km": 0.01,
-      "max_thrust": 36,
+      "km": -0.01,
+      "max_thrust": 360,
       "tau": 0.12,
-      "diameter": 0.08,
+      "diameter": 0.25,
       "thrust_exponent": 2,
       "kind": "ducted",
       "ram_drag": true,
@@ -128,19 +128,19 @@
     {
       "name": "M4",
       "pos": [
-        -0.275,
-        0.28,
-        0.09
+        -0.8,
+        -1,
+        0.3
       ],
       "axis": [
-        0.5000110003630134,
+        0.1736027776666642,
         0.0,
-        -0.8660190526287391
+        -0.9848157571781734
       ],
       "km": 0.01,
-      "max_thrust": 36,
+      "max_thrust": 360,
       "tau": 0.12,
-      "diameter": 0.08,
+      "diameter": 0.25,
       "thrust_exponent": 2,
       "kind": "ducted",
       "ram_drag": true,
@@ -155,19 +155,19 @@
     {
       "name": "M5",
       "pos": [
-        -0.25,
-        -0.2,
-        0.04
+        -0.7,
+        0.8,
+        0.2
       ],
       "axis": [
-        0.5735697163184464,
+        0.2588077319964918,
         0.0,
-        -0.8191567496653964
+        -0.9659288575556857
       ],
       "km": 0.01,
-      "max_thrust": 36,
+      "max_thrust": 360,
       "tau": 0.12,
-      "diameter": 0.08,
+      "diameter": 0.25,
       "thrust_exponent": 2,
       "kind": "ducted",
       "ram_drag": true,
@@ -182,19 +182,19 @@
     {
       "name": "M6",
       "pos": [
-        -0.25,
-        0.2,
-        0.04
+        -0.7,
+        -0.8,
+        0.2
       ],
       "axis": [
-        0.5735697163184464,
+        0.2588077319964918,
         0.0,
-        -0.8191567496653964
+        -0.9659288575556857
       ],
-      "km": 0.01,
-      "max_thrust": 36,
+      "km": -0.01,
+      "max_thrust": 360,
       "tau": 0.12,
-      "diameter": 0.08,
+      "diameter": 0.25,
       "thrust_exponent": 2,
       "kind": "ducted",
       "ram_drag": true,
@@ -209,19 +209,19 @@
     {
       "name": "M7",
       "pos": [
-        -0.225,
-        -0.11,
-        -0.01
+        -0.6,
+        0.6,
+        0.1
       ],
       "axis": [
-        0.6428167648798451,
+        0.5000110003630134,
         0.0,
-        -0.7660199780615452
+        -0.8660190526287391
       ],
-      "km": 0.01,
-      "max_thrust": 36,
+      "km": -0.01,
+      "max_thrust": 360,
       "tau": 0.12,
-      "diameter": 0.08,
+      "diameter": 0.25,
       "thrust_exponent": 2,
       "kind": "ducted",
       "ram_drag": true,
@@ -236,19 +236,19 @@
     {
       "name": "M8",
       "pos": [
-        -0.225,
-        0.11,
-        -0.01
+        -0.6,
+        -0.6,
+        0.1
       ],
       "axis": [
-        0.6428167648798451,
+        0.5000110003630134,
         0.0,
-        -0.7660199780615452
+        -0.8660190526287391
       ],
       "km": 0.01,
-      "max_thrust": 36,
+      "max_thrust": 360,
       "tau": 0.12,
-      "diameter": 0.08,
+      "diameter": 0.25,
       "thrust_exponent": 2,
       "kind": "ducted",
       "ram_drag": true,
@@ -263,9 +263,9 @@
     {
       "name": "M9",
       "pos": [
-        0.45,
+        1.5,
         0,
-        0.08
+        0.3
       ],
       "axis": [
         0.0,
@@ -273,9 +273,9 @@
         -0.8660190526287391
       ],
       "km": 0.01,
-      "max_thrust": 36,
+      "max_thrust": 360,
       "tau": 0.12,
-      "diameter": 0.08,
+      "diameter": 0.25,
       "thrust_exponent": 2,
       "kind": "ducted",
       "ram_drag": true,
@@ -286,19 +286,19 @@
     {
       "name": "M10",
       "pos": [
-        0.56,
+        1.7,
         0,
-        0.08
+        0.3
       ],
       "axis": [
         0.0,
         -0.5000110003630134,
         -0.8660190526287391
       ],
-      "km": 0.01,
-      "max_thrust": 36,
+      "km": -0.01,
+      "max_thrust": 360,
       "tau": 0.12,
-      "diameter": 0.08,
+      "diameter": 0.25,
       "thrust_exponent": 2,
       "kind": "ducted",
       "ram_drag": true,
@@ -307,77 +307,113 @@
       "enabled": true
     }
   ],
-  "wings": [],
+  "wings": [
+    {
+      "name": "wing1",
+      "enabled": true,
+      "pos": [
+        0.05,
+        0,
+        -0.7
+      ],
+      "span": 3.5,
+      "root_chord": 1.65,
+      "tip_chord": 1.35,
+      "sweep_deg": 0,
+      "dihedral_deg": -3,
+      "incidence_deg": 45,
+      "twist_deg": -2,
+      "pitch_deg": 0,
+      "symmetric": true,
+      "panels": 10,
+      "aspect_ratio": null,
+      "aero": {
+        "model": "polar",
+        "airfoil_root": "naca23012",
+        "airfoil_tip": "naca23012",
+        "polar_source": "neuralfoil",
+        "ncrit": 9,
+        "cl_alpha": 6.2832,
+        "cl0": 0,
+        "cd0": 0.02,
+        "oswald": 0.8,
+        "stall_deg": 30,
+        "stall_blend_deg": 15,
+        "cd_flat": 1.2,
+        "cm0": 0,
+        "vortex_lift": true
+      }
+    }
+  ],
   "legs": [
     {
-      "name": "F",
+      "name": "FR",
       "attach": [
-        0.6,
+        -1,
+        1.5,
+        0.55
+      ],
+      "length": 0.1653,
+      "tilt_deg": 11.053,
+      "cant_deg": 0,
+      "foot_radius": 0,
+      "stiffness": 18796.1,
+      "damping": 1358.1,
+      "friction": 0.8,
+      "enabled": true
+    },
+    {
+      "name": "FL",
+      "attach": [
+        -1,
+        -1.5,
+        0.55
+      ],
+      "length": 0.1653,
+      "tilt_deg": 11.053,
+      "cant_deg": 0,
+      "foot_radius": 0,
+      "stiffness": 18796.1,
+      "damping": 1358.1,
+      "friction": 0.8,
+      "enabled": true
+    },
+    {
+      "name": "RR",
+      "attach": [
+        2,
         0,
-        0.05
+        0.14
       ],
-      "length": 0.05,
-      "tilt_deg": 0,
+      "length": 0.2347,
+      "tilt_deg": 9.258,
       "cant_deg": 0,
       "foot_radius": 0,
-      "stiffness": 3000,
-      "damping": 150,
-      "friction": 0.8,
-      "enabled": true
-    },
-    {
-      "name": "L",
-      "attach": [
-        -0.3,
-        -0.5,
-        0.1
-      ],
-      "length": 0.2,
-      "tilt_deg": 0,
-      "cant_deg": 0,
-      "foot_radius": 0,
-      "stiffness": 3000,
-      "damping": 150,
-      "friction": 0.8,
-      "enabled": true
-    },
-    {
-      "name": "R",
-      "attach": [
-        -0.3,
-        0.5,
-        0.1
-      ],
-      "length": 0.2,
-      "tilt_deg": 0,
-      "cant_deg": 0,
-      "foot_radius": 0,
-      "stiffness": 3000,
-      "damping": 150,
+      "stiffness": 18796.1,
+      "damping": 1358.1,
       "friction": 0.8,
       "enabled": true
     }
   ],
-  "hover_pitch_deg": 25.0,
-  "landed_pitch_deg": 0.0,
+  "hover_pitch_deg": 10.0,
+  "landed_pitch_deg": -10.0,
   "px4_overrides": {
     "MIS_TAKEOFF_ALT": 1,
-    "MPC_TKO_RAMP_T": 1,
-    "MPC_THR_HOVER": 0.6000001430511475,
+    "MPC_TKO_RAMP_T": 0.20000000298023224,
+    "MPC_THR_HOVER": 0.3,
     "MC_AIRMODE": 1,
     "MPC_MAN_Y_MAX": 150,
     "MC_YAWRATE_I": 0.10000000149011612,
-    "CA_ROTOR0_CT": 6.5,
-    "CA_ROTOR1_CT": 6.5,
-    "CA_ROTOR2_CT": 6.5,
-    "CA_ROTOR3_CT": 6.5,
-    "CA_ROTOR4_CT": 6.5,
-    "CA_ROTOR5_CT": 6.5,
-    "CA_ROTOR6_CT": 6.5,
-    "CA_ROTOR7_CT": 6.5,
+    "CA_ROTOR0_CT": 5.886129163819022,
+    "CA_ROTOR1_CT": 5.886129163819022,
+    "CA_ROTOR2_CT": 5.922203145835804,
+    "CA_ROTOR3_CT": 5.922203145835804,
+    "CA_ROTOR4_CT": 5.958328486803644,
+    "CA_ROTOR5_CT": 5.958328486803644,
+    "CA_ROTOR6_CT": 6.066671922861531,
+    "CA_ROTOR7_CT": 6.066671922861531,
     "IMU_INTEG_RATE": 250,
     "SENS_MAG_AUTOCAL": 0,
-    "MPC_TKO_SPEED": 1,
     "MC_PITCH_P": 3,
     "MC_PITCHRATE_P": 0.4,
     "MC_PITCHRATE_D": 0.008,
@@ -385,23 +421,16 @@
     "MC_ROLL_P": 4.5,
     "MC_ROLLRATE_P": 0.33,
     "MC_ROLLRATE_D": 0.005,
-    "CA_METHOD": 0,
-    "NLF_ENABLE": 1,
-    "NLF_RATE": 5,
-    "NLF_RAMP": 1.5,
-    "NLF_DWELL": 1,
-    "NLF_ALT": 1,
-    "NLF_TIMEOUT": 25,
-    "COM_DISARM_PRFLT": 40,
-    "COM_DISARM_LAND": 60,
-    "MC_PITCHRATE_MAX": 220,
-    "MC_ROLLRATE_MAX": 220,
-    "MC_YAWRATE_MAX": 200,
-    "NLF_LAND_V": 0.1,
-    "NLF_DOWN_R": 4
+    "MPC_XY_VEL_MAX": 35,
+    "MPC_VEL_MANUAL": 31,
+    "MPC_XY_CRUISE": 30,
+    "MPC_TILTMAX_AIR": 65,
+    "THR_MDL_FAC": 1,
+    "CA_ROTOR8_CT": 6.5,
+    "CA_ROTOR9_CT": 6.5
   },
   "design": {
-    "cruise_speed_kmh": 50,
+    "cruise_speed_kmh": 100,
     "groups": {
       "A": {
         "rotors": [
@@ -480,10 +509,10 @@
         8,
         9
       ],
-      "target_pitch_deg": 25,
+      "target_pitch_deg": 10,
       "rate_deg_s": 25,
       "assist_cmd": 0
     }
   },
-  "notes": ""
+  "notes": "Experimental simulator wing revision, 2026-09-17. NACA23012 NeuralFoil polars; span 3.5m, chords 1.65/1.35m, anhedral 3deg, washout 2deg, incidence 45deg. Original propulsion retained after alternative layout lost control in transition tests. JSBSim 115kg full takeoff/cruise/brake/hover/land completed; settled speed 97.0km/h, wing lift share 46.84%. Python engine showed lateral oscillation and lower speed, so cross-engine agreement unresolved. Not a construction or flight-qualified design. At 200kg the nose-lift sequence requests 127% available thrust. Power estimates are idealized, not electrical demand."
 }

@@ -4,7 +4,7 @@ The module lifts the nose to the existing 25° hover frame while ground contact 
 
 ## Repository setup
 
-This directory contains the self-contained experimental module and a simulator launcher.
+This directory contains the self-contained experimental module and a simulator launcher. The default model is `current-session.json`, a snapshot of the running ATLAS_09 session. Pass `atlas_07d.native.json` explicitly to use the earlier ATLAS_07D model.
 Activate the repository Python environment, set `PX4_SOURCE_DIR` to a compatible PX4 checkout,
 then follow the build instructions below. Run `python prepare_ui.py` before `python run_visible.py`.
 The generated UI and build outputs are ignored by Git. The launcher imports this repository,

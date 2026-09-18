@@ -11,7 +11,7 @@ import airframe_designer.server.app as server
 import airframe_designer.app as application
 from airframe_designer.sim.simulator import Simulator
 from landing_geometry import apply_landed_pitch
-MODEL=Path(sys.argv[1]).resolve() if len(sys.argv)>1 else BASE/'atlas_07d.native.json'
+MODEL=Path(sys.argv[1]).resolve() if len(sys.argv)>1 else BASE/'current-session.json'
 LIVE_SIM=None
 af=Airframe.load(str(MODEL))
 launch=connection.launch_px4

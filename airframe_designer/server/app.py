@@ -705,6 +705,74 @@ def build_app(state: AppState) -> FastAPI:
         sim.sensors.set_home(float(body["lat"]), float(body["lon"]), float(body.get("alt", 0.0)))
         return {"ok": True}
 
+    # Visible scenario runs share the interactive simulator and its websocket.
+    live = {"runner": None, "hook": None}
+
+    @app.post("/api/sim/scenario/start")
+    async def live_scenario_start(body: dict):
+        from ..sim.scenario import Scenario, ScenarioRunner, load_scenario
+        if state.conn.mode != "sitl":
+            return JSONResponse({"error": "Visible scripted tests require SITL"}, status_code=409)
+        if link.status().get("armed") or (live["runner"] and not live["runner"].done):
+            return JSONResponse({"error": "Disarm and finish the current test first"}, status_code=409)
+        try:
+            sc = load_scenario(SCENARIO_DIR / Path(str(body["scenario"])).name) if "scenario" in body else Scenario.from_dict(body)
+        except (ValueError, FileNotFoundError) as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+        if not sc.phases:
+            return JSONResponse({"error": "A test needs phases"}, status_code=400)
+        # Params must already have been pushed and verified; never block the sim hook on replies.
+        if sc.params:
+            return JSONResponse({"error": "Push scenario parameters before starting; omit params here"}, status_code=400)
+        with sim.lock:
+            if live["hook"] in sim.hooks:
+                sim.hooks.remove(live["hook"])
+            runner = ScenarioRunner(sc, state.link, log=state.log)
+            runner.max_time += sim.t
+            def step_live(simr):
+                if state.conn.mode != "sitl":
+                    runner.finish(simr, "connection changed", False)
+                    simr.hooks.remove(step_live)
+                    return
+                runner(simr)
+                if runner.done and step_live in simr.hooks:
+                    simr.hooks.remove(step_live)
+                    if not runner.ok:
+                        simr.paused = True
+            live.update(runner=runner, hook=step_live)
+            sim.hooks.append(step_live)
+            sim.speed = 1.0
+            sim.paused = False
+        return {"ok": True, "name": sc.name}
+
+    @app.get("/api/sim/scenario")
+    async def live_scenario_status():
+        # Keep metric rows and their phase labels aligned while the sim records.
+        with sim.lock:
+            r = live["runner"]
+            if r is None:
+                return {"running": False}
+            return json_safe({"running": not r.done, "phase": r.phase, **r.result(sim.airframe.mass.mass)})
+
+    @app.get("/api/sim/scenario/timeseries")
+    async def live_scenario_timeseries():
+        with sim.lock:
+            r = live["runner"]
+            return r.metrics.timeseries() if r else {"columns": [], "rows": [], "phase": []}
+
+    @app.post("/api/sim/scenario/stop")
+    async def live_scenario_stop():
+        if state.conn.mode != "sitl":
+            return JSONResponse({"error": "Visible scripted tests require SITL"}, status_code=409)
+        with sim.lock:
+            r = live["runner"]
+            if r and not r.done:
+                r.finish(sim, "stopped", False)
+            if live["hook"] in sim.hooks:
+                sim.hooks.remove(live["hook"])
+            sim.paused = True
+        return {"ok": True, "paused": True}
+
     # ------------------------------------------------------------ scenarios / batch / studies
     @app.get("/api/scenarios")
     async def list_scenarios():

@@ -1,0 +1,601 @@
+{
+  "schema": 2,
+  "name": "ATLAS_BWB_MIXED_70",
+  "mass": {
+    "mass": 150,
+    "cg": [
+      0.35,
+      0,
+      0
+    ],
+    "inertia": [
+      65,
+      95,
+      135
+    ],
+    "inertia_products": [
+      0,
+      0,
+      0
+    ],
+    "items": [],
+    "from_items": false
+  },
+  "body": {
+    "size": [
+      0.1,
+      0.1,
+      0.1
+    ],
+    "drag_quadratic": [
+      0.12,
+      0.3,
+      0.3
+    ],
+    "drag_angular": [
+      0.005,
+      0.005,
+      0.005
+    ],
+    "drag_center": [
+      0,
+      0,
+      0
+    ]
+  },
+  "rotors": [
+    {
+      "name": "M1",
+      "pos": [
+        -0.65,
+        -0.59,
+        0.12
+      ],
+      "axis": [
+        0.8160349234517084,
+        -0.08715574274765817,
+        -0.5713938048432696
+      ],
+      "km": 0.01,
+      "max_thrust": 360,
+      "tau": 0.12,
+      "diameter": 0.25,
+      "thrust_exponent": 2,
+      "kind": "ducted",
+      "ram_drag": true,
+      "duct_axis": [
+        1.0,
+        0.0,
+        0.0
+      ],
+      "turn_loss": 0.1,
+      "enabled": true
+    },
+    {
+      "name": "M2",
+      "pos": [
+        -0.65,
+        0.59,
+        0.12
+      ],
+      "axis": [
+        0.8160349234517084,
+        0.08715574274765817,
+        -0.5713938048432696
+      ],
+      "km": -0.01,
+      "max_thrust": 360,
+      "tau": 0.12,
+      "diameter": 0.25,
+      "thrust_exponent": 2,
+      "kind": "ducted",
+      "ram_drag": true,
+      "duct_axis": [
+        1.0,
+        0.0,
+        0.0
+      ],
+      "turn_loss": 0.1,
+      "enabled": true
+    },
+    {
+      "name": "M3",
+      "pos": [
+        -0.73,
+        -0.87,
+        0.2
+      ],
+      "axis": [
+        0.9924038765061041,
+        -0.08715574274765817,
+        -0.08682408883346514
+      ],
+      "km": -0.01,
+      "max_thrust": 360,
+      "tau": 0.12,
+      "diameter": 0.25,
+      "thrust_exponent": 2,
+      "kind": "ducted",
+      "ram_drag": true,
+      "duct_axis": [
+        1.0,
+        0.0,
+        0.0
+      ],
+      "turn_loss": 0.1,
+      "enabled": true
+    },
+    {
+      "name": "M4",
+      "pos": [
+        -0.73,
+        0.87,
+        0.2
+      ],
+      "axis": [
+        0.9924038765061041,
+        0.08715574274765817,
+        -0.08682408883346514
+      ],
+      "km": 0.01,
+      "max_thrust": 360,
+      "tau": 0.12,
+      "diameter": 0.25,
+      "thrust_exponent": 2,
+      "kind": "ducted",
+      "ram_drag": true,
+      "duct_axis": [
+        1.0,
+        0.0,
+        0.0
+      ],
+      "turn_loss": 0.1,
+      "enabled": true
+    },
+    {
+      "name": "M5",
+      "pos": [
+        -0.88,
+        -1.15,
+        0.3
+      ],
+      "axis": [
+        0.8160349234517084,
+        -0.08715574274765817,
+        -0.5713938048432696
+      ],
+      "km": 0.01,
+      "max_thrust": 360,
+      "tau": 0.12,
+      "diameter": 0.25,
+      "thrust_exponent": 2,
+      "kind": "ducted",
+      "ram_drag": true,
+      "duct_axis": [
+        1.0,
+        0.0,
+        0.0
+      ],
+      "turn_loss": 0.1,
+      "enabled": true
+    },
+    {
+      "name": "M6",
+      "pos": [
+        -0.88,
+        1.15,
+        0.3
+      ],
+      "axis": [
+        0.8160349234517084,
+        0.08715574274765817,
+        -0.5713938048432696
+      ],
+      "km": -0.01,
+      "max_thrust": 360,
+      "tau": 0.12,
+      "diameter": 0.25,
+      "thrust_exponent": 2,
+      "kind": "ducted",
+      "ram_drag": true,
+      "duct_axis": [
+        1.0,
+        0.0,
+        0.0
+      ],
+      "turn_loss": 0.1,
+      "enabled": true
+    },
+    {
+      "name": "M7",
+      "pos": [
+        -1.02,
+        -1.43,
+        0.4
+      ],
+      "axis": [
+        0.9924038765061041,
+        -0.08715574274765817,
+        -0.08682408883346514
+      ],
+      "km": -0.01,
+      "max_thrust": 360,
+      "tau": 0.12,
+      "diameter": 0.25,
+      "thrust_exponent": 2,
+      "kind": "ducted",
+      "ram_drag": true,
+      "duct_axis": [
+        1.0,
+        0.0,
+        0.0
+      ],
+      "turn_loss": 0.1,
+      "enabled": true
+    },
+    {
+      "name": "M8",
+      "pos": [
+        -1.02,
+        1.43,
+        0.4
+      ],
+      "axis": [
+        0.9924038765061041,
+        0.08715574274765817,
+        -0.08682408883346514
+      ],
+      "km": 0.01,
+      "max_thrust": 360,
+      "tau": 0.12,
+      "diameter": 0.25,
+      "thrust_exponent": 2,
+      "kind": "ducted",
+      "ram_drag": true,
+      "duct_axis": [
+        1.0,
+        0.0,
+        0.0
+      ],
+      "turn_loss": 0.1,
+      "enabled": true
+    },
+    {
+      "name": "M9",
+      "pos": [
+        1.05,
+        -0.19,
+        0.02
+      ],
+      "axis": [
+        0.9361168066628591,
+        -0.08715574274765817,
+        -0.3407186534216102
+      ],
+      "km": 0.01,
+      "max_thrust": 360,
+      "tau": 0.12,
+      "diameter": 0.25,
+      "thrust_exponent": 2,
+      "kind": "ducted",
+      "ram_drag": true,
+      "duct_axis": null,
+      "turn_loss": 0.1,
+      "enabled": true
+    },
+    {
+      "name": "M10",
+      "pos": [
+        1.05,
+        0.19,
+        0.02
+      ],
+      "axis": [
+        0.9361168066628591,
+        0.08715574274765817,
+        -0.3407186534216102
+      ],
+      "km": -0.01,
+      "max_thrust": 360,
+      "tau": 0.12,
+      "diameter": 0.25,
+      "thrust_exponent": 2,
+      "kind": "ducted",
+      "ram_drag": true,
+      "duct_axis": null,
+      "turn_loss": 0.1,
+      "enabled": true
+    },
+    {
+      "name": "M11",
+      "pos": [
+        1.4,
+        -0.19,
+        0.02
+      ],
+      "axis": [
+        0.9361168066628591,
+        -0.08715574274765817,
+        -0.3407186534216102
+      ],
+      "km": -0.01,
+      "max_thrust": 360,
+      "tau": 0.12,
+      "diameter": 0.25,
+      "thrust_exponent": 2,
+      "kind": "ducted",
+      "ram_drag": true,
+      "duct_axis": null,
+      "turn_loss": 0.1,
+      "enabled": true
+    },
+    {
+      "name": "M12",
+      "pos": [
+        1.4,
+        0.19,
+        0.02
+      ],
+      "axis": [
+        0.9361168066628591,
+        0.08715574274765817,
+        -0.3407186534216102
+      ],
+      "km": 0.01,
+      "max_thrust": 360,
+      "tau": 0.12,
+      "diameter": 0.25,
+      "thrust_exponent": 2,
+      "kind": "ducted",
+      "ram_drag": true,
+      "duct_axis": null,
+      "turn_loss": 0.1,
+      "enabled": true
+    }
+  ],
+  "wings": [
+    {
+      "name": "Lifting centerbody",
+      "enabled": true,
+      "pos": [
+        1.65,
+        0,
+        -0.25
+      ],
+      "root_y": 0,
+      "span": 0.8432086635364118,
+      "root_chord": 3.5,
+      "tip_chord": 2.65,
+      "sweep_deg": 30,
+      "dihedral_deg": -5,
+      "incidence_deg": 3,
+      "twist_deg": 0,
+      "pitch_deg": 0,
+      "symmetric": true,
+      "panels": 6,
+      "aspect_ratio": 1.8999148714118492,
+      "aero": {
+        "model": "polar",
+        "airfoil_root": "naca23018",
+        "airfoil_tip": "naca23012",
+        "polar_source": "neuralfoil",
+        "ncrit": 9,
+        "cl_alpha": 6.2832,
+        "cl0": 0,
+        "cd0": 0.02,
+        "oswald": 0.75,
+        "stall_deg": 30,
+        "stall_blend_deg": 15,
+        "cd_flat": 1.2,
+        "cm0": 0,
+        "vortex_lift": true
+      }
+    },
+    {
+      "name": "Blended shoulder",
+      "enabled": true,
+      "pos": [
+        1.406586625562114,
+        0,
+        -0.21325476131911192
+      ],
+      "root_y": 0.42,
+      "span": 1.1955118100458817,
+      "root_chord": 2.65,
+      "tip_chord": 1.45,
+      "sweep_deg": 52,
+      "dihedral_deg": -14,
+      "incidence_deg": 3,
+      "twist_deg": -1,
+      "pitch_deg": 0,
+      "symmetric": true,
+      "panels": 6,
+      "aspect_ratio": 1.8999148714118492,
+      "aero": {
+        "model": "polar",
+        "airfoil_root": "naca23012",
+        "airfoil_tip": "naca23012",
+        "polar_source": "neuralfoil",
+        "ncrit": 9,
+        "cl_alpha": 6.2832,
+        "cl0": 0,
+        "cd0": 0.02,
+        "oswald": 0.75,
+        "stall_deg": 30,
+        "stall_blend_deg": 15,
+        "cd_flat": 1.2,
+        "cm0": 0,
+        "vortex_lift": true
+      }
+    },
+    {
+      "name": "Outer anhedral wing",
+      "enabled": true,
+      "pos": [
+        0.6414939568340001,
+        0,
+        -0.06864451967006713
+      ],
+      "root_y": 1,
+      "span": 1.586431021780006,
+      "root_chord": 1.45,
+      "tip_chord": 0.32,
+      "sweep_deg": 38,
+      "dihedral_deg": -19,
+      "incidence_deg": 2,
+      "twist_deg": -2,
+      "pitch_deg": 0,
+      "symmetric": true,
+      "panels": 6,
+      "aspect_ratio": 1.8999148714118492,
+      "aero": {
+        "model": "polar",
+        "airfoil_root": "naca23012",
+        "airfoil_tip": "naca23012",
+        "polar_source": "neuralfoil",
+        "ncrit": 9,
+        "cl_alpha": 6.2832,
+        "cl0": 0,
+        "cd0": 0.02,
+        "oswald": 0.75,
+        "stall_deg": 30,
+        "stall_blend_deg": 15,
+        "cd_flat": 1.2,
+        "cm0": 0,
+        "vortex_lift": true
+      }
+    }
+  ],
+  "legs": [
+    {
+      "name": "FR",
+      "attach": [
+        1,
+        0.7,
+        0.2
+      ],
+      "length": 2.3546335440849426,
+      "tilt_deg": -64.156,
+      "cant_deg": 0,
+      "foot_radius": 0,
+      "stiffness": 18387.5,
+      "damping": 1328.6,
+      "friction": 0.8,
+      "enabled": true
+    },
+    {
+      "name": "FL",
+      "attach": [
+        1,
+        -0.7,
+        0.2
+      ],
+      "length": 2.3546335440849426,
+      "tilt_deg": -64.156,
+      "cant_deg": 0,
+      "foot_radius": 0,
+      "stiffness": 18387.5,
+      "damping": 1328.6,
+      "friction": 0.8,
+      "enabled": true
+    },
+    {
+      "name": "RR",
+      "attach": [
+        -0.30000000000000004,
+        0.7,
+        0.2
+      ],
+      "length": 1.2787407182304937,
+      "tilt_deg": -81.221,
+      "cant_deg": 180,
+      "foot_radius": 0,
+      "stiffness": 18387.5,
+      "damping": 1328.6,
+      "friction": 0.8,
+      "enabled": true
+    },
+    {
+      "name": "RL",
+      "attach": [
+        -0.30000000000000004,
+        -0.7,
+        0.2
+      ],
+      "length": 1.2787407182304937,
+      "tilt_deg": -81.221,
+      "cant_deg": -180,
+      "foot_radius": 0,
+      "stiffness": 18387.5,
+      "damping": 1328.6,
+      "friction": 0.8,
+      "enabled": true
+    }
+  ],
+  "hover_pitch_deg": 70.0,
+  "landed_pitch_deg": 70.0,
+  "px4_overrides": {
+    "MIS_TAKEOFF_ALT": 10,
+    "MPC_TKO_RAMP_T": 1,
+    "MPC_THR_HOVER": 0.45,
+    "MC_AIRMODE": 1,
+    "MPC_MAN_Y_MAX": 150,
+    "MC_YAWRATE_I": 0.01,
+    "CA_ROTOR0_CT": 6.244982045380683,
+    "CA_ROTOR1_CT": 6.244982045380683,
+    "CA_ROTOR2_CT": 6.448963629410889,
+    "CA_ROTOR3_CT": 6.448963629410889,
+    "CA_ROTOR4_CT": 6.244982045380683,
+    "CA_ROTOR5_CT": 6.244982045380683,
+    "CA_ROTOR6_CT": 6.448963629410889,
+    "CA_ROTOR7_CT": 6.448963629410889,
+    "IMU_INTEG_RATE": 250,
+    "SENS_MAG_AUTOCAL": 0,
+    "MC_PITCH_P": 2,
+    "MC_PITCHRATE_P": 0.5,
+    "MC_PITCHRATE_D": 0.035,
+    "MC_PITCHRATE_I": 0.01,
+    "MC_ROLL_P": 2,
+    "MC_ROLLRATE_P": 0.55,
+    "MC_ROLLRATE_D": 0.04,
+    "MPC_XY_VEL_MAX": 35,
+    "MPC_VEL_MANUAL": 31,
+    "MPC_XY_CRUISE": 30,
+    "MPC_TILTMAX_AIR": 80,
+    "THR_MDL_FAC": 1,
+    "CA_ROTOR8_CT": 6.5,
+    "CA_ROTOR9_CT": 6.5,
+    "CA_ROTOR10_CT": 6.5,
+    "CA_ROTOR11_CT": 6.5,
+    "MC_YAW_P": 1.2,
+    "MC_ROLLRATE_I": 0.01,
+    "MC_YAWRATE_P": 0.5,
+    "MC_YAWRATE_D": 0,
+    "MPC_XY_VEL_P_ACC": 1.2,
+    "MC_YAWRATE_K": 2
+  },
+  "design": {
+    "cruise_speed_kmh": 100,
+    "groups": {},
+    "nose_lift": {
+      "enabled": false,
+      "motors": [
+        8,
+        9,
+        10,
+        11
+      ],
+      "target_pitch_deg": 10,
+      "rate_deg_s": 25,
+      "assist_cmd": 0
+    },
+    "visual": {
+      "wing_colors": [
+        "#172c3e",
+        "#e8ecef",
+        "#f0f2f4"
+      ]
+    }
+  },
+  "notes": "Concept matching supplied renders. Joined lifting centerbody and anhedral wings. Shared planform AR is a strip-theory approximation, not validated 3-D blended-wing aerodynamics. Nominal masses and inertias are assumptions. Fixed EDF force directions; no moving surfaces. Ground supports are temporary simulator launch/landing supports for the pitched hover attitude, not engineered landing gear. Adjacent fixed jetfoil groups have different forward angles to increase differential-thrust yaw authority."
+}
