@@ -1,0 +1,150 @@
+[
+  {
+    "run": "landing_contact1",
+    "physics": "jsbsim",
+    "seed": 1,
+    "completed": true,
+    "phase_times": {
+      "lift": 13.028,
+      "climb": 22.1,
+      "handover_complete": 25.0,
+      "hover": 27.5
+    },
+    "aborts": [],
+    "ground": {
+      "duration_s": 9.072,
+      "last_pitch_deg": 24.177,
+      "peak_pitch_rate_deg_s": 9.232,
+      "contacts_preserved": true,
+      "peak_roll_deg": 0.018,
+      "yaw_change_deg": -0.004
+    },
+    "takeoff": {
+      "peak_pitch_deg": 32.137,
+      "minimum_pitch_deg": 13.747,
+      "peak_roll_deg": 0.848,
+      "horizontal_excursion_m": 1.266
+    },
+    "hover": {
+      "height_mean_m": 1.194,
+      "height_std_m": 0.013,
+      "pitch_mean_deg": 22.737,
+      "roll_max_deg": 0.224,
+      "yaw_drift_deg": 0.09,
+      "yaw_rate_max_deg_s": 0.312,
+      "horizontal_drift_m": 0.04
+    },
+    "passes_takeoff_checks": true
+  },
+  {
+    "run": "landing_contact2",
+    "physics": "jsbsim",
+    "seed": 2,
+    "completed": true,
+    "phase_times": {
+      "lift": 13.028,
+      "climb": 22.12,
+      "handover_complete": 25.004,
+      "hover": 27.5
+    },
+    "aborts": [],
+    "ground": {
+      "duration_s": 9.092,
+      "last_pitch_deg": 24.259,
+      "peak_pitch_rate_deg_s": 9.325,
+      "contacts_preserved": true,
+      "peak_roll_deg": 0.018,
+      "yaw_change_deg": -0.004
+    },
+    "takeoff": {
+      "peak_pitch_deg": 31.884,
+      "minimum_pitch_deg": 13.745,
+      "peak_roll_deg": 0.958,
+      "horizontal_excursion_m": 1.229
+    },
+    "hover": {
+      "height_mean_m": 1.181,
+      "height_std_m": 0.019,
+      "pitch_mean_deg": 22.71,
+      "roll_max_deg": 0.389,
+      "yaw_drift_deg": -0.459,
+      "yaw_rate_max_deg_s": 0.428,
+      "horizontal_drift_m": 0.039
+    },
+    "passes_takeoff_checks": true
+  },
+  {
+    "run": "landing_contact_py",
+    "physics": "python",
+    "seed": 1,
+    "completed": true,
+    "phase_times": {
+      "lift": 13.028,
+      "climb": 22.044,
+      "handover_complete": 24.484,
+      "hover": 26.836
+    },
+    "aborts": [],
+    "ground": {
+      "duration_s": 9.016,
+      "last_pitch_deg": 24.347,
+      "peak_pitch_rate_deg_s": 8.52,
+      "contacts_preserved": true,
+      "peak_roll_deg": 0.015,
+      "yaw_change_deg": 1.766
+    },
+    "takeoff": {
+      "peak_pitch_deg": 32.019,
+      "minimum_pitch_deg": 13.95,
+      "peak_roll_deg": 0.965,
+      "horizontal_excursion_m": 1.188
+    },
+    "hover": {
+      "height_mean_m": 1.265,
+      "height_std_m": 0.013,
+      "pitch_mean_deg": 22.737,
+      "roll_max_deg": 0.231,
+      "yaw_drift_deg": 0.063,
+      "yaw_rate_max_deg_s": 0.314,
+      "horizontal_drift_m": 0.037
+    },
+    "passes_takeoff_checks": true
+  },
+  {
+    "run": "landing_contact3",
+    "physics": "jsbsim",
+    "seed": 3,
+    "completed": true,
+    "phase_times": {
+      "lift": 13.028,
+      "climb": 22.12,
+      "handover_complete": 24.988,
+      "hover": 26.812
+    },
+    "aborts": [],
+    "ground": {
+      "duration_s": 9.092,
+      "last_pitch_deg": 24.242,
+      "peak_pitch_rate_deg_s": 9.27,
+      "contacts_preserved": true,
+      "peak_roll_deg": 0.017,
+      "yaw_change_deg": -0.004
+    },
+    "takeoff": {
+      "peak_pitch_deg": 32.821,
+      "minimum_pitch_deg": 12.917,
+      "peak_roll_deg": 0.973,
+      "horizontal_excursion_m": 1.357
+    },
+    "hover": {
+      "height_mean_m": 1.216,
+      "height_std_m": 0.01,
+      "pitch_mean_deg": 22.765,
+      "roll_max_deg": 0.427,
+      "yaw_drift_deg": -0.178,
+      "yaw_rate_max_deg_s": 0.387,
+      "horizontal_drift_m": 0.05
+    },
+    "passes_takeoff_checks": true
+  }
+]

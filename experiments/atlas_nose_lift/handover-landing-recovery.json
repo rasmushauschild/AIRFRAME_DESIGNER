@@ -1,0 +1,35 @@
+[
+  {
+    "run": "recovery09_s1",
+    "link_losses": 0,
+    "aborts": [],
+    "nose_touch": 71.544,
+    "shutdown": 72.556,
+    "motors_zero": 74.564,
+    "touch_to_zero_s": 3.019999999999996,
+    "completion": 76.084,
+    "final_disarmed": true
+  },
+  {
+    "run": "recovery09_s3",
+    "link_losses": 0,
+    "aborts": [],
+    "nose_touch": 71.484,
+    "shutdown": 72.5,
+    "motors_zero": 74.504,
+    "touch_to_zero_s": 3.0200000000000102,
+    "completion": 76.028,
+    "final_disarmed": true
+  },
+  {
+    "run": "recovery07_s1",
+    "link_losses": 0,
+    "aborts": [],
+    "nose_touch": 69.364,
+    "shutdown": 70.38,
+    "motors_zero": 72.384,
+    "touch_to_zero_s": 3.019999999999996,
+    "completion": 73.916,
+    "final_disarmed": true
+  }
+]

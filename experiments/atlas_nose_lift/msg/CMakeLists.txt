@@ -1,0 +1,1 @@
+set(config_msg_list_external AtlasNoseLiftFloor.msg PARENT_SCOPE)

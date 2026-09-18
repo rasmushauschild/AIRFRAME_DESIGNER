@@ -1,0 +1,79 @@
+// Frozen ATLAS_07D PX4 geometry; validates the module is attached to the intended model.
+#pragma once
+#include <parameters/param.h>
+#include <cmath>
+inline bool atlas_model_matches() {
+{ int32_t v{}; const param_t h=param_find("CA_ROTOR_COUNT"); if(h==PARAM_INVALID || param_get(h,&v)!=0 || !std::isfinite(float(v)) || fabsf(float(v)-(10.0f))>0.001f) { return false; } }
+{ float v{}; const param_t h=param_find("CA_ROTOR0_PX"); if(h==PARAM_INVALID || param_get(h,&v)!=0 || !std::isfinite(float(v)) || fabsf(float(v)-(-0.2127f))>0.001f) { return false; } }
+{ float v{}; const param_t h=param_find("CA_ROTOR0_PY"); if(h==PARAM_INVALID || param_get(h,&v)!=0 || !std::isfinite(float(v)) || fabsf(float(v)-(-0.37f))>0.001f) { return false; } }
+{ float v{}; const param_t h=param_find("CA_ROTOR0_PZ"); if(h==PARAM_INVALID || param_get(h,&v)!=0 || !std::isfinite(float(v)) || fabsf(float(v)-(0.2537f))>0.001f) { return false; } }
+{ float v{}; const param_t h=param_find("CA_ROTOR0_AX"); if(h==PARAM_INVALID || param_get(h,&v)!=0 || !std::isfinite(float(v)) || fabsf(float(v)-(-0.0f))>0.001f) { return false; } }
+{ float v{}; const param_t h=param_find("CA_ROTOR0_AY"); if(h==PARAM_INVALID || param_get(h,&v)!=0 || !std::isfinite(float(v)) || fabsf(float(v)-(0.0f))>0.001f) { return false; } }
+{ float v{}; const param_t h=param_find("CA_ROTOR0_AZ"); if(h==PARAM_INVALID || param_get(h,&v)!=0 || !std::isfinite(float(v)) || fabsf(float(v)-(-1.0f))>0.001f) { return false; } }
+{ float v{}; const param_t h=param_find("CA_ROTOR0_KM"); if(h==PARAM_INVALID || param_get(h,&v)!=0 || !std::isfinite(float(v)) || fabsf(float(v)-(0.01f))>0.001f) { return false; } }
+{ float v{}; const param_t h=param_find("CA_ROTOR1_PX"); if(h==PARAM_INVALID || param_get(h,&v)!=0 || !std::isfinite(float(v)) || fabsf(float(v)-(-0.2127f))>0.001f) { return false; } }
+{ float v{}; const param_t h=param_find("CA_ROTOR1_PY"); if(h==PARAM_INVALID || param_get(h,&v)!=0 || !std::isfinite(float(v)) || fabsf(float(v)-(0.37f))>0.001f) { return false; } }
+{ float v{}; const param_t h=param_find("CA_ROTOR1_PZ"); if(h==PARAM_INVALID || param_get(h,&v)!=0 || !std::isfinite(float(v)) || fabsf(float(v)-(0.2537f))>0.001f) { return false; } }
+{ float v{}; const param_t h=param_find("CA_ROTOR1_AX"); if(h==PARAM_INVALID || param_get(h,&v)!=0 || !std::isfinite(float(v)) || fabsf(float(v)-(-0.0f))>0.001f) { return false; } }
+{ float v{}; const param_t h=param_find("CA_ROTOR1_AY"); if(h==PARAM_INVALID || param_get(h,&v)!=0 || !std::isfinite(float(v)) || fabsf(float(v)-(0.0f))>0.001f) { return false; } }
+{ float v{}; const param_t h=param_find("CA_ROTOR1_AZ"); if(h==PARAM_INVALID || param_get(h,&v)!=0 || !std::isfinite(float(v)) || fabsf(float(v)-(-1.0f))>0.001f) { return false; } }
+{ float v{}; const param_t h=param_find("CA_ROTOR1_KM"); if(h==PARAM_INVALID || param_get(h,&v)!=0 || !std::isfinite(float(v)) || fabsf(float(v)-(0.01f))>0.001f) { return false; } }
+{ float v{}; const param_t h=param_find("CA_ROTOR2_PX"); if(h==PARAM_INVALID || param_get(h,&v)!=0 || !std::isfinite(float(v)) || fabsf(float(v)-(-0.2112f))>0.001f) { return false; } }
+{ float v{}; const param_t h=param_find("CA_ROTOR2_PY"); if(h==PARAM_INVALID || param_get(h,&v)!=0 || !std::isfinite(float(v)) || fabsf(float(v)-(-0.28f))>0.001f) { return false; } }
+{ float v{}; const param_t h=param_find("CA_ROTOR2_PZ"); if(h==PARAM_INVALID || param_get(h,&v)!=0 || !std::isfinite(float(v)) || fabsf(float(v)-(0.1978f))>0.001f) { return false; } }
+{ float v{}; const param_t h=param_find("CA_ROTOR2_AX"); if(h==PARAM_INVALID || param_get(h,&v)!=0 || !std::isfinite(float(v)) || fabsf(float(v)-(0.0872f))>0.001f) { return false; } }
+{ float v{}; const param_t h=param_find("CA_ROTOR2_AY"); if(h==PARAM_INVALID || param_get(h,&v)!=0 || !std::isfinite(float(v)) || fabsf(float(v)-(0.0f))>0.001f) { return false; } }
+{ float v{}; const param_t h=param_find("CA_ROTOR2_AZ"); if(h==PARAM_INVALID || param_get(h,&v)!=0 || !std::isfinite(float(v)) || fabsf(float(v)-(-0.9962f))>0.001f) { return false; } }
+{ float v{}; const param_t h=param_find("CA_ROTOR2_KM"); if(h==PARAM_INVALID || param_get(h,&v)!=0 || !std::isfinite(float(v)) || fabsf(float(v)-(0.01f))>0.001f) { return false; } }
+{ float v{}; const param_t h=param_find("CA_ROTOR3_PX"); if(h==PARAM_INVALID || param_get(h,&v)!=0 || !std::isfinite(float(v)) || fabsf(float(v)-(-0.2112f))>0.001f) { return false; } }
+{ float v{}; const param_t h=param_find("CA_ROTOR3_PY"); if(h==PARAM_INVALID || param_get(h,&v)!=0 || !std::isfinite(float(v)) || fabsf(float(v)-(0.28f))>0.001f) { return false; } }
+{ float v{}; const param_t h=param_find("CA_ROTOR3_PZ"); if(h==PARAM_INVALID || param_get(h,&v)!=0 || !std::isfinite(float(v)) || fabsf(float(v)-(0.1978f))>0.001f) { return false; } }
+{ float v{}; const param_t h=param_find("CA_ROTOR3_AX"); if(h==PARAM_INVALID || param_get(h,&v)!=0 || !std::isfinite(float(v)) || fabsf(float(v)-(0.0872f))>0.001f) { return false; } }
+{ float v{}; const param_t h=param_find("CA_ROTOR3_AY"); if(h==PARAM_INVALID || param_get(h,&v)!=0 || !std::isfinite(float(v)) || fabsf(float(v)-(0.0f))>0.001f) { return false; } }
+{ float v{}; const param_t h=param_find("CA_ROTOR3_AZ"); if(h==PARAM_INVALID || param_get(h,&v)!=0 || !std::isfinite(float(v)) || fabsf(float(v)-(-0.9962f))>0.001f) { return false; } }
+{ float v{}; const param_t h=param_find("CA_ROTOR3_KM"); if(h==PARAM_INVALID || param_get(h,&v)!=0 || !std::isfinite(float(v)) || fabsf(float(v)-(0.01f))>0.001f) { return false; } }
+{ float v{}; const param_t h=param_find("CA_ROTOR4_PX"); if(h==PARAM_INVALID || param_get(h,&v)!=0 || !std::isfinite(float(v)) || fabsf(float(v)-(-0.2097f))>0.001f) { return false; } }
+{ float v{}; const param_t h=param_find("CA_ROTOR4_PY"); if(h==PARAM_INVALID || param_get(h,&v)!=0 || !std::isfinite(float(v)) || fabsf(float(v)-(-0.2f))>0.001f) { return false; } }
+{ float v{}; const param_t h=param_find("CA_ROTOR4_PZ"); if(h==PARAM_INVALID || param_get(h,&v)!=0 || !std::isfinite(float(v)) || fabsf(float(v)-(0.1419f))>0.001f) { return false; } }
+{ float v{}; const param_t h=param_find("CA_ROTOR4_AX"); if(h==PARAM_INVALID || param_get(h,&v)!=0 || !std::isfinite(float(v)) || fabsf(float(v)-(0.1736f))>0.001f) { return false; } }
+{ float v{}; const param_t h=param_find("CA_ROTOR4_AY"); if(h==PARAM_INVALID || param_get(h,&v)!=0 || !std::isfinite(float(v)) || fabsf(float(v)-(0.0f))>0.001f) { return false; } }
+{ float v{}; const param_t h=param_find("CA_ROTOR4_AZ"); if(h==PARAM_INVALID || param_get(h,&v)!=0 || !std::isfinite(float(v)) || fabsf(float(v)-(-0.9848f))>0.001f) { return false; } }
+{ float v{}; const param_t h=param_find("CA_ROTOR4_KM"); if(h==PARAM_INVALID || param_get(h,&v)!=0 || !std::isfinite(float(v)) || fabsf(float(v)-(0.01f))>0.001f) { return false; } }
+{ float v{}; const param_t h=param_find("CA_ROTOR5_PX"); if(h==PARAM_INVALID || param_get(h,&v)!=0 || !std::isfinite(float(v)) || fabsf(float(v)-(-0.2097f))>0.001f) { return false; } }
+{ float v{}; const param_t h=param_find("CA_ROTOR5_PY"); if(h==PARAM_INVALID || param_get(h,&v)!=0 || !std::isfinite(float(v)) || fabsf(float(v)-(0.2f))>0.001f) { return false; } }
+{ float v{}; const param_t h=param_find("CA_ROTOR5_PZ"); if(h==PARAM_INVALID || param_get(h,&v)!=0 || !std::isfinite(float(v)) || fabsf(float(v)-(0.1419f))>0.001f) { return false; } }
+{ float v{}; const param_t h=param_find("CA_ROTOR5_AX"); if(h==PARAM_INVALID || param_get(h,&v)!=0 || !std::isfinite(float(v)) || fabsf(float(v)-(0.1736f))>0.001f) { return false; } }
+{ float v{}; const param_t h=param_find("CA_ROTOR5_AY"); if(h==PARAM_INVALID || param_get(h,&v)!=0 || !std::isfinite(float(v)) || fabsf(float(v)-(0.0f))>0.001f) { return false; } }
+{ float v{}; const param_t h=param_find("CA_ROTOR5_AZ"); if(h==PARAM_INVALID || param_get(h,&v)!=0 || !std::isfinite(float(v)) || fabsf(float(v)-(-0.9848f))>0.001f) { return false; } }
+{ float v{}; const param_t h=param_find("CA_ROTOR5_KM"); if(h==PARAM_INVALID || param_get(h,&v)!=0 || !std::isfinite(float(v)) || fabsf(float(v)-(0.01f))>0.001f) { return false; } }
+{ float v{}; const param_t h=param_find("CA_ROTOR6_PX"); if(h==PARAM_INVALID || param_get(h,&v)!=0 || !std::isfinite(float(v)) || fabsf(float(v)-(-0.2081f))>0.001f) { return false; } }
+{ float v{}; const param_t h=param_find("CA_ROTOR6_PY"); if(h==PARAM_INVALID || param_get(h,&v)!=0 || !std::isfinite(float(v)) || fabsf(float(v)-(-0.11f))>0.001f) { return false; } }
+{ float v{}; const param_t h=param_find("CA_ROTOR6_PZ"); if(h==PARAM_INVALID || param_get(h,&v)!=0 || !std::isfinite(float(v)) || fabsf(float(v)-(0.086f))>0.001f) { return false; } }
+{ float v{}; const param_t h=param_find("CA_ROTOR6_AX"); if(h==PARAM_INVALID || param_get(h,&v)!=0 || !std::isfinite(float(v)) || fabsf(float(v)-(0.2589f))>0.001f) { return false; } }
+{ float v{}; const param_t h=param_find("CA_ROTOR6_AY"); if(h==PARAM_INVALID || param_get(h,&v)!=0 || !std::isfinite(float(v)) || fabsf(float(v)-(0.0f))>0.001f) { return false; } }
+{ float v{}; const param_t h=param_find("CA_ROTOR6_AZ"); if(h==PARAM_INVALID || param_get(h,&v)!=0 || !std::isfinite(float(v)) || fabsf(float(v)-(-0.9659f))>0.001f) { return false; } }
+{ float v{}; const param_t h=param_find("CA_ROTOR6_KM"); if(h==PARAM_INVALID || param_get(h,&v)!=0 || !std::isfinite(float(v)) || fabsf(float(v)-(0.01f))>0.001f) { return false; } }
+{ float v{}; const param_t h=param_find("CA_ROTOR7_PX"); if(h==PARAM_INVALID || param_get(h,&v)!=0 || !std::isfinite(float(v)) || fabsf(float(v)-(-0.2081f))>0.001f) { return false; } }
+{ float v{}; const param_t h=param_find("CA_ROTOR7_PY"); if(h==PARAM_INVALID || param_get(h,&v)!=0 || !std::isfinite(float(v)) || fabsf(float(v)-(0.11f))>0.001f) { return false; } }
+{ float v{}; const param_t h=param_find("CA_ROTOR7_PZ"); if(h==PARAM_INVALID || param_get(h,&v)!=0 || !std::isfinite(float(v)) || fabsf(float(v)-(0.086f))>0.001f) { return false; } }
+{ float v{}; const param_t h=param_find("CA_ROTOR7_AX"); if(h==PARAM_INVALID || param_get(h,&v)!=0 || !std::isfinite(float(v)) || fabsf(float(v)-(0.2589f))>0.001f) { return false; } }
+{ float v{}; const param_t h=param_find("CA_ROTOR7_AY"); if(h==PARAM_INVALID || param_get(h,&v)!=0 || !std::isfinite(float(v)) || fabsf(float(v)-(0.0f))>0.001f) { return false; } }
+{ float v{}; const param_t h=param_find("CA_ROTOR7_AZ"); if(h==PARAM_INVALID || param_get(h,&v)!=0 || !std::isfinite(float(v)) || fabsf(float(v)-(-0.9659f))>0.001f) { return false; } }
+{ float v{}; const param_t h=param_find("CA_ROTOR7_KM"); if(h==PARAM_INVALID || param_get(h,&v)!=0 || !std::isfinite(float(v)) || fabsf(float(v)-(0.01f))>0.001f) { return false; } }
+{ float v{}; const param_t h=param_find("CA_ROTOR8_PX"); if(h==PARAM_INVALID || param_get(h,&v)!=0 || !std::isfinite(float(v)) || fabsf(float(v)-(0.4416f))>0.001f) { return false; } }
+{ float v{}; const param_t h=param_find("CA_ROTOR8_PY"); if(h==PARAM_INVALID || param_get(h,&v)!=0 || !std::isfinite(float(v)) || fabsf(float(v)-(0.0f))>0.001f) { return false; } }
+{ float v{}; const param_t h=param_find("CA_ROTOR8_PZ"); if(h==PARAM_INVALID || param_get(h,&v)!=0 || !std::isfinite(float(v)) || fabsf(float(v)-(-0.1177f))>0.001f) { return false; } }
+{ float v{}; const param_t h=param_find("CA_ROTOR8_AX"); if(h==PARAM_INVALID || param_get(h,&v)!=0 || !std::isfinite(float(v)) || fabsf(float(v)-(-0.366f))>0.001f) { return false; } }
+{ float v{}; const param_t h=param_find("CA_ROTOR8_AY"); if(h==PARAM_INVALID || param_get(h,&v)!=0 || !std::isfinite(float(v)) || fabsf(float(v)-(0.5f))>0.001f) { return false; } }
+{ float v{}; const param_t h=param_find("CA_ROTOR8_AZ"); if(h==PARAM_INVALID || param_get(h,&v)!=0 || !std::isfinite(float(v)) || fabsf(float(v)-(-0.7849f))>0.001f) { return false; } }
+{ float v{}; const param_t h=param_find("CA_ROTOR8_KM"); if(h==PARAM_INVALID || param_get(h,&v)!=0 || !std::isfinite(float(v)) || fabsf(float(v)-(0.01f))>0.001f) { return false; } }
+{ float v{}; const param_t h=param_find("CA_ROTOR9_PX"); if(h==PARAM_INVALID || param_get(h,&v)!=0 || !std::isfinite(float(v)) || fabsf(float(v)-(0.5413f))>0.001f) { return false; } }
+{ float v{}; const param_t h=param_find("CA_ROTOR9_PY"); if(h==PARAM_INVALID || param_get(h,&v)!=0 || !std::isfinite(float(v)) || fabsf(float(v)-(0.0f))>0.001f) { return false; } }
+{ float v{}; const param_t h=param_find("CA_ROTOR9_PZ"); if(h==PARAM_INVALID || param_get(h,&v)!=0 || !std::isfinite(float(v)) || fabsf(float(v)-(-0.1642f))>0.001f) { return false; } }
+{ float v{}; const param_t h=param_find("CA_ROTOR9_AX"); if(h==PARAM_INVALID || param_get(h,&v)!=0 || !std::isfinite(float(v)) || fabsf(float(v)-(-0.366f))>0.001f) { return false; } }
+{ float v{}; const param_t h=param_find("CA_ROTOR9_AY"); if(h==PARAM_INVALID || param_get(h,&v)!=0 || !std::isfinite(float(v)) || fabsf(float(v)-(-0.5f))>0.001f) { return false; } }
+{ float v{}; const param_t h=param_find("CA_ROTOR9_AZ"); if(h==PARAM_INVALID || param_get(h,&v)!=0 || !std::isfinite(float(v)) || fabsf(float(v)-(-0.7849f))>0.001f) { return false; } }
+{ float v{}; const param_t h=param_find("CA_ROTOR9_KM"); if(h==PARAM_INVALID || param_get(h,&v)!=0 || !std::isfinite(float(v)) || fabsf(float(v)-(0.01f))>0.001f) { return false; } }
+{ float v{}; const param_t h=param_find("SENS_BOARD_Y_OFF"); if(h==PARAM_INVALID || param_get(h,&v)!=0 || !std::isfinite(float(v)) || fabsf(float(v)-(25.0f))>0.001f) { return false; } }
+float factor{}; const param_t h=param_find("THR_MDL_FAC"); if(h==PARAM_INVALID || param_get(h,&factor)!=0) { return false; } return std::isfinite(factor) && fabsf(factor)<0.0001f;
+}

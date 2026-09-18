@@ -1,0 +1,72 @@
+{
+  "takeoff": {
+    "run": "publish_verified",
+    "physics": "jsbsim",
+    "seed": 1,
+    "completed": true,
+    "phase_times": {
+      "lift": 13.028,
+      "climb": 22.104,
+      "handover_complete": 24.988,
+      "hover": 27.508
+    },
+    "aborts": [],
+    "ground": {
+      "duration_s": 9.076,
+      "last_pitch_deg": 24.176,
+      "peak_pitch_rate_deg_s": 9.243,
+      "contacts_preserved": true,
+      "peak_roll_deg": 0.018,
+      "yaw_change_deg": -0.004
+    },
+    "takeoff": {
+      "peak_pitch_deg": 32.152,
+      "minimum_pitch_deg": 13.707,
+      "peak_roll_deg": 0.859,
+      "horizontal_excursion_m": 1.267
+    },
+    "hover": {
+      "height_mean_m": 1.197,
+      "height_std_m": 0.013,
+      "pitch_mean_deg": 22.737,
+      "roll_max_deg": 0.227,
+      "yaw_drift_deg": 0.097,
+      "yaw_rate_max_deg_s": 0.315,
+      "horizontal_drift_m": 0.041
+    },
+    "passes_takeoff_checks": true
+  },
+  "landing": {
+    "run": "publish_verified",
+    "physics": "jsbsim",
+    "seed": 1,
+    "completed": true,
+    "phase_times": {
+      "descend": 50.004,
+      "lower_nose": 59.488,
+      "shutdown": 70.404,
+      "complete": 73.924
+    },
+    "aborts": [],
+    "rear_touchdown_time_s": 59.264,
+    "rear_touchdown_descent_m_s": 0.1032,
+    "rear_touchdown_pitch_deg": 22.859,
+    "nose_clearance_at_rear_touchdown_m": 0.532,
+    "nose_touchdown_time_s": 69.384,
+    "nose_touchdown_pitch_deg": -11.799,
+    "lowering_peak_pitch_rate_deg_s": 5.004,
+    "ground_contact_preserved": true,
+    "rear_feet_contact_preserved": true,
+    "peak_roll_deg": 0.431,
+    "rear_support_drift_m": 0.009,
+    "landing_horizontal_excursion_m": 0.183,
+    "disarm_time_s": 72.924,
+    "nose_grounded_before_disarm": true,
+    "nose_grounded_before_shutdown": true,
+    "final_pitch_deg": -12.75,
+    "final_disarmed": true,
+    "all_motors_off": true,
+    "passes_landing_checks": true
+  },
+  "link_losses": 0
+}

@@ -1,0 +1,67 @@
+module_name: atlas_nose_lift
+parameters:
+- group: ATLAS Nose Lift
+  definitions:
+    NLF_ENABLE:
+      description:
+        short: Enable experimental SITL nose lift
+      type: int32
+      default: 0
+      min: 0
+      max: 1
+    NLF_TARGET:
+      description:
+        short: Nose lift target structural pitch
+        long: Ground sequence target only. Fixed hover frame remains 25 degrees. Experimental SITL setting; revalidate takeoff after changes.
+      type: float
+      unit: deg
+      default: 25
+    NLF_RATE:
+      description:
+        short: Pitch ramp rate
+      type: float
+      default: 5
+      min: 1
+      max: 15
+    NLF_RAMP:
+      description:
+        short: Ground thrust ramp duration
+      type: float
+      default: 1.5
+      min: 1
+      max: 10
+    NLF_DWELL:
+      description:
+        short: Settled attitude dwell duration
+      type: float
+      default: 1
+      min: 0.5
+      max: 5
+    NLF_ALT:
+      description:
+        short: Takeoff altitude above starting position
+      type: float
+      default: 1
+      min: 0.5
+      max: 5
+    NLF_TIMEOUT:
+      description:
+        short: Ground rotation timeout
+      type: float
+      default: 25
+      min: 10
+      max: 60
+    NLF_LAND_V:
+      description:
+        short: Landing descent speed
+      type: float
+      default: 0.1
+      min: 0.05
+      max: 0.3
+    NLF_DOWN_R:
+      description:
+        short: Nose lowering rate
+      type: float
+      default: 3
+      min: 1
+      max: 5

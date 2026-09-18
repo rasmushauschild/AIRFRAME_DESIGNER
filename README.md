@@ -136,3 +136,7 @@ Body frame FRD; a rotor pointing up has axis `(0, 0, -1)`; rotor *i* is PX4 Moto
 `km > 0` spins CCW seen from above and torque on the body is `-km·T·axis`. Airframes that hover nose-up set
 `hover_pitch_deg`: the geometry is exported rotated into that frame and `SENS_BOARD_Y_OFF` tells PX4 its IMU sits
 in the structural frame.
+
+## Experimental ATLAS PX4 ground sequences
+
+See [ATLAS nose-lift takeoff and landing](experiments/atlas_nose_lift/README.md) for the SITL-only native PX4 module, simulator controls, build instructions, and validation summaries.

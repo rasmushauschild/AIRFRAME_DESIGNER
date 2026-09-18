@@ -261,7 +261,10 @@ class JSBSimBody:
     # -- state
     def _read_state(self) -> None:
         f = self.fdm
-        n = f["position/distance-from-start-lat-mt"]; e = f["position/distance-from-start-lon-mt"]
+        # The distance-from-start lat/lon properties are unsigned distances.
+        # Use signed local coordinates so south/west motion agrees with velocity and GPS.
+        n = f["position/from-start-neu-n-ft"] / FT
+        e = f["position/from-start-neu-e-ft"] / FT
         d = -(f["position/h-agl-ft"] / FT)
         self.pos = np.array([n, e, d])
         self.vel = np.array([f["velocities/v-north-fps"], f["velocities/v-east-fps"], f["velocities/v-down-fps"]]) / FT

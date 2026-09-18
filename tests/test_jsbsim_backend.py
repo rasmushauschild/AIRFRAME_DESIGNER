@@ -47,3 +47,26 @@ def test_soft_legs_settle_to_spring_equilibrium():
         py.step(0.001, False); jb.step(0.001, False)
     assert abs(py.pos[2] - jb.pos[2]) < 0.02
     assert abs(math.degrees(py.euler[1]) - math.degrees(jb.euler[1])) < 0.3
+
+
+@pytest.mark.parametrize("vn,ve", [(5., 3.), (-5., 3.), (5., -3.), (-5., -3.)])
+def test_signed_horizontal_position_agrees_with_integrated_velocity(vn, ve):
+    from airframe_designer.dynamics.jsbsim_backend import FT
+    jb = JSBSimBody(quad_x())
+    f = jb.fdm
+    f["ic/h-agl-ft"] = 100 * FT
+    f["ic/u-fps"] = vn * FT
+    f["ic/v-fps"] = ve * FT
+    f["ic/w-fps"] = 0.
+    f.run_ic()
+    jb._read_state()
+    origin = jb.pos[:2].copy()
+    integrated = np.zeros(2)
+    for _ in range(500):
+        before = jb.vel[:2].copy()
+        jb.step(.001, False)
+        integrated += (before + jb.vel[:2]) * .0005
+    displacement = jb.pos[:2] - origin
+    assert np.sign(displacement[0]) == np.sign(vn)
+    assert np.sign(displacement[1]) == np.sign(ve)
+    np.testing.assert_allclose(displacement, integrated, atol=.01)
