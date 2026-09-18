@@ -57,12 +57,12 @@ s=s.replace("  const nlHint = $('#nl-card .hint');", """  const targetInput = $(
   if (nativeNoseLift) {
     targetInput.disabled = !!status.armed || !status.ctl_connected;
     targetInput.step = 'any';
-    targetInput.title = 'PX4 NLF_TARGET: ground nose lift angle. Hover frame stays 25°.';
+    targetInput.title = 'PX4 NLF_TARGET: ground nose lift angle. Hover pitch is configured separately.';
     if (document.activeElement !== targetInput) targetInput.value = (params.NLF_TARGET || {}).value ?? (airframe.px4_overrides || {}).NLF_TARGET ?? 25;
   }
   const nlHint = $('#nl-card .hint');""")
 s=s.replace("'PX4 arms, raises the nose to 25 degrees, then climbs 1 metre and holds heading'", "'PX4 arms, raises the nose to the configured target, then climbs and holds heading'")
-s=s.replace("It arms, lifts the nose to 25°, then takes off and holds heading.", "Set Takeoff pitch° in the Geometry tab before takeoff. The airborne hover frame remains 25°.")
+s=s.replace("It arms, lifts the nose to 25°, then takes off and holds heading.", "Set Takeoff pitch° in the Geometry tab before takeoff. Hover pitch and Landed pitch are configured in Geometry.")
 s=s.replace("These simulator-only controls are inactive.", "Other controls in this card are simulator-only and inactive.")
 old = "$$('#nl-card input').forEach(inp => inp.addEventListener('change', () => { airframe.design.nose_lift = noseLiftCfg(); pushAirframe(true); }));"
 new = """$$('#nl-card input').forEach(inp => { inp.onchange = () => {
@@ -108,6 +108,37 @@ s=s.replace("$('#mode-pills button[data-mode=\"land\"]')", "$('#btn-land')")
 s=s.replace("$$('#tab-sim button[data-cmd]')", "$$('#tab-sim button[data-cmd], #btn-land')")
 s=s.replace("landButton.disabled = nativeNoseLift && !status.armed;", "landButton.disabled = !status.ctl_connected || !status.armed;")
 s=s.replace('Use Nose lift + Takeoff (PX4) below', 'Use Takeoff below').replace('Then use Land + lower nose above.', 'Then use Land below.')
+s=s.replace("bindNumber('af-landed', v => airframe.landed_pitch_deg = v);", """$('#af-landed').addEventListener('change', async e => {
+  const value = Number(e.target.value);
+  if (status.armed || !Number.isFinite(value)) { e.target.value = airframe.landed_pitch_deg; return; }
+  try {
+    const result = await api(status.ctl_connected ? '/api/params/set' : '/api/airframe/override', { name: 'NLF_LAND_ANG', value });
+    if (!result.ok) throw new Error(result.error || 'Landed pitch was not saved');
+    airframe.landed_pitch_deg = value;
+    airframe.px4_overrides = { ...(airframe.px4_overrides || {}), NLF_LAND_ANG: value };
+    params.NLF_LAND_ANG = { ...(params.NLF_LAND_ANG || {}), value };
+    scene.setAirframe(airframe); pushAirframe(true);
+    logLine('[ui] Landed pitch saved: ' + value + '°');
+  } catch(e) { logLine('[ui] ' + e.message); $('#af-landed').value = airframe.landed_pitch_deg; }
+});""")
+s=s.replace("  const targetInput = $('#af-takeoff');", """  $('#af-hover').disabled = !!status.armed;
+  $('#af-landed').disabled = !!status.armed;
+  const targetInput = $('#af-takeoff');""")
+# Synchronize the explicit landed angle before starting the native sequence.
+s=s.replace("      if (status.armed) return;", """      if (status.armed) return;
+      const landing = await api('/api/params/set', { name: 'NLF_LAND_ANG', value: Number(airframe.landed_pitch_deg) });
+      if (!landing.ok) throw new Error(landing.error || 'Could not apply landed pitch');""", 1)
+# Landed pitch is derived by the server whenever the leg geometry changes.
+start = s.index("$('#af-landed').addEventListener('change', async e => {")
+end = s.index("\n});", start) + len("\n});")
+s = s[:start] + s[end:]
+s=s.replace("$('#af-landed').disabled = !!status.armed;", "$('#af-landed').readOnly = true;")
+s=s.replace("      // the server resolves mass.from_items", """      if (res.airframe) {
+        airframe.landed_pitch_deg = res.airframe.landed_pitch_deg;
+        airframe.px4_overrides = { ...(airframe.px4_overrides || {}), NLF_LAND_ANG: res.airframe.landed_pitch_deg };
+        $('#af-landed').value = res.airframe.landed_pitch_deg;
+      }
+      // the server resolves mass.from_items""")
 p.write_text(s)
 h = base/'ui/index.html'
 html = h.read_text()
@@ -125,4 +156,8 @@ takeoff_mode_line = next(line for line in html.splitlines() if 'data-mode="takeo
 html = html.replace(takeoff_mode_line + '\n', '')
 takeoff_line = next(line for line in html.splitlines() if 'id="btn-takeoff"' in line)
 html = html.replace(takeoff_line, takeoff_line + '\n      <button id="btn-land" class="pill" data-cmd="mode" data-mode="land" disabled>Land</button>')
+html = html.replace('Nose-up pitch of the airframe when it stands on its legs; the simulator rests the vehicle at this attitude.', 'Calculated automatically from the enabled landing feet. Actual resting pitch can differ slightly as the legs compress.')
+line = next(line for line in html.splitlines() if 'id="af-landed"' in line)
+html = html.replace(line, line + '\n        <span class="hint">After changing hover pitch, use Update PX4, then Reset. Landed pitch is calculated from the landing legs.</span>')
+html=html.replace('Landed pitch° <input', 'Landed pitch° (auto) <input')
 h.write_text(html)

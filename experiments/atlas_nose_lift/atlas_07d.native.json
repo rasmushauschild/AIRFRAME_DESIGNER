@@ -359,7 +359,7 @@
     }
   ],
   "hover_pitch_deg": 25.0,
-  "landed_pitch_deg": 0.0,
+  "landed_pitch_deg": -13,
   "px4_overrides": {
     "MIS_TAKEOFF_ALT": 1,
     "MPC_TKO_RAMP_T": 1,
@@ -398,7 +398,8 @@
     "MC_ROLLRATE_MAX": 220.0,
     "MC_YAWRATE_MAX": 200.0,
     "NLF_LAND_V": 0.1,
-    "NLF_DOWN_R": 4.0
+    "NLF_DOWN_R": 4.0,
+    "NLF_LAND_ANG": -13
   },
   "design": {
     "cruise_speed_kmh": 50,

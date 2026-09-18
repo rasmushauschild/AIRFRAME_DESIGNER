@@ -10,7 +10,6 @@ from airframe_designer.sim.simulator import Simulator
 from airframe_designer.dynamics.quaternion import q_to_rotmat
 from airframe_designer.batch.worker import BATCH_PX4_DEFAULTS
 base=Path(__file__).resolve().parent
-(base_results := Path(__file__).resolve().parent/'results').mkdir(exist_ok=True)
 name=sys.argv[1] if len(sys.argv)>1 else 'trial'
 extra=json.loads(sys.argv[2]) if len(sys.argv)>2 else {}
 physics=sys.argv[3] if len(sys.argv)>3 else 'jsbsim'
@@ -21,6 +20,9 @@ af=Airframe.load(os.environ.get('NLF_TEST_MODEL',str(Path(__file__).resolve().pa
 params=dict(BATCH_PX4_DEFAULTS)
 params.update(af.px4_params_sitl())
 params.update({'NLF_ENABLE':1,'MC_PITCHRATE_MAX':220.0,'MC_ROLLRATE_MAX':220.0,'MC_YAWRATE_MAX':200.0,'COM_DISARM_PRFLT':40.0,'COM_DISARM_LAND':5.0})
+if os.environ.get('NLF_HOVER_ANGLE'):
+ af.hover_pitch_deg=float(os.environ['NLF_HOVER_ANGLE'])
+ params.update(af.px4_params_sitl())
 params.update(extra)
 meta,_=param_meta.load_local(root,None)
 types=param_types_from_meta(meta)

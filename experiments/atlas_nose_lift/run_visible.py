@@ -10,22 +10,30 @@ import airframe_designer.px4.connection as connection
 import airframe_designer.server.app as server
 import airframe_designer.app as application
 from airframe_designer.sim.simulator import Simulator
+from landing_geometry import apply_landed_pitch
 MODEL=Path(sys.argv[1]).resolve() if len(sys.argv)>1 else BASE/'atlas_07d.native.json'
 LIVE_SIM=None
 af=Airframe.load(str(MODEL))
 launch=connection.launch_px4
 def seeded(px4_dir,model,log,**kw):
     current=LIVE_SIM.airframe if LIVE_SIM is not None else Airframe.load(str(MODEL))
-    kw.update(params={**BATCH_PX4_DEFAULTS,**current.px4_params_sitl()},param_types=px4_param_types(px4_dir),fresh=True)
+    apply_landed_pitch(current)
+    kw.update(params={**BATCH_PX4_DEFAULTS,**current.px4_params_sitl(), 'NLF_LAND_ANG':current.landed_pitch_deg},param_types=px4_param_types(px4_dir),fresh=True)
     return launch(px4_dir,model,log,**kw)
 connection.launch_px4=seeded
 server.UI_DIR=BASE/'ui'
 class DemoSimulator(Simulator):
     def __init__(self,*args,**kwargs):
+        frame = args[0] if args else kwargs['airframe']
+        apply_landed_pitch(frame)
         kwargs.update(physics='jsbsim',physics_substeps=4,seed=1)
         super().__init__(*args,**kwargs)
         global LIVE_SIM
         LIVE_SIM=self
+    def set_airframe(self, airframe, keep_state=True):
+        apply_landed_pitch(airframe)
+        return super().set_airframe(airframe, keep_state=keep_state)
+
 class DemoConnectionManager(connection.ConnectionManager):
     def connect_sitl(self, launch=None):
         with self._lock:

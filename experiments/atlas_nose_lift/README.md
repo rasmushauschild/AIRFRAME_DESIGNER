@@ -17,7 +17,7 @@ Open http://127.0.0.1:8081/, select **Flight**, then click **Takeoff** in the bo
 
 `NLF_ALT` controls the requested climb above the initial estimated position; it is not `MIS_TAKEOFF_ALT`. At rest the model's CG is already about 0.21 m above the floor, so a 1 m climb results in approximately 1.2 m displayed altitude.
 
-The app on port 8081 uses its own UI copy and isolated PX4 build. The original AIRFRAME_DESIGNER UI, original PX4 sources, port 8080 and PX4 instance 0 were not modified. The original model file hash is recorded in `model_fingerprint.json`; `atlas_07d.native.json` differs only in PX4 parameter overrides.
+The app on port 8081 uses its own UI copy and isolated PX4 build. The original AIRFRAME_DESIGNER UI, original PX4 sources, port 8080 and PX4 instance 0 were not modified. The original model file hash is recorded in `model_fingerprint.json`; `atlas_07d.native.json` differs in PX4 parameter overrides and the configured landed pitch.
 
 To restart this session after closing it, first stop the existing port-8081 session, then run:
 
@@ -136,3 +136,11 @@ The ground-to-position transition now keeps publishing the last front-motor comm
 The observed prolonged landing was a nose-lowering timeout (45 seconds), not the intended shutdown delay. Contact confirmation now uses height relative to rear-leg touchdown rather than the preflight height, permits five degrees of resting-pitch difference, and retains stopped pitch under downward demand, low vertical speed, and a one-second dwell. Saved position references follow EKF coordinate resets. Once contact is confirmed, motor commands ramp to zero over two seconds and normal disarm is requested at 2.5 seconds. Diagnostic lines report pitch, rest angle, rate, demand, velocity, height relative to takeoff, and contact condition during lowering.
 
 The original live timeout did not include per-condition diagnostics, so its exact failing condition was not established. These changes address identified weaknesses; the added diagnostics distinguish any recurrence.
+
+### Takeoff, hover, and automatic landed pitch
+
+Takeoff pitch uses `NLF_TARGET`. Hover pitch sets `SENS_BOARD_Y_OFF` and the corresponding rotated allocator geometry; the native controller now transforms attitudes and rates using that configured frame. After changing hover pitch, apply Update PX4 and Reset before flying. Landed pitch uses `NLF_LAND_ANG` and sets the lowering trajectory endpoint. All three are fixed for each running sequence. Takeoff and hover are edited while disarmed. The demo calculates Landed pitch automatically from enabled leg feet whenever a model loads or geometry changes, and synchronizes it to PX4 before Takeoff. The Geometry field is read-only.
+
+Ground contact takes priority over a requested angle below the ground. A requested landed pitch more than 3° above the measured resting posture is rejected before arming, with both angles in the error message, because it would otherwise stop lowering before the nose reaches the ground. The original ATLAS_07D legs settle around −12.75°; earlier regression runs used −13°. The demo now derives the unloaded support-plane angle from leg positions, tilt, cant, lengths, and foot radii; spring compression can cause a small difference in the actual resting posture. At least three non-collinear enabled feet sharing a plane within 1 cm are required. Actual contact detection still governs shutdown. These settings do not make arbitrary rotor layouts compatible with the controller.
+
+Three-angle regression: ATLAS_07D passed at takeoff/hover/landed settings 20/24/−13 and 30/27/−15 degrees. The captured ATLAS_09 completed both sequences and shut down after nose contact, with no link loss, but briefly pitched upward at 8.41°/s during landing handover, above the existing 8°/s regression threshold. This current-model run is not reported as passing the full landing checks.

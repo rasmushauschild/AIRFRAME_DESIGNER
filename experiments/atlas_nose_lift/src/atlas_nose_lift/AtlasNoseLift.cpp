@@ -53,7 +53,7 @@ private:
  enum Phase { Idle, Prime, Lift, Spool, Climb, Hover, Descend, LowerNose, Shutdown, Aborting, Failed };
  Phase _phase{Idle};
  std::atomic<bool> _request{false}, _land_request{false};
- float _rest_pitch{}, _lower_target{};
+ float _rest_pitch{}, _lower_target{}, _hover_angle{}, _landing_angle{};
  hrt_abstime _contact_dwell{};
  float _touch_z{};
  hrt_abstime _start{}, _phase_start{}, _dwell{}, _last_command{};
@@ -78,6 +78,8 @@ private:
   (ParamInt<px4::params::NLF_ENABLE>) _enable,
   (ParamFloat<px4::params::NLF_RATE>) _rate,
   (ParamFloat<px4::params::NLF_TARGET>) _lift_target,
+  (ParamFloat<px4::params::SENS_BOARD_Y_OFF>) _hover_param,
+  (ParamFloat<px4::params::NLF_LAND_ANG>) _land_angle_param,
 
   (ParamFloat<px4::params::NLF_RAMP>) _ramp,
   (ParamFloat<px4::params::NLF_DWELL>) _hold,
@@ -150,12 +152,13 @@ private:
 #if !defined(CONFIG_ARCH_BOARD_PX4_SITL)
    PX4_ERR("SITL-only experimental module"); return;
 #endif
-   if (!atlas_model_matches()) { PX4_ERR("ATLAS_07D geometry or thrust mapping does not match"); return; }
+   _hover_angle=_hover_param.get();
+   if (!atlas_model_matches(_hover_angle)) { PX4_ERR("ATLAS_07D geometry or thrust mapping does not match"); return; }
    if (!_enable.get() || armed || !land.landed || !pos.xy_valid || !pos.z_valid || now-att.timestamp>200_ms
        || !PX4_ISFINITE(_pitch) || !PX4_ISFINITE(e.psi()) || !PX4_ISFINITE(pos.z)) {
     PX4_ERR("requires enabled, disarmed, landed, fresh valid attitude and position"); return;
    }
-   if (!PX4_ISFINITE(_lift_target.get()) ||
+   if (!PX4_ISFINITE(_land_angle_param.get()) || !PX4_ISFINITE(_hover_angle) || !PX4_ISFINITE(_lift_target.get()) ||
        !PX4_ISFINITE(_rate.get()) || _rate.get()<1.f || _rate.get()>15.f ||
        !PX4_ISFINITE(_ramp.get()) || _ramp.get()<1.f || _ramp.get()>10.f ||
        !PX4_ISFINITE(_hold.get()) || _hold.get()<0.5f || _hold.get()>5.f ||
@@ -164,14 +167,19 @@ private:
     PX4_ERR("invalid sequence parameters"); return;
    }
    _phase=Prime; _start=now; _phase_start=now; _dwell=0; _fade_start=0; _integral=0.f; _cmd9=0.f; _cmd10=0.f; _last_command=0; _was_armed=false;
-   _rest_pitch=math::degrees(_pitch)+25.f;
+   _rest_pitch=math::degrees(matrix::Eulerf(matrix::Dcmf(matrix::Quatf(att.q))*matrix::Dcmf(matrix::Eulerf(0.f,math::radians(_hover_angle),0.f))).theta());
+   _landing_angle=_land_angle_param.get();
+   if (_landing_angle > _rest_pitch+3.f) {
+    PX4_ERR("landed pitch %.1f is above measured ground posture %.1f; adjust landed pitch to the legs", double(_landing_angle), double(_rest_pitch));
+    _phase=Idle; return;
+   }
    _xy_reset=pos.xy_reset_counter; _z_reset=pos.z_reset_counter; _heading_reset=pos.heading_reset_counter;
    _yaw=e.psi(); _x=pos.x; _y=pos.y; _z=pos.z; _target_z=_z;
    PX4_INFO("priming nose lift at pitch %.1f",double(math::degrees(_pitch)));
   }
   if (_land_request.exchange(false)) {
    updateParams();
-   if (_phase!=Hover || !armed || !_enable.get() || !atlas_model_matches()) {
+   if (_phase!=Hover || !armed || !_enable.get() || !atlas_model_matches(_hover_angle)) {
     PX4_WARN("landing requires this module's active hover and matching model");
    } else if (!PX4_ISFINITE(_land_speed.get()) || _land_speed.get()<0.05f || _land_speed.get()>0.3f ||
               !PX4_ISFINITE(_down_rate.get()) || _down_rate.get()<1.f || _down_rate.get()>5.f) {
@@ -219,18 +227,18 @@ private:
     if (!_contact_dwell) { _contact_dwell=now; }
     if (now-_contact_dwell>200_ms) {
      _phase=LowerNose; _phase_start=now; _dwell=0; _integral=0.f; _touch_z=pos.z;
-     _lower_target=math::degrees(_pitch)+25.f;
+     _lower_target=math::degrees(matrix::Eulerf(matrix::Dcmf(matrix::Quatf(att.q))*matrix::Dcmf(matrix::Eulerf(0.f,math::radians(_hover_angle),0.f))).theta());
      PX4_INFO("landing: rear support detected; lowering nose");
     }
    } else { _contact_dwell=0; }
    if (now-_phase_start>60_s) { fail("rear contact timeout",status,true); return; }
   }
   if (_phase==LowerNose) {
-   const matrix::Dcmf structural=matrix::Dcmf(matrix::Quatf(att.q))*matrix::Dcmf(matrix::Eulerf(0.f,math::radians(25.f),0.f));
+   const matrix::Dcmf structural=matrix::Dcmf(matrix::Quatf(att.q))*matrix::Dcmf(matrix::Eulerf(0.f,math::radians(_hover_angle),0.f));
    const float theta=matrix::Eulerf(structural).theta();
-   const matrix::Vector3f omega=matrix::Dcmf(matrix::Eulerf(0.f,math::radians(-25.f),0.f))*matrix::Vector3f(rates.xyz);
+   const matrix::Vector3f omega=matrix::Dcmf(matrix::Eulerf(0.f,math::radians(-_hover_angle),0.f))*matrix::Vector3f(rates.xyz);
    // Settle on the rear feet before starting the rate-limited pitch-down trajectory.
-   if (now-_phase_start>1_s) { _lower_target=math::max(_rest_pitch-3.f,_lower_target-_down_rate.get()*0.004f); }
+   if (now-_phase_start>1_s) { _lower_target=math::max(_landing_angle-3.f,_lower_target-_down_rate.get()*0.004f); }
    const float q_des=math::constrain(2.f*(_lower_target-math::degrees(theta)),-_down_rate.get(),_down_rate.get());
    const float error=q_des-math::degrees(omega(1));
    _integral=math::constrain(_integral+error*0.004f,-40.f,40.f);
@@ -283,10 +291,10 @@ private:
   }
   if (_phase==Lift || _phase==Spool) {
    const float elapsed=(now-_phase_start)*1e-6f;
-   // Structural pitch is hover-frame attitude composed with the fixed 25 degree board offset.
-   const matrix::Dcmf structural = matrix::Dcmf(matrix::Quatf(att.q)) * matrix::Dcmf(matrix::Eulerf(0.f, math::radians(25.f), 0.f));
+   // Structural pitch uses the configured board/hover-frame offset.
+   const matrix::Dcmf structural = matrix::Dcmf(matrix::Quatf(att.q)) * matrix::Dcmf(matrix::Eulerf(0.f, math::radians(_hover_angle), 0.f));
    const float theta = matrix::Eulerf(structural).theta();
-   const matrix::Vector3f omega = matrix::Dcmf(matrix::Eulerf(0.f, math::radians(-25.f), 0.f)) * matrix::Vector3f(rates.xyz);
+   const matrix::Vector3f omega = matrix::Dcmf(matrix::Eulerf(0.f, math::radians(-_hover_angle), 0.f)) * matrix::Vector3f(rates.xyz);
    const float q = math::degrees(omega(1));
    const float ease = _phase==Lift ? math::constrain(elapsed / _ramp.get(), 0.f, 1.f) : 1.f;
    const float q_des = math::constrain(_lift_target.get()-math::degrees(theta), -_rate.get(), _rate.get()*ease);

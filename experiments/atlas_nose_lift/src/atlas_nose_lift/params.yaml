@@ -12,10 +12,17 @@ parameters:
     NLF_TARGET:
       description:
         short: Nose lift target structural pitch
-        long: Ground sequence target only. Fixed hover frame remains 25 degrees. Experimental SITL setting; revalidate takeoff after changes.
+        long: Ground sequence target only. Hover frame follows SENS_BOARD_Y_OFF. Experimental SITL setting; revalidate takeoff after changes.
       type: float
       unit: deg
       default: 25
+    NLF_LAND_ANG:
+      description:
+        short: Landed structural pitch target
+        long: Nose lowering target in degrees. Must be compatible with the measured resting posture of the fixed landing legs. Ground contact is required before shutdown.
+      type: float
+      unit: deg
+      default: -13
     NLF_RATE:
       description:
         short: Pitch ramp rate
