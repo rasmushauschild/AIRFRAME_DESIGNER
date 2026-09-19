@@ -201,6 +201,12 @@ design. Reference numbers for the quad preset in hover: altitude 7 mm RMS, thrus
 The cross-check already found and fixed one real defect (a rest-damping hack that parked soft-legged aircraft
 25 cm above their spring equilibrium).
 
+## CAD masses
+
+`cad.bodies[<name or index>].mass`, `.offset[i]` and `cad.origin[i]` are ordinary parameter paths, so a study can move a
+battery or ask "where must the CG be" with the real inertia of the CAD solids. Import a STEP file once in the Geometry
+tab (or POST its bytes to `/api/cad/import?filename=x.step`); `GET /api/cad/totals` gives the bodies' mass and CG.
+
 ## Driving it from ChatGPT or another assistant
 
 Everything above is plain HTTP and CLI, so any assistant that can call a tool can do what Claude Code does here.

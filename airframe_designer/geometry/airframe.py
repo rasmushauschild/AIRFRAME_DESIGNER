@@ -23,6 +23,7 @@ from .frames import unit
 from .gear import Leg, generate_legs
 from .mass import MassProperties, estimate_inertia
 from .propulsion import Rotor
+from .cad import CadModel
 from .wings import Wing, wing_panels
 
 SCHEMA_VERSION = 2
@@ -44,6 +45,7 @@ class Airframe:
     px4_overrides: dict = field(default_factory=dict)   # PX4 parameters set by hand, saved with the airframe
     design: dict = field(default_factory=dict)          # optimiser / analysis settings (cruise speed, groups...)
     notes: str = ""
+    cad: CadModel | None = None                         # STEP bodies with masses (geometry/cad.py)
 
     # ------------------------------------------------------------ helpers
     @property
@@ -121,7 +123,13 @@ class Airframe:
             "legs": [l.to_dict() for l in self.legs],
             "hover_pitch_deg": self.hover_pitch_deg, "landed_pitch_deg": self.landed_pitch_deg,
             "px4_overrides": dict(self.px4_overrides), "design": copy.deepcopy(self.design), "notes": self.notes,
+            "cad": self.cad.to_dict() if self.cad else None,
         }
+
+    def resolve_mass(self) -> "Airframe":
+        """Recompute mass/CG/inertia from items and CAD bodies when mass.from_items is set."""
+        self.mass.resolve(self.cad.mass_items() if self.cad else None)
+        return self
 
     @classmethod
     def from_dict(cls, d: dict[str, Any]) -> "Airframe":
@@ -134,7 +142,8 @@ class Airframe:
                  hover_pitch_deg=float(d.get("hover_pitch_deg", 0.0) or 0.0),
                  landed_pitch_deg=float(d.get("landed_pitch_deg", 0.0) or 0.0),
                  px4_overrides=dict(d.get("px4_overrides", {}) or {}), design=dict(d.get("design", {}) or {}),
-                 notes=str(d.get("notes", "") or ""))
+                 notes=str(d.get("notes", "") or ""), cad=CadModel.from_dict(d.get("cad")))
+        af.resolve_mass()
         for i, r in enumerate(af.rotors):
             if not r.name:
                 r.name = f"M{i + 1}"

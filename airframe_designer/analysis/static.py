@@ -22,7 +22,7 @@ def pitch_rotation(theta: float) -> np.ndarray:
 class VehicleModel:
     def __init__(self, af: Airframe):
         self.af = af
-        af.mass.resolve()
+        af.resolve_mass()
         from ..aero.airfoils import ensure_polars
         ensure_polars(af)
         cg = af.cg

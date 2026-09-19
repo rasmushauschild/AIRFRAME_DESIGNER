@@ -72,7 +72,7 @@ def run_once(airframe, scenario, *, variables: dict | None = None, px4_dir: str 
     af = _load_airframe(airframe)
     if variables:
         af = apply_variables(af, variables)
-    af.mass.resolve()
+    af.resolve_mass()
     from ..aero.airfoils import ensure_polars
     ensure_polars(af)
     sc = scenario if isinstance(scenario, Scenario) else load_scenario(scenario)

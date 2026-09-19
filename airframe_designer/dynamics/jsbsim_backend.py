@@ -102,7 +102,7 @@ def generate_model(af: Airframe, name: str, v_ref: float = 20.0) -> Path:
         (root / d).mkdir(parents=True, exist_ok=True)
     mdir = root / "aircraft" / name
     mdir.mkdir(parents=True, exist_ok=True)
-    af.mass.resolve()
+    af.resolve_mass()
     cg = af.cg
     # structural frame (JSBSim): X aft, Y right, Z up, inches. Ours: FRD metres.
     def loc(p):
@@ -186,7 +186,7 @@ class JSBSimBody:
     # -- configuration
     def set_airframe(self, airframe: Airframe) -> None:
         self.af = airframe
-        airframe.mass.resolve()
+        airframe.resolve_mass()
         self.mass = float(airframe.mass.mass)
         self.I = airframe.mass.tensor(); self.I_inv = np.linalg.inv(self.I)
         cg = airframe.cg

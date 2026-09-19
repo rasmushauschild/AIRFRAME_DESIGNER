@@ -13,7 +13,8 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8"]
+cad = ["cadquery-ocp>=7.7"]          # STEP import (OpenCascade): bodies -> masses, CG, inertia
+dev = ["pytest>=8", "cadquery-ocp>=7.7"]
 
 [project.scripts]
 airframe-designer = "airframe_designer.cli:main"

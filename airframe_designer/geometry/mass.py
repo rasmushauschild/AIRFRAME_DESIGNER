@@ -16,6 +16,7 @@ class MassItem:
     mass: float = 0.0                                      # kg
     pos: list[float] = field(default_factory=lambda: [0.0, 0.0, 0.0])   # structural frame, m
     inertia: list[float] = field(default_factory=lambda: [0.0, 0.0, 0.0])  # own inertia about its own CG, kg m^2
+    inertia_products: list[float] = field(default_factory=lambda: [0.0, 0.0, 0.0])  # Ixy Ixz Iyz of that own inertia
 
 
 @dataclass
@@ -33,16 +34,20 @@ class MassProperties:
         ixy, ixz, iyz = (float(v) for v in self.inertia_products)
         return np.array([[ixx, -ixy, -ixz], [-ixy, iyy, -iyz], [-ixz, -iyz, izz]])
 
-    def resolve(self) -> "MassProperties":
-        """Apply ``from_items``: totals from the component list (returns self for chaining)."""
-        if self.from_items and self.items:
-            m = sum(max(0.0, i.mass) for i in self.items)
+    def resolve(self, extra: list["MassItem"] | None = None) -> "MassProperties":
+        """Apply ``from_items``: totals from the component list plus ``extra`` items (e.g. the CAD bodies of
+        geometry/cad.py); returns self for chaining."""
+        items = list(self.items) + list(extra or [])
+        if self.from_items and items:
+            m = sum(max(0.0, i.mass) for i in items)
             if m > 0:
-                cg = sum(np.array(i.pos, float) * i.mass for i in self.items) / m
+                cg = sum(np.array(i.pos, float) * i.mass for i in items) / m
                 I = np.zeros((3, 3))
-                for it in self.items:
+                for it in items:
                     r = np.array(it.pos, float) - cg
-                    I += np.diag(it.inertia) + it.mass * (np.dot(r, r) * np.eye(3) - np.outer(r, r))
+                    ixy, ixz, iyz = (list(it.inertia_products) + [0, 0, 0])[:3]
+                    own = np.diag(it.inertia) - np.array([[0, ixy, ixz], [ixy, 0, iyz], [ixz, iyz, 0]], float)
+                    I += own + it.mass * (np.dot(r, r) * np.eye(3) - np.outer(r, r))
                 self.mass = float(m)
                 self.cg = [round(float(v), 5) for v in cg]
                 self.inertia = [round(float(I[0, 0]), 6), round(float(I[1, 1]), 6), round(float(I[2, 2]), 6)]

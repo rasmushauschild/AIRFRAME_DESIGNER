@@ -24,14 +24,16 @@ let joyWs = null;          // websocket handle used by the USB remote (declared 
 let scene;
 try {
   scene = createScene($('#c'), {
-    onSelect: (i) => { selected = i; renderRotorTable(); renderReadout(); },
+    onSelect: (i) => { selected = i; if (i >= 0) cadSelected = null; renderRotorTable(); renderReadout(); if (i >= 0) renderCadTable(); },
     onRotorChanged: (i, r, commit) => { renderRotorRow(i); renderReadout(); if (commit) pushAirframe(); },
+    onCadSelect: (id) => { cadSelected = id; if (id !== null && selected >= 0) { selected = -1; renderRotorTable(); renderReadout(); } renderCadTable(); },
+    onCadChanged: (id, offset, commit) => { const b = cadBody(id); if (!b) return; b.offset = offset; renderCadRow(id); renderCadTotals(); if (commit) pushAirframe(true); },
   });
 } catch (e) {
   // no WebGL (hidden window, remote desktop, old GPU): keep the rest of the app working without the 3D view
   console.warn('3D view unavailable:', e.message);
   const noop = () => { };
-  scene = { setAirframe: noop, updateState: noop, select: noop, updateRotorNode: noop, setTheme: noop, setFollow: noop, setCameraMode: noop, setMode: noop, selected: -1, focusOrigin: noop };
+  scene = { setAirframe: noop, updateState: noop, select: noop, updateRotorNode: noop, setTheme: noop, setFollow: noop, setCameraMode: noop, setMode: noop, selected: -1, focusOrigin: noop, setCad: noop, selectCad: noop, syncCad: noop, selectedCad: null };
   $('#viewport').insertAdjacentHTML('afterbegin', '<div class="hint" style="padding:18px">3D view unavailable in this window (no WebGL). Everything else works.</div>');
 }
 
@@ -129,10 +131,14 @@ function setAirframe(af) {
   renderMotorSliders();
   fillNoseLiftCard();
   fillMotorCard();
+  fillCadCard();
   loadExport();          // fills the edited/affected-parameters section (needs the server's export view)
 }
 function fillMassCard() {
   const m = airframe.mass;
+  const derived = !!m.from_items;
+  ['mass', 'cgx', 'cgy', 'cgz', 'ixx', 'iyy', 'izz'].forEach(k => { const el = $('#af-' + k); el.disabled = derived; el.title = derived ? 'derived from the CAD bodies / mass items (untick "Mass, CG & inertia from bodies" to type it)' : el.title; });
+  $('#af-estimate').disabled = derived;
   $('#af-mass').value = m.mass;
   ['cgx', 'cgy', 'cgz'].forEach((k, i) => $('#af-' + k).value = +(+m.cg[i]).toFixed(4));
   ['ixx', 'iyy', 'izz'].forEach((k, i) => $('#af-' + k).value = +(+m.inertia[i]).toFixed(5));
@@ -157,6 +163,120 @@ function applyMotorCard(kindChanged) {
 }
 $('#m-kind').addEventListener('change', () => applyMotorCard(true));
 ['m-tmax', 'm-tau', 'm-km', 'm-dia', 'm-exp', 'm-ram', 'm-turnloss'].forEach(id => $('#' + id).addEventListener('change', () => applyMotorCard(false)));
+
+// ============================================================ CAD bodies (STEP)
+let cadSelected = null;              // body id highlighted in the table and the 3D view
+const cadCentroids = {};             // id -> centroid in the structural frame without the drag offset
+let cadMeshKey = null;               // file|axes|origin|scale of the meshes currently in the scene
+let cadAxesLoaded = false;
+const cadBody = (id) => (airframe && airframe.cad && airframe.cad.bodies || []).find(b => b.id === id);
+const cadPos = (b) => { const c = cadCentroids[b.id]; return c ? c.map((v, i) => v + (b.offset ? b.offset[i] : 0)) : (b.pos || [0, 0, 0]); };
+function fillCadCard() {
+  const cad = airframe.cad;
+  if (!cadAxesLoaded) { cadAxesLoaded = true; api('/api/cad/axes').then(r => { const sel = $('#cad-axes'); sel.innerHTML = r.presets.map(p => `<option value="${esc(p.key)}">${esc(p.label)}</option>`).join(''); if (airframe.cad) sel.value = airframe.cad.axes; }).catch(() => { cadAxesLoaded = false; }); }
+  $('#cad-use').checked = !!airframe.mass.from_items;
+  if (cad && cad.file) {
+    for (const b of cad.bodies || []) if (b.pos) cadCentroids[b.id] = b.pos.map((v, i) => v - (b.offset ? b.offset[i] : 0));
+    $('#cad-filename').textContent = cad.file.replace(/^airframes\/cad\//, '');
+    $('#cad-show').checked = cad.visible !== false;
+    $('#cad-axes').value = cad.axes;
+    ['ox', 'oy', 'oz'].forEach((k, i) => $('#cad-' + k).value = +(+(cad.origin || [0, 0, 0])[i]).toFixed(4));
+    $('#cad-scale').value = cad.scale ?? 1;
+    $('#cad-frame-row').style.display = '';
+    const key = [cad.file, cad.axes, (cad.origin || []).join(','), cad.scale].join('|');
+    if (key !== cadMeshKey) loadCadMesh(key);
+  } else {
+    $('#cad-filename').textContent = '';
+    $('#cad-frame-row').style.display = 'none';
+    if (cadMeshKey) { cadMeshKey = null; scene.setCad(null); }
+    cadSelected = null;
+  }
+  renderCadTable();
+}
+async function loadCadMesh(key) {
+  cadMeshKey = key;
+  try {
+    const r = await api('/api/cad/mesh');
+    if (cadMeshKey !== key) return;      // superseded
+    for (const b of r.bodies || []) cadCentroids[b.id] = b.centroid;
+    scene.setCad(r);
+    if (cadSelected !== null) scene.selectCad(cadSelected);
+    renderCadTable();
+  } catch (e) { logLine('[cad] mesh: ' + e.message); }
+}
+function cadRowHtml(b, k) {
+  const p = cadPos(b);
+  const moved = (b.offset || [0, 0, 0]).some(v => Math.abs(v) > 1e-6);
+  return `<tr data-cad="${esc(b.id)}" class="${b.id === cadSelected ? 'selected' : ''}"><td class="idx">${k + 1}</td><td class="mono">${esc(b.name)}</td>
+  <td class="num" title="volume from the CAD solid">${(b.volume * 1e3).toFixed(3)}</td>
+  <td><input type="number" step="0.01" min="0" data-k="mass" value="${+(+b.mass || 0).toFixed(4)}" title="mass of this body, kg (0 = ignored)"></td>
+  <td class="num pos" title="centroid, structural frame, m${moved ? ' (dragged by ' + b.offset.map(v => v.toFixed(3)).join(', ') + ')' : ''}">${p.map(v => v.toFixed(3)).join('  ')}${moved ? ' <span class="warn" title="moved from the CAD position">•</span>' : ''}</td>
+  <td><button class="del" title="remove this body from the list">✕</button></td></tr>`;
+}
+function renderCadTable() {
+  const el = $('#cad-table'); const cad = airframe && airframe.cad;
+  if (!cad || !cad.file) { el.innerHTML = '<div class="hint">No CAD file. Import a STEP file to place its bodies and give them masses.</div>'; $('#cad-totals').innerHTML = ''; $('#cad-summary').textContent = ''; return; }
+  const live = (cad.bodies || []).filter(b => !b.removed);
+  el.innerHTML = `<table class="grid cad"><thead><tr><th>#</th><th>Body</th><th class="num" title="litres">Vol L</th><th>Mass kg</th><th title="centroid in the structural frame (x fwd, y right, z down), m: click a row to highlight the body, drag it in the 3D view along its axes">X Y Z</th><th></th></tr></thead><tbody>${live.map(cadRowHtml).join('') || '<tr><td colspan="6" class="hint">All bodies removed.</td></tr>'}</tbody></table>`;
+  el.querySelectorAll('tr[data-cad]').forEach(tr => {
+    const id = tr.dataset.cad;
+    tr.addEventListener('click', (e) => { if (['INPUT', 'BUTTON'].includes(e.target.tagName)) return; cadSelected = (cadSelected === id) ? null : id; scene.selectCad(cadSelected); if (cadSelected !== null && selected >= 0) { selected = -1; renderRotorTable(); renderReadout(); } renderCadTable(); });
+    tr.querySelector('input[data-k="mass"]').addEventListener('change', (e) => { const b = cadBody(id); b.mass = Math.max(0, parseFloat(e.target.value) || 0); scene.syncCad(); renderCadTotals(); pushAirframe(true); });
+    tr.querySelector('.del').addEventListener('click', () => { const b = cadBody(id); b.removed = true; if (cadSelected === id) { cadSelected = null; scene.selectCad(null); } scene.syncCad(); renderCadTable(); pushAirframe(true); });
+  });
+  renderCadTotals();
+}
+function renderCadRow(id) {
+  const tr = $(`#cad-table tr[data-cad="${CSS.escape(id)}"]`); const b = cadBody(id); if (!tr || !b) return;
+  const p = cadPos(b); const cell = tr.querySelector('td.pos'); if (cell) cell.innerHTML = p.map(v => v.toFixed(3)).join('  ') + ' <span class="warn" title="moved from the CAD position">•</span>';
+}
+function renderCadTotals() {
+  const cad = airframe && airframe.cad; const el = $('#cad-totals'); if (!cad || !cad.file) return;
+  const live = (cad.bodies || []).filter(b => !b.removed && (+b.mass || 0) > 0);
+  const removed = (cad.bodies || []).filter(b => b.removed).length;
+  const m = live.reduce((a, b) => a + (+b.mass), 0);
+  let cgTxt = 'no masses yet';
+  if (m > 0) { const cg = [0, 0, 0]; for (const b of live) { const p = cadPos(b); for (let i = 0; i < 3; i++) cg[i] += p[i] * b.mass / m; } cgTxt = `CG of bodies x ${cg[0].toFixed(3)}  y ${cg[1].toFixed(3)}  z ${cg[2].toFixed(3)} m`; }
+  el.innerHTML = `<b>${m.toFixed(2)} kg</b> in ${live.length} of ${(cad.bodies || []).length - removed} bodies · ${cgTxt}${airframe.mass.from_items ? ` · <span class="ok">aircraft CG follows the bodies</span>` : ' · tick "Mass, CG & inertia from bodies" to use it'}${removed ? ` · ${removed} removed <a href="#" id="cad-restore">restore</a>` : ''}`;
+  $('#cad-summary').textContent = `${cad.file.replace(/^airframes\/cad\//, '')} · ${live.length} bodies · ${m.toFixed(1)} kg`;
+  const rs = $('#cad-restore'); if (rs) rs.addEventListener('click', (e) => { e.preventDefault(); cad.bodies.forEach(b => b.removed = false); scene.syncCad(); renderCadTable(); pushAirframe(true); });
+}
+$('#cad-import').addEventListener('click', () => $('#cad-file').click());
+$('#cad-file').addEventListener('change', async (e) => {
+  const f = e.target.files && e.target.files[0]; if (!f) return;
+  const btn = $('#cad-import'); btn.disabled = true; btn.textContent = 'Importing…';
+  try {
+    await api('/api/airframe', { airframe, keep_state: true });    // the import attaches to the server's copy
+    const r = await fetch('/api/cad/import?filename=' + encodeURIComponent(f.name), { method: 'POST', headers: { 'Content-Type': 'application/octet-stream' }, body: await f.arrayBuffer() });
+    const j = await r.json().catch(() => null);
+    if (!r.ok || !j || !j.ok) throw new Error((j && j.error) || r.statusText);
+    cadMeshKey = [j.airframe.cad.file, j.airframe.cad.axes, (j.airframe.cad.origin || []).join(','), j.airframe.cad.scale].join('|');
+    for (const b of j.mesh.bodies || []) cadCentroids[b.id] = b.centroid;
+    scene.setCad(j.mesh);
+    selected = -1; cadSelected = null;
+    setAirframe(j.airframe); markDirty();
+    $('#cad-details').open = true;
+    logLine(`[cad] imported ${f.name}: ${j.bodies} bodies`);
+  } catch (err) { logLine('[cad] import failed: ' + err.message); alert('STEP import failed: ' + err.message); }
+  btn.disabled = false; btn.textContent = 'Import STEP…'; e.target.value = '';
+});
+$('#cad-show').addEventListener('change', (e) => { if (!airframe.cad) return; airframe.cad.visible = e.target.checked; scene.syncCad(); pushAirframe(true); });
+$('#cad-use').addEventListener('change', (e) => { airframe.mass.from_items = e.target.checked; fillMassCard(); renderCadTotals(); pushAirframe(true); });
+async function cadFrameChanged() {
+  const cad = airframe.cad; if (!cad) return;
+  cad.axes = $('#cad-axes').value; cad.origin = ['ox', 'oy', 'oz'].map(k => parseFloat($('#cad-' + k).value) || 0); cad.scale = Math.max(1e-4, parseFloat($('#cad-scale').value) || 1);
+  try {
+    const res = await api('/api/airframe', { airframe, keep_state: true });
+    if (res.airframe) { airframe.mass = res.airframe.mass; airframe.cad = res.airframe.cad; }
+    fillMassCard(); markDirty();
+    for (const b of airframe.cad.bodies || []) if (b.pos) cadCentroids[b.id] = b.pos.map((v, i) => v - (b.offset ? b.offset[i] : 0));
+    scene.setAirframe(airframe);
+    loadCadMesh([cad.file, cad.axes, cad.origin.join(','), cad.scale].join('|'));
+  } catch (err) { logLine('[cad] ' + err.message); }
+}
+['cad-axes', 'cad-ox', 'cad-oy', 'cad-oz', 'cad-scale'].forEach(id => $('#' + id).addEventListener('change', cadFrameChanged));
+$('#cad-reset-offsets').addEventListener('click', () => { if (!airframe.cad) return; airframe.cad.bodies.forEach(b => b.offset = [0, 0, 0]); scene.syncCad(); renderCadTable(); pushAirframe(true); });
+$('#cad-remove-all').addEventListener('click', () => { if (!airframe.cad || !confirm('Remove the CAD file and all its bodies from this airframe?')) return; airframe.cad = null; cadSelected = null; scene.selectCad(null); setAirframe(airframe); pushAirframe(true); });
 
 function bindNumber(id, fn) {
   $('#' + id).addEventListener('change', (e) => { fn(parseFloat(e.target.value) || 0); scene.setAirframe(airframe); pushAirframe(true); });

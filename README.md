@@ -12,6 +12,9 @@ It grew out of [AIRFRAME_SIMULATOR](https://github.com/rasmushauschild/AIRFRAME_
 idea: rotor positions and thrust axes are first-class, editable in 3D, and exported 1:1 to PX4's control
 allocation (`CA_ROTORn_*`), so PX4 flies exactly the geometry you drew.
 
+* **CAD masses**: import a STEP file in the Geometry tab; every solid becomes a body you give a mass, the CG and
+  inertia follow (OpenCascade measures volume, centroid and inertia), bodies can be dragged along their axes in 3D.
+
 ## What is new compared to AIRFRAME_SIMULATOR
 
 | area | AIRFRAME_SIMULATOR | AIRFRAME_DESIGNER |

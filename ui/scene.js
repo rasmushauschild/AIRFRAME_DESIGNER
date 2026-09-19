@@ -103,6 +103,14 @@ export function createScene(canvas, handlers) {
   const OFF_OPACITY = 0.22;   // disabled rotors
   let airframe = null;
   let selected = -1;
+  // CAD bodies (STEP solids): kept across setAirframe (the meshes are heavy); positions/flags synced from af.cad
+  const cadGroup = new THREE.Group();
+  frame.add(cadGroup);
+  const cadNodes = new Map();      // id -> { mesh, marker, centroid (FRD, offset-free) }
+  let selectedCad = null;          // body id
+  const cadMat = new THREE.MeshStandardMaterial({ color: 0xaab0bb, roughness: 0.55, metalness: 0.15, transparent: true, opacity: 0.85, depthWrite: true });
+  const cadMatSel = new THREE.MeshStandardMaterial({ color: 0x0a84ff, emissive: 0x0a84ff, emissiveIntensity: 0.18, roughness: 0.45, metalness: 0.1 });
+  const cadMarkerMat = new THREE.MeshStandardMaterial({ color: 0xff2d92, emissive: 0xff2d92, emissiveIntensity: 0.4, roughness: 0.4 });
   let camMode = 'static';   // 'static' | 'track' (look at the drone) | 'follow' (move with it)
   const lastVehiclePos = new THREE.Vector3();
 
@@ -127,8 +135,13 @@ export function createScene(canvas, handlers) {
     pointer.x = ((e.clientX - r.left) / r.width) * 2 - 1;
     pointer.y = -((e.clientY - r.top) / r.height) * 2 + 1;
     raycaster.setFromCamera(pointer, camera);
-    const hits = raycaster.intersectObjects(rotorNodes.flatMap(n => [n.disc, n.motor]), false);
-    if (hits.length) {
+    const cadMeshes = cadGroup.visible ? [...cadNodes.values()].filter(n => n.mesh.visible).map(n => n.mesh) : [];
+    const hits = raycaster.intersectObjects([...rotorNodes.flatMap(n => [n.disc, n.motor]), ...cadMeshes], false);
+    if (hits.length && hits[0].object.userData.cadId !== undefined) {
+      const id = hits[0].object.userData.cadId;
+      selectCad(id);
+      handlers.onCadSelect && handlers.onCadSelect(id);
+    } else if (hits.length) {
       const idx = hits[0].object.userData.rotorIndex;
       select(idx);
       handlers.onSelect && handlers.onSelect(idx);
@@ -141,10 +154,15 @@ export function createScene(canvas, handlers) {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA') return;
     if (e.key === 'w' || e.key === 'W') gizmo.setMode('translate');
     if (e.key === 'e' || e.key === 'E') gizmo.setMode('rotate');
-    if (e.key === 'Escape') { select(-1); handlers.onSelect && handlers.onSelect(-1); }
+    if (e.key === 'Escape') { select(-1); handlers.onSelect && handlers.onSelect(-1); if (selectedCad !== null) { selectCad(null); handlers.onCadSelect && handlers.onCadSelect(null); } }
   });
 
   function onGizmoChange() {
+    if (selectedCad !== null) {
+      const n = cadNodes.get(selectedCad); if (!n) return;
+      handlers.onCadChanged && handlers.onCadChanged(selectedCad, cadOffset(n), false);
+      return;
+    }
     if (selected < 0 || !airframe) return;
     const n = rotorNodes[selected];
     const r = airframe.rotors[selected];
@@ -155,6 +173,11 @@ export function createScene(canvas, handlers) {
     handlers.onRotorChanged && handlers.onRotorChanged(selected, r, false);
   }
   function commitGizmo() {
+    if (selectedCad !== null) {
+      const n = cadNodes.get(selectedCad); if (!n) return;
+      handlers.onCadChanged && handlers.onCadChanged(selectedCad, cadOffset(n), true);
+      return;
+    }
     if (selected < 0 || !airframe) return;
     handlers.onRotorChanged && handlers.onRotorChanged(selected, airframe.rotors[selected], true);
   }
@@ -275,7 +298,60 @@ export function createScene(canvas, handlers) {
     frame.add(cgMark, cgLabel);
     cgNodes.push(cgMark, cgLabel);
 
-    if (keepSel >= 0 && keepSel < rotorNodes.length) select(keepSel);
+    syncCad(af);
+    if (selectedCad !== null && cadNodes.has(selectedCad)) selectCad(selectedCad);
+    else if (keepSel >= 0 && keepSel < rotorNodes.length) select(keepSel);
+  }
+
+  // ------------------------------------------------------------ CAD bodies
+  const cadOffset = (n) => threeToFrd(n.mesh.position).map((v, i) => +(v - n.centroid[i]).toFixed(4));
+  function clearCad() {
+    for (const n of cadNodes.values()) { cadGroup.remove(n.mesh); n.mesh.geometry.dispose(); }
+    cadNodes.clear();
+    if (selectedCad !== null) { selectedCad = null; gizmo.detach(); }
+  }
+  // payload = /api/cad/mesh: bodies with vertices/indices in the structural frame (offsets not applied)
+  function setCad(payload) {
+    clearCad();
+    for (const b of (payload && payload.bodies) || []) {
+      const g = new THREE.BufferGeometry();
+      const v = b.vertices, pos = new Float32Array(v.length);
+      for (let i = 0; i < v.length; i += 3) { pos[i] = v[i]; pos[i + 1] = -v[i + 2]; pos[i + 2] = v[i + 1]; }   // FRD -> three
+      g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+      g.setIndex(v.length / 3 > 65535 ? new THREE.Uint32BufferAttribute(b.indices, 1) : new THREE.Uint16BufferAttribute(b.indices, 1));
+      g.computeVertexNormals();
+      // the mesh origin is the body's centroid, so the drag gizmo sits on the body and moving it moves the mass point
+      const c = frdToThree(b.centroid);
+      g.translate(-c.x, -c.y, -c.z);
+      const mesh = new THREE.Mesh(g, cadMat);
+      mesh.position.copy(c);
+      mesh.userData.cadId = b.id;
+      const marker = new THREE.Mesh(new THREE.SphereGeometry(0.008, 12, 12), cadMarkerMat);
+      marker.visible = false;
+      mesh.add(marker);
+      cadGroup.add(mesh);
+      cadNodes.set(b.id, { mesh, marker, centroid: b.centroid.slice() });
+    }
+    if (airframe) syncCad(airframe);
+  }
+  function syncCad(af) {
+    const cad = af && af.cad;
+    if (!cad || !cad.file) { if (cadNodes.size) clearCad(); return; }
+    cadGroup.visible = cad.visible !== false;
+    for (const b of cad.bodies || []) {
+      const n = cadNodes.get(b.id); if (!n) continue;
+      if (!gizmo.dragging || selectedCad !== b.id) n.mesh.position.copy(frdToThree(n.centroid.map((v, i) => v + ((b.offset || [0, 0, 0])[i] || 0))));
+      n.mesh.visible = !b.removed;
+      n.marker.visible = !b.removed && (+b.mass || 0) > 0;
+    }
+  }
+  function selectCad(id) {
+    if (id !== null && !cadNodes.has(id)) id = null;
+    if (id !== null && selected >= 0) select(-1);
+    selectedCad = id;
+    for (const [k, n] of cadNodes) n.mesh.material = (k === id) ? cadMatSel : cadMat;
+    if (id !== null) { gizmo.setMode('translate'); gizmo.setSpace('local'); gizmo.attach(cadNodes.get(id).mesh); }
+    else if (selected < 0) gizmo.detach();
   }
 
   function setRotorEnabled(node, on) {
@@ -323,9 +399,10 @@ export function createScene(canvas, handlers) {
 
   function select(i) {
     selected = i;
+    if (i >= 0 && selectedCad !== null) { selectedCad = null; for (const n of cadNodes.values()) n.mesh.material = cadMat; gizmo.setSpace('world'); }
     rotorNodes.forEach((n, k) => { n.motor.material = (k === i ? matSel : motorMat).clone(); n.motor.userData.ownMat = true; n.motor.material.transparent = true; n.motor.material.opacity = n.enabled ? 1 : OFF_OPACITY; });
     if (i >= 0 && rotorNodes[i]) gizmo.attach(rotorNodes[i].group);
-    else gizmo.detach();
+    else if (selectedCad === null) gizmo.detach();
   }
 
   // ------------------------------------------------------------ live
@@ -406,6 +483,8 @@ export function createScene(canvas, handlers) {
 
   return {
     setAirframe, updateState, select, updateRotorNode, setTheme,
+    setCad, selectCad, syncCad: () => airframe && syncCad(airframe),
+    get selectedCad() { return selectedCad; },
     setCameraMode: (m) => {
       camMode = m;
       if (m === 'static') orbit.target.set(0, 0.1, 0);

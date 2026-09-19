@@ -17,8 +17,8 @@ A PX4-in-the-loop aircraft design simulator. Python 3.12, venv at `.venv` (`.ven
 ## Layout (each segment is independent)
 ```
 airframe_designer/
-  geometry/   mass (CG, inertia), propulsion (rotors), wings, gear (legs), body, airframe (composition, schema
-              migration, PX4 export, hover check), paths (parameter-path addressing)
+  geometry/   mass (CG, inertia), propulsion (rotors), wings, gear (legs), body, cad (STEP solids -> masses, via OCP),
+              airframe (composition, schema migration, PX4 export, hover check), paths (parameter-path addressing)
   aero/       strip-theory wings, rotor thrust/torque/ram drag, body drag, fastmath
   dynamics/   quaternion, per-leg contact, rigid body about the CG, jsbsim_backend (JSBSim as an alternative engine)
   sensors/    IMU/mag/baro/GPS -> HIL messages
@@ -40,6 +40,7 @@ airframes/    schema-2 JSON (docs/SCHEMA.md);  scenarios/  studies/  results/ (g
 * The simulation loop must never block on MAVLink replies in lockstep (PX4 only advances when we send sensors);
   scenario phases are non-blocking state machines.
 * Keep `run_once` results JSON-serialisable; metrics are the contract for studies.
+* Mass resolution goes through `Airframe.resolve_mass()` (items + CAD bodies), never `mass.resolve()` alone.
 * Ground contact damping is clamped per step to the integrator's stable range (dynamics/contact.py); without it a
   light, low-inertia airframe jitters on its legs and the fake gyro noise makes PX4's estimator refuse to arm.
 * `sim/nose_lift.py` is the pre-arm ground sequence (motor floors under PX4's commands); it is a simulator hook,

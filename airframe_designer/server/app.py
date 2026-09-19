@@ -8,13 +8,14 @@ from collections import deque
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.concurrency import run_in_threadpool
 
 from ..geometry.airframe import Airframe, PRESETS
 from ..geometry.gear import generate_legs
+from ..geometry import cad as cadmod
 from ..geometry.paths import list_paths, apply_variables
 from ..analysis import static as design
 from ..analysis.geometric_optimiser import optimise as geometric_optimise, default_groups
@@ -199,7 +200,7 @@ def build_app(state: AppState) -> FastAPI:
         except Exception as e:
             return JSONResponse({"ok": False, "error": f"invalid airframe ({type(e).__name__}: {e}); an empty number field?"}, status_code=400)
         keep = bool(body.get("keep_state", True))
-        af.mass.resolve()
+        af.resolve_mass()
         try:
             await run_in_threadpool(airfoils.ensure_polars, af, state.log)   # polar wings: section tables ready before the physics
         except Exception as e:
@@ -247,6 +248,61 @@ def build_app(state: AppState) -> FastAPI:
         AIRFRAME_DIR.mkdir(exist_ok=True)
         sim.airframe.save(AIRFRAME_DIR / name)
         return {"ok": True, "path": str(AIRFRAME_DIR / name)}
+
+    # ------------------------------------------------------------------ CAD (STEP bodies -> masses, CG)
+    CAD_DIR = AIRFRAME_DIR / "cad"
+
+    def cad_file_path(model) -> Path:
+        p = Path(model.file)
+        return p if p.is_absolute() else PROJECT_DIR / p
+
+    @app.get("/api/cad/axes")
+    async def cad_axes():
+        return {"presets": [{"key": k, "label": v[0]} for k, v in cadmod.AXES_PRESETS.items()]}
+
+    @app.post("/api/cad/import")
+    async def cad_import(request: Request, filename: str = "model.step"):
+        """Upload a STEP file (raw bytes): it is copied to airframes/cad/, every solid measured and meshed, and the
+        bodies attached to the live airframe (masses/offsets of bodies with the same id are kept on re-import)."""
+        data = await request.body()
+        if not data:
+            return JSONResponse({"ok": False, "error": "empty upload"}, status_code=400)
+        CAD_DIR.mkdir(parents=True, exist_ok=True)
+        stem = cadmod._safe_stem(filename)
+        suffix = ".stp" if filename.lower().endswith(".stp") else ".step"
+        dst = CAD_DIR / (stem + suffix)
+        dst.write_bytes(data)
+        try:
+            imported = await run_in_threadpool(cadmod.import_step, dst, state.log)
+        except Exception as e:
+            return JSONResponse({"ok": False, "error": f"STEP import failed: {e}"}, status_code=400)
+        af = sim.airframe.copy()
+        af.cad = cadmod.model_from_import(imported, str(dst.relative_to(PROJECT_DIR)), af.cad)
+        af.resolve_mass()
+        sim.set_airframe(af, keep_state=True)
+        autosave(af)
+        return {"ok": True, "airframe": json_safe(af.to_dict()), "bodies": len(af.cad.bodies),
+                "mesh": cadmod.mesh_payload(af.cad, imported)}
+
+    @app.get("/api/cad/mesh")
+    async def cad_mesh():
+        """Meshes of the live airframe's CAD bodies in the structural frame (axes/origin/scale applied, offsets not)."""
+        m = sim.airframe.cad
+        if not m:
+            return {"ok": True, "file": None, "bodies": []}
+        path = cad_file_path(m)
+        if not path.exists():
+            return JSONResponse({"ok": False, "error": f"CAD file missing: {m.file}"}, status_code=404)
+        try:
+            imported = await run_in_threadpool(cadmod.import_step, path, state.log)
+        except Exception as e:
+            return JSONResponse({"ok": False, "error": f"STEP import failed: {e}"}, status_code=400)
+        return cadmod.mesh_payload(m, imported)
+
+    @app.get("/api/cad/totals")
+    async def cad_totals():
+        m = sim.airframe.cad
+        return {"ok": True, "totals": m.totals() if m else None}
 
     @app.post("/api/airframe/estimate_inertia")
     async def estimate_inertia():

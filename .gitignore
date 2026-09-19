@@ -10,3 +10,4 @@ results/
 .gstack/
 airframes/_autosave.json
 *.egg-info/
+airframes/cad/*.bodies.json

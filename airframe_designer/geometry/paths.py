@@ -133,7 +133,7 @@ def apply_variables(airframe, values: dict[str, Any]):
     for p, v in values.items():
         set_path(new, p, v)
     if hasattr(new, "mass"):
-        new.mass.resolve()
+        new.resolve_mass()
     return new
 
 

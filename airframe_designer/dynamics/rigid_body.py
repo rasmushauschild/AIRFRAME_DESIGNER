@@ -28,7 +28,7 @@ class RigidBody:
     # -- configuration
     def set_airframe(self, airframe: Airframe) -> None:
         self.af = airframe
-        airframe.mass.resolve()
+        airframe.resolve_mass()
         rotors = airframe.active_rotors()
         n = len(rotors)
         self.mass = float(airframe.mass.mass)

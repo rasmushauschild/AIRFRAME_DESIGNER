@@ -108,3 +108,30 @@ For joined wing segments, `span` covers the segment itself (both halves if symme
 leading and trailing edges. A shared whole-planform aspect-ratio override is only a strip-theory approximation
 to aerodynamic interaction between segments, not a validated blended-body flow solution. Optional
 `design.visual.wing_colors` supplies CSS colors in wing order for the 3-D solid surfaces.
+
+## `cad` (optional): STEP bodies as masses
+
+```jsonc
+"cad": {
+  "file": "airframes/cad/atlas_frame.step",   // copied there by the Geometry tab's "Import STEP…"
+  "axes": "x_fwd_z_up",        // how the CAD axes map onto FRD: x_fwd_z_up | x_aft_z_up | y_fwd_z_up | y_aft_z_up | x_fwd_y_up | x_aft_y_up | frd
+  "origin": [0, 0, 0],         // FRD position of the CAD origin, m
+  "scale": 1.0,                // extra factor on the geometry (STEP units are converted to metres automatically)
+  "visible": true,             // draw the bodies in the 3D view
+  "bodies": [
+    { "id": "0:Battery", "name": "Battery",
+      "mass": 5.0,             // kg, typed by the user (0 = the body is ignored)
+      "offset": [0.02, 0, 0],  // where the user dragged it, FRD m, relative to the CAD position
+      "removed": false,        // dropped from the list (kept so it can be restored)
+      "volume": 0.00226,       // measured by OpenCascade, CAD frame, m^3
+      "centroid": [0.3, 0, 0.2],
+      "inertia_unit": [9.6e-6, 9.6e-6, 4.1e-6, 0, 0, 0]   // Ixx Iyy Izz Ixy Ixz Iyz about the centroid for density 1 kg/m^3
+    }
+  ]
+}
+```
+With `mass.from_items` true the aircraft mass, CG and inertia are computed from these bodies (each body's mass at its
+centroid + offset, with the solid's inertia scaled to its mass) plus any hand-made `mass.items`. Every body field is
+addressable as a parameter path: `cad.bodies[Battery].mass`, `cad.bodies[0].offset[0]`, `cad.origin[2]`. The meshes for
+the 3D view are cached beside the STEP file as `<file>.bodies.json` (regenerated when the file changes; not committed).
+`MassItem` gained `inertia_products` (Ixy Ixz Iyz of the item's own inertia) for the same reason.
