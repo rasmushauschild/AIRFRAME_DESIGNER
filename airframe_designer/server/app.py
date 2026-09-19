@@ -256,10 +256,6 @@ def build_app(state: AppState) -> FastAPI:
         p = Path(model.file)
         return p if p.is_absolute() else PROJECT_DIR / p
 
-    @app.get("/api/cad/axes")
-    async def cad_axes():
-        return {"presets": [{"key": k, "label": v[0]} for k, v in cadmod.AXES_PRESETS.items()]}
-
     @app.post("/api/cad/import")
     async def cad_import(request: Request, filename: str = "model.step"):
         """Upload a STEP file (raw bytes): it is copied to airframes/cad/, every solid measured and meshed, and the

@@ -167,23 +167,22 @@ $('#m-kind').addEventListener('change', () => applyMotorCard(true));
 // ============================================================ CAD bodies (STEP)
 let cadSelected = null;              // body id highlighted in the table and the 3D view
 const cadCentroids = {};             // id -> centroid in the structural frame without the drag offset
-let cadMeshKey = null;               // file|axes|origin|scale of the meshes currently in the scene
-let cadAxesLoaded = false;
+let cadMeshKey = null;               // file|rotation|origin|scale of the meshes currently in the scene
+const cadKey = (cad) => [cad.file, (cad.rotation_deg || []).join(','), (cad.origin || []).join(','), cad.scale].join('|');
 const cadBody = (id) => (airframe && airframe.cad && airframe.cad.bodies || []).find(b => b.id === id);
 const cadPos = (b) => { const c = cadCentroids[b.id]; return c ? c.map((v, i) => v + (b.offset ? b.offset[i] : 0)) : (b.pos || [0, 0, 0]); };
 function fillCadCard() {
   const cad = airframe.cad;
-  if (!cadAxesLoaded) { cadAxesLoaded = true; api('/api/cad/axes').then(r => { const sel = $('#cad-axes'); sel.innerHTML = r.presets.map(p => `<option value="${esc(p.key)}">${esc(p.label)}</option>`).join(''); if (airframe.cad) sel.value = airframe.cad.axes; }).catch(() => { cadAxesLoaded = false; }); }
   $('#cad-use').checked = !!airframe.mass.from_items;
   if (cad && cad.file) {
     for (const b of cad.bodies || []) if (b.pos) cadCentroids[b.id] = b.pos.map((v, i) => v - (b.offset ? b.offset[i] : 0));
     $('#cad-filename').textContent = cad.file.replace(/^airframes\/cad\//, '');
     $('#cad-show').checked = cad.visible !== false;
-    $('#cad-axes').value = cad.axes;
+    ['rx', 'ry', 'rz'].forEach((k, i) => $('#cad-' + k).value = +(+(cad.rotation_deg || [0, 0, 0])[i]).toFixed(2));
     ['ox', 'oy', 'oz'].forEach((k, i) => $('#cad-' + k).value = +(+(cad.origin || [0, 0, 0])[i]).toFixed(4));
     $('#cad-scale').value = cad.scale ?? 1;
     $('#cad-frame-row').style.display = '';
-    const key = [cad.file, cad.axes, (cad.origin || []).join(','), cad.scale].join('|');
+    const key = cadKey(cad);
     if (key !== cadMeshKey) loadCadMesh(key);
   } else {
     $('#cad-filename').textContent = '';
@@ -251,7 +250,7 @@ $('#cad-file').addEventListener('change', async (e) => {
     const r = await fetch('/api/cad/import?filename=' + encodeURIComponent(f.name), { method: 'POST', headers: { 'Content-Type': 'application/octet-stream' }, body: await f.arrayBuffer() });
     const j = await r.json().catch(() => null);
     if (!r.ok || !j || !j.ok) throw new Error((j && j.error) || r.statusText);
-    cadMeshKey = [j.airframe.cad.file, j.airframe.cad.axes, (j.airframe.cad.origin || []).join(','), j.airframe.cad.scale].join('|');
+    cadMeshKey = cadKey(j.airframe.cad);
     for (const b of j.mesh.bodies || []) cadCentroids[b.id] = b.centroid;
     scene.setCad(j.mesh);
     selected = -1; cadSelected = null;
@@ -265,17 +264,18 @@ $('#cad-show').addEventListener('change', (e) => { if (!airframe.cad) return; ai
 $('#cad-use').addEventListener('change', (e) => { airframe.mass.from_items = e.target.checked; fillMassCard(); renderCadTotals(); pushAirframe(true); });
 async function cadFrameChanged() {
   const cad = airframe.cad; if (!cad) return;
-  cad.axes = $('#cad-axes').value; cad.origin = ['ox', 'oy', 'oz'].map(k => parseFloat($('#cad-' + k).value) || 0); cad.scale = Math.max(1e-4, parseFloat($('#cad-scale').value) || 1);
+  cad.rotation_deg = ['rx', 'ry', 'rz'].map(k => parseFloat($('#cad-' + k).value) || 0);
+  cad.origin = ['ox', 'oy', 'oz'].map(k => parseFloat($('#cad-' + k).value) || 0); cad.scale = Math.max(1e-4, parseFloat($('#cad-scale').value) || 1);
   try {
     const res = await api('/api/airframe', { airframe, keep_state: true });
     if (res.airframe) { airframe.mass = res.airframe.mass; airframe.cad = res.airframe.cad; }
     fillMassCard(); markDirty();
     for (const b of airframe.cad.bodies || []) if (b.pos) cadCentroids[b.id] = b.pos.map((v, i) => v - (b.offset ? b.offset[i] : 0));
     scene.setAirframe(airframe);
-    loadCadMesh([cad.file, cad.axes, cad.origin.join(','), cad.scale].join('|'));
+    loadCadMesh(cadKey(airframe.cad));
   } catch (err) { logLine('[cad] ' + err.message); }
 }
-['cad-axes', 'cad-ox', 'cad-oy', 'cad-oz', 'cad-scale'].forEach(id => $('#' + id).addEventListener('change', cadFrameChanged));
+['cad-rx', 'cad-ry', 'cad-rz', 'cad-ox', 'cad-oy', 'cad-oz', 'cad-scale'].forEach(id => $('#' + id).addEventListener('change', cadFrameChanged));
 $('#cad-reset-offsets').addEventListener('click', () => { if (!airframe.cad) return; airframe.cad.bodies.forEach(b => b.offset = [0, 0, 0]); scene.syncCad(); renderCadTable(); pushAirframe(true); });
 $('#cad-remove-all').addEventListener('click', () => { if (!airframe.cad || !confirm('Remove the CAD file and all its bodies from this airframe?')) return; airframe.cad = null; cadSelected = null; scene.selectCad(null); setAirframe(airframe); pushAirframe(true); });
 

@@ -101,7 +101,9 @@
           <label class="row" style="align-self:end;padding-bottom:6px" title="compute the aircraft mass, CG and inertia from the CAD bodies (plus any mass items) instead of the numbers typed above"><input id="cad-use" type="checkbox"> Mass, CG &amp; inertia from bodies</label>
         </div>
         <div class="row tight" id="cad-frame-row">
-          <label title="how the CAD file's axes map onto the structural frame (x forward, y right, z down)">CAD axes <select id="cad-axes" style="width:210px"></select></label>
+          <label title="rotation of the whole CAD model about the aircraft x axis (roll), degrees; applied first">Rot x° <input id="cad-rx" type="number" step="1" value="0"></label>
+          <label title="rotation about the aircraft y axis (pitch), degrees; applied second">Rot y° <input id="cad-ry" type="number" step="1" value="0"></label>
+          <label title="rotation about the aircraft z axis (yaw), degrees; applied last. A Y-up CAD export usually needs Rot x = -90">Rot z° <input id="cad-rz" type="number" step="1" value="0"></label>
           <label title="where the CAD origin sits in the structural frame, m">Origin x <input id="cad-ox" type="number" step="0.005" value="0"></label>
           <label>y <input id="cad-oy" type="number" step="0.005" value="0"></label>
           <label>z <input id="cad-oz" type="number" step="0.005" value="0"></label>

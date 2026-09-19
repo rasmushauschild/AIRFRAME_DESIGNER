@@ -2,6 +2,12 @@
   "version": "0.0.1",
   "configurations": [
     {
+      "name": "airframe-designer",
+      "runtimeExecutable": ".venv/bin/python",
+      "runtimeArgs": ["-m", "airframe_designer", "ui", "--http", "127.0.0.1:8082", "--px4-instance", "2", "--no-browser"],
+      "port": 8082
+    },
+    {
       "name": "afd-test",
       "runtimeExecutable": ".venv/bin/python",
       "runtimeArgs": ["-m", "airframe_designer", "ui", "--http", "127.0.0.1:8095", "--no-browser", "--px4-instance", "5", "--airframe", "airframes/atlas_mvp_03.json"],

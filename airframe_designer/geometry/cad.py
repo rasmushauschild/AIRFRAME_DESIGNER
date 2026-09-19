@@ -6,7 +6,8 @@ then stores only what the user decides - a mass per body, a drag offset, removed
 the structural frame - and ``mass_items()`` turns that into point masses (with the solid's own inertia) for
 ``MassProperties.resolve``.
 
-Frames: CAD coordinates -> (scale, axes matrix, origin) -> structural FRD (x forward, y right, z down), metres.
+Frames: CAD coordinates -> scale -> rotation (degrees about the structural x, then y, then z axes) -> origin offset
+-> structural FRD (x forward, y right, z down), metres. A Y-up CAD export, for instance, needs rotation x = -90.
 """
 from __future__ import annotations
 
@@ -20,7 +21,8 @@ import numpy as np
 
 from .mass import MassItem
 
-# CAD axes -> FRD. Rows are FRD x, y, z expressed in CAD x, y, z.
+# Legacy axes presets (schema files written before rotation_deg existed): folded into rotation_deg on load.
+# Rows are FRD x, y, z expressed in CAD x, y, z.
 AXES_PRESETS: dict[str, tuple[str, list[list[float]]]] = {
     "x_fwd_z_up": ("X forward, Y left, Z up (right-handed CAD)", [[1, 0, 0], [0, -1, 0], [0, 0, -1]]),
     "x_aft_z_up": ("X aft, Y right, Z up", [[-1, 0, 0], [0, 1, 0], [0, 0, -1]]),
@@ -59,7 +61,8 @@ class CadBody:
 @dataclass
 class CadModel:
     file: str = ""                  # path relative to the project (airframes/cad/<name>.step)
-    axes: str = "x_fwd_z_up"        # AXES_PRESETS key
+    axes: str = "frd"               # legacy preset (see AXES_PRESETS); new files use rotation_deg only
+    rotation_deg: list[float] = field(default_factory=lambda: [0.0, 0.0, 0.0])   # about structural x, y, z (applied in that order)
     origin: list[float] = field(default_factory=lambda: [0.0, 0.0, 0.0])   # FRD position of the CAD origin, m
     scale: float = 1.0              # extra factor on top of the STEP unit conversion (1 = file units are right)
     visible: bool = True
@@ -67,7 +70,8 @@ class CadModel:
 
     # ------------------------------------------------------------ frames
     def matrix(self) -> np.ndarray:
-        return np.asarray(AXES_PRESETS.get(self.axes, AXES_PRESETS["x_fwd_z_up"])[1], float)
+        """CAD -> FRD rotation: Rz(rz) @ Ry(ry) @ Rx(rx) on top of the (legacy) axes preset."""
+        return rotation_matrix(self.rotation_deg) @ np.asarray(AXES_PRESETS.get(self.axes, AXES_PRESETS["frd"])[1], float)
 
     def to_frd(self, p) -> np.ndarray:
         """CAD point (native axes, metres) -> structural FRD."""
@@ -84,15 +88,14 @@ class CadModel:
     def mass_items(self) -> list[MassItem]:
         """Point masses for MassProperties.resolve: each body's mass at its (dragged) centroid with the solid's own
         inertia scaled to that mass. A body with zero mass contributes nothing."""
-        R = self.matrix() * self.scale
+        R = self.matrix()
         out = []
         for b in self.active():
             if b.mass <= 0 or b.volume <= 0:
                 continue
             ixx, iyy, izz, ixy, ixz, iyz = b.inertia_unit
             I = np.array([[ixx, -ixy, -ixz], [-ixy, iyy, -iyz], [-ixz, -iyz, izz]]) * (b.mass / b.volume)
-            # inertia scales with length^2 under a uniform scale; the axes matrix is orthogonal
-            I = (R @ I @ R.T) * (self.scale ** 2) if abs(self.scale - 1.0) > 1e-12 else self.matrix() @ I @ self.matrix().T
+            I = (R @ I @ R.T) * (self.scale ** 2)     # rotate into FRD; inertia grows with length^2 under a uniform scale
             out.append(MassItem(name=f"cad:{b.name}", mass=float(b.mass), pos=self.body_pos(b),
                                 inertia=[float(I[0, 0]), float(I[1, 1]), float(I[2, 2])],
                                 inertia_products=[float(-I[0, 1]), float(-I[0, 2]), float(-I[1, 2])]))
@@ -109,7 +112,7 @@ class CadModel:
 
     # ------------------------------------------------------------ io
     def to_dict(self) -> dict:
-        d = {"file": self.file, "axes": self.axes, "origin": list(self.origin), "scale": self.scale, "visible": self.visible,
+        d = {"file": self.file, "rotation_deg": list(self.rotation_deg), "origin": list(self.origin), "scale": self.scale, "visible": self.visible,
              "bodies": [b.to_dict() | {"pos": self.body_pos(b)} for b in self.bodies]}
         return d
 
@@ -117,13 +120,38 @@ class CadModel:
     def from_dict(cls, d: dict | None) -> "CadModel | None":
         if not d or not d.get("file"):
             return None
-        m = cls(file=str(d.get("file", "")), axes=str(d.get("axes", "x_fwd_z_up")),
+        m = cls(file=str(d.get("file", "")), axes=str(d.get("axes", "frd") or "frd"),
+                rotation_deg=[float(v) for v in (d.get("rotation_deg") or [0, 0, 0])],
                 origin=[float(v) for v in (d.get("origin") or [0, 0, 0])], scale=float(d.get("scale", 1.0) or 1.0),
                 visible=bool(d.get("visible", True)),
                 bodies=[CadBody.from_dict(b) for b in d.get("bodies", []) or []])
         if m.axes not in AXES_PRESETS:
-            m.axes = "x_fwd_z_up"
+            m.axes = "frd"
+        if m.axes != "frd":      # legacy preset: fold it into the angles so the UI shows what is applied
+            m.rotation_deg = euler_deg(m.matrix())
+            m.axes = "frd"
         return m
+
+
+def rotation_matrix(deg) -> np.ndarray:
+    """Rz(rz) @ Ry(ry) @ Rx(rx): rotate about x, then y, then z (fixed structural axes), angles in degrees."""
+    rx, ry, rz = np.radians(np.asarray(deg, float))
+    cx, sx, cy, sy, cz, sz = np.cos(rx), np.sin(rx), np.cos(ry), np.sin(ry), np.cos(rz), np.sin(rz)
+    Rx = np.array([[1, 0, 0], [0, cx, -sx], [0, sx, cx]])
+    Ry = np.array([[cy, 0, sy], [0, 1, 0], [-sy, 0, cy]])
+    Rz = np.array([[cz, -sz, 0], [sz, cz, 0], [0, 0, 1]])
+    return Rz @ Ry @ Rx
+
+
+def euler_deg(R) -> list[float]:
+    """Inverse of rotation_matrix (x, y, z angles in degrees)."""
+    R = np.asarray(R, float)
+    sy = -R[2, 0]
+    if abs(sy) < 1 - 1e-9:
+        ry = np.arcsin(sy); rx = np.arctan2(R[2, 1], R[2, 2]); rz = np.arctan2(R[1, 0], R[0, 0])
+    else:   # gimbal lock: put everything into x and z
+        ry = np.pi / 2 * np.sign(sy); rx = np.arctan2(-R[1, 2], R[1, 1]); rz = 0.0
+    return [round(float(np.degrees(v)), 4) + 0.0 for v in (rx, ry, rz)]
 
 
 # ================================================================== STEP import (OpenCascade via OCP)
@@ -332,7 +360,7 @@ def model_from_import(imported: dict, file_rel: str, previous: CadModel | None =
                               removed=old.removed if old else False))
     m = CadModel(file=file_rel, bodies=bodies)
     if previous:
-        m.axes, m.origin, m.scale, m.visible = previous.axes, list(previous.origin), previous.scale, previous.visible
+        m.axes, m.rotation_deg, m.origin, m.scale, m.visible = previous.axes, list(previous.rotation_deg), list(previous.origin), previous.scale, previous.visible
     return m
 
 

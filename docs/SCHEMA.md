@@ -114,7 +114,7 @@ to aerodynamic interaction between segments, not a validated blended-body flow s
 ```jsonc
 "cad": {
   "file": "airframes/cad/atlas_frame.step",   // copied there by the Geometry tab's "Import STEP…"
-  "axes": "x_fwd_z_up",        // how the CAD axes map onto FRD: x_fwd_z_up | x_aft_z_up | y_fwd_z_up | y_aft_z_up | x_fwd_y_up | x_aft_y_up | frd
+  "rotation_deg": [-90, 0, 0], // rotation of the CAD model about the aircraft x, then y, then z axes (a Y-up export needs x = -90)
   "origin": [0, 0, 0],         // FRD position of the CAD origin, m
   "scale": 1.0,                // extra factor on the geometry (STEP units are converted to metres automatically)
   "visible": true,             // draw the bodies in the 3D view
@@ -132,6 +132,6 @@ to aerodynamic interaction between segments, not a validated blended-body flow s
 ```
 With `mass.from_items` true the aircraft mass, CG and inertia are computed from these bodies (each body's mass at its
 centroid + offset, with the solid's inertia scaled to its mass) plus any hand-made `mass.items`. Every body field is
-addressable as a parameter path: `cad.bodies[Battery].mass`, `cad.bodies[0].offset[0]`, `cad.origin[2]`. The meshes for
+addressable as a parameter path: `cad.bodies[Battery].mass`, `cad.bodies[0].offset[0]`, `cad.rotation_deg[0]`, `cad.origin[2]`. The meshes for
 the 3D view are cached beside the STEP file as `<file>.bodies.json` (regenerated when the file changes; not committed).
 `MassItem` gained `inertia_products` (Ixy Ixz Iyz of the item's own inertia) for the same reason.
