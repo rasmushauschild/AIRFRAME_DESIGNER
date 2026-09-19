@@ -299,7 +299,7 @@ private:
    // Contact inference uses PX4 estimates only and no ground datum, so the ground may differ from the takeoff spot:
    // the rear feet are down when the position controller keeps demanding descent (setpoint well below the vehicle)
    // while the vehicle has stopped moving vertically, level in roll, for half a second.
-   const bool rear_contact=now-_phase_start>2_s && fabsf(pos.vz)<0.055f && _target_touch_z-pos.z>0.12f && fabsf(e.phi())<math::radians(3.f);
+   const bool rear_contact=now-_phase_start>2_s && fabsf(pos.vz)<0.055f && _target_z-pos.z>0.12f && fabsf(e.phi())<math::radians(3.f);
    if (rear_contact) {
     if (!_contact_dwell) { _contact_dwell=now; }
     if (now-_contact_dwell>500_ms) {
@@ -382,8 +382,8 @@ private:
    const float delta=math::constrain(-3.f*omega(2),-0.25f,0.25f);
    _cmd9=sqrtf(math::constrain(frac*(w9+delta),0.f,1.f));
    _cmd10=sqrtf(math::constrain(frac*(2.f-w9-delta),0.f,1.f));
-   if (_phase==Lift && elapsed>_timeout.get()) { fail("lift timeout",status,_touch_z-pos.z>0.3f); return; }
-   if (_phase==Lift && _touch_z-pos.z>0.35f && fabsf(_pitch)>math::radians(3.f)) { fail("early liftoff",status,true); return; }
+   if (_phase==Lift && elapsed>_timeout.get()) { fail("lift timeout",status,_z-pos.z>0.3f); return; }
+   if (_phase==Lift && _z-pos.z>0.35f && fabsf(_pitch)>math::radians(3.f)) { fail("early liftoff",status,true); return; }
    if (_phase==Lift && land.landed && fabsf(math::degrees(theta)-_lift_target.get())<2.f && fabsf(rates.xyz[1])<math::radians(3.f)
        && fabsf(e.phi())<math::radians(3.f) && fabsf(rates.xyz[2])<math::radians(3.f)) {
     if (!_dwell) { _dwell=now; }
