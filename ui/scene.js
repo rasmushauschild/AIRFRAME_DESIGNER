@@ -100,6 +100,8 @@ export function createScene(canvas, handlers) {
   const legMatOff = new THREE.MeshStandardMaterial({ color: theme.arm, roughness: 0.7, transparent: true, opacity: 0.25, depthWrite: false });
   const footMat = new THREE.MeshStandardMaterial({ color: 0x5a5e69, roughness: 0.8, transparent: true, opacity: 0.6, depthWrite: false });
   const cgMat = new THREE.MeshStandardMaterial({ color: 0xff2d92, emissive: 0xff2d92, emissiveIntensity: 0.5, roughness: 0.4 });
+  const pxMat = new THREE.MeshStandardMaterial({ color: 0xff9500, emissive: 0xff9500, emissiveIntensity: 0.25, roughness: 0.5 });
+  const pxNoseMat = new THREE.MeshStandardMaterial({ color: 0xfff1d6, emissive: 0xffd28a, emissiveIntensity: 0.4, roughness: 0.5 });
   const OFF_OPACITY = 0.22;   // disabled rotors
   let airframe = null;
   let selected = -1;
@@ -303,6 +305,21 @@ export function createScene(canvas, handlers) {
     cgLabel.position.copy(frdToThree(cg)).add(new THREE.Vector3(0, 0.05, 0));
     frame.add(cgMark, cgLabel);
     cgNodes.push(cgMark, cgLabel);
+    // flight controller: a small orange board with its forward edge marked, at design.pixhawk_position (structural frame)
+    const pxPos = af.design && af.design.pixhawk_position;
+    if (pxPos && pxPos.length === 3) {
+      const fc = new THREE.Group();
+      const board = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.014, 0.036), pxMat);      // 50 x 36 mm, 14 mm tall (x = forward, z = right)
+      const nose = new THREE.Mesh(new THREE.BoxGeometry(0.006, 0.016, 0.036), pxNoseMat);  // forward edge
+      nose.position.x = 0.025;
+      const label = makeSprite('PX4', '#ff9500');
+      label.scale.set(0.06, 0.06, 1); label.position.set(0, 0.045, 0);
+      fc.add(board, nose, label);
+      fc.position.copy(frdToThree(pxPos));
+      fc.renderOrder = 3;
+      frame.add(fc);
+      cgNodes.push(fc);
+    }
 
     syncCad(af);
     if (selectedCad !== null && cadNodes.has(selectedCad)) selectCad(selectedCad, false, true);
