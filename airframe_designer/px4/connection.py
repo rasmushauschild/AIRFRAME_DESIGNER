@@ -760,7 +760,7 @@ class ConnectionManager:
     SITL_REFERENCE = Path(os.path.expanduser("~/.airframe_designer")) / "sitl_reference.json"
     # never written to a real flight controller: sensor/RC calibration, links, hardware drivers, safety checks and
     # failsafes, the user's mode slots and consent, and the SITL-only conveniences the app seeds
-    SYNC_EXCLUDE = re.compile(r"^(CAL_|RC\d|RC_|COM_RC_IN_MODE|COM_FLTMODE|MAV_|SER_|UAVCAN|SENS_EN_|SENS_IMU|SENS_BOARD_ROT|IMU_|BAT\d?_|PWM_|HIL_ACT|SDLOG|SYS_HITL|SYS_AUTOSTART|SYS_AUTOCONFIG|SYS_HAS_|SYS_PARAM_VER|SYS_BL|SYS_USE_IO|MNT_|GPS_|TEL_|NLF_HW_OK|NLF_RC_|CBRK_|COM_ARM_|COM_PREARM|COM_DISARM_|NAV_DLL_ACT|NAV_RCL_ACT|COM_OBL_|COM_RCL_|COM_LOW_BAT|COM_POWER_|COM_CPU_|BAT_|LND_|_HASH)")
+    SYNC_EXCLUDE = re.compile(r"^(CAL_|RC\d|RC_|COM_RC_IN_MODE|COM_FLTMODE|MAV_|SER_|UAVCAN|SENS_EN_|SENS_IMU|SENS_BOARD_ROT|IMU_|BAT\d?_|PWM_|HIL_ACT|SDLOG|SYS_HITL|SYS_AUTOSTART|SYS_AUTOCONFIG|SYS_HAS_|SYS_PARAM_VER|SYS_BL|SYS_USE_IO|MNT_|GPS_|TEL_|NLF_HW_OK|NLF_RC_|MAN_ARM_GESTURE|MAN_KILL_GEST|CBRK_|COM_ARM_|COM_PREARM|COM_DISARM_|NAV_DLL_ACT|NAV_RCL_ACT|COM_OBL_|COM_RCL_|COM_LOW_BAT|COM_POWER_|COM_CPU_|BAT_|LND_|_HASH)")
 
     def save_sitl_reference(self) -> None:
         link = self.link
