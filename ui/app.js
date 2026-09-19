@@ -1,3 +1,5 @@
+let lastPrearmReportRequest = 0;
+let prearmReportRequestPending = false;
 import { createScene } from '/static/scene.js';
 
 const $ = (s) => document.querySelector(s);
@@ -64,6 +66,11 @@ function pushAirframe(immediate = false) {
       const bad = sanitizeNumbers(airframe);
       if (bad.length) logLine('[ui] empty or invalid number fields set to 0: ' + bad.join(', '));
       const res = await api('/api/airframe', { airframe, keep_state: true });
+      if (res.airframe) {
+        airframe.landed_pitch_deg = res.airframe.landed_pitch_deg;
+        airframe.px4_overrides = { ...(airframe.px4_overrides || {}), NLF_LAND_ANG: res.airframe.landed_pitch_deg };
+        $('#af-landed').value = res.airframe.landed_pitch_deg;
+      }
       // the server resolves mass.from_items and normalises rotor axes; take its mass block back so the card is right
       if (res.airframe && res.airframe.mass && airframe.mass && airframe.mass.from_items) { airframe.mass = res.airframe.mass; fillMassCard(); scene.setAirframe(airframe); }
       showProblems(res.problems);
@@ -291,7 +298,7 @@ bindNumber('af-ixx', v => airframe.mass.inertia[0] = v);
 bindNumber('af-iyy', v => airframe.mass.inertia[1] = v);
 bindNumber('af-izz', v => airframe.mass.inertia[2] = v);
 bindNumber('af-hover', v => airframe.hover_pitch_deg = v);
-bindNumber('af-landed', v => airframe.landed_pitch_deg = v);
+
 bindNumber('af-bx', v => airframe.body.size[0] = v);
 bindNumber('af-by', v => airframe.body.size[1] = v);
 bindNumber('af-bz', v => airframe.body.size[2] = v);
@@ -829,7 +836,41 @@ function updateFooter() {
   armBtn.disabled = !status.ctl_connected || (!status.armed && !status.arm_ready);
   if (!status.armed && status.ctl_connected && !status.arm_ready) armBtn.title = 'Not armable yet: ' + (status.arm_block_reason || 'estimator not ready');
   const tko = $('#btn-takeoff');
-  tko.disabled = !status.ctl_connected || (!status.armed && !status.arm_ready);
+  if (status.mode === 'sitl' && status.ctl_connected && !status.armed &&
+      !status.arm_ready && !status.resetting &&
+      !prearmReportRequestPending && Date.now() - lastPrearmReportRequest > 10000) {
+    lastPrearmReportRequest = Date.now();
+    prearmReportRequestPending = true;
+    api('/api/px4/shell', { command: 'commander check', timeout: 0.5 })
+      .catch(e => logLine('[ui] Could not refresh arming checks: ' + e.message))
+      .finally(() => { prearmReportRequestPending = false; });
+  }
+  const nativeNoseLift = status.mode === 'sitl' && +((params.NLF_ENABLE || {}).value ?? (airframe.px4_overrides || {}).NLF_ENABLE) === 1;
+  tko.title = nativeNoseLift ? 'PX4 arms, raises the nose to the configured target, then climbs and holds heading' : 'Automatic takeoff';
+  tko.textContent = 'Takeoff';
+  tko.disabled = !status.ctl_connected || (nativeNoseLift && status.armed) || (!status.armed && !status.arm_ready);
+  $$('#nl-card input, #nl-card button').forEach(el => { el.disabled = !!nativeNoseLift; });
+  const landButton = $('#btn-land');
+  if (landButton) {
+    landButton.textContent = 'Land';
+    landButton.disabled = !status.ctl_connected || !status.armed;
+    landButton.title = nativeNoseLift ? 'From native hover: descend onto rear legs, lower the nose at 4 degrees/s, then disarm' : 'Land';
+  }
+  $('#af-hover').disabled = !!status.armed;
+  $('#af-landed').readOnly = true;
+  const targetInput = $('#af-takeoff');
+  targetInput.disabled = !nativeNoseLift || !!status.armed || !status.ctl_connected;
+  $('#nl-target').closest('label').hidden = !!nativeNoseLift;
+  if (nativeNoseLift) {
+    targetInput.disabled = !!status.armed || !status.ctl_connected;
+    targetInput.step = 'any';
+    targetInput.title = 'PX4 NLF_TARGET: ground nose lift angle. Hover pitch is configured separately.';
+    if (document.activeElement !== targetInput) targetInput.value = (params.NLF_TARGET || {}).value ?? (airframe.px4_overrides || {}).NLF_TARGET ?? 25;
+  }
+  const nlHint = $('#nl-card .hint');
+  if (nlHint && nativeNoseLift) nlHint.textContent = 'Native PX4 module ready. Use Takeoff below. Set Takeoff pitch° in the Geometry tab before takeoff. Hover pitch and Landed pitch are configured in Geometry. Then use Land below. Other controls in this card are simulator-only and inactive.';
+  $$('#mode-pills .pill').forEach(el => { if (el.textContent.toLowerCase() === 'takeoff') { el.disabled = !!nativeNoseLift; el.title = nativeNoseLift ? 'Use Takeoff below' : ''; } });
+
   tko.classList.toggle('hidden', !!status.armed && !status.on_ground_hint && false);
   const upd = $('#btn-update');
   upd.disabled = !status.ctl_connected || !!status.armed;
@@ -855,7 +896,10 @@ function fillNoseLiftCard() {
   $('#nl-rate').value = d.rate_deg_s ?? 8;
   $('#nl-assist').value = Math.round((d.assist_cmd ?? 0) * 100);
   $('#nl-use').checked = !!d.enabled;
-  $$('#nl-card input').forEach(inp => inp.addEventListener('change', () => { airframe.design.nose_lift = noseLiftCfg(); pushAirframe(true); }));
+  $$('#nl-card input').forEach(inp => { inp.onchange = () => {
+    if (status.mode === 'sitl' && +((params.NLF_ENABLE || {}).value ?? (airframe.px4_overrides || {}).NLF_ENABLE) === 1) return;
+    airframe.design.nose_lift = noseLiftCfg(); pushAirframe(true);
+  }; });
 }
 async function startNoseLift() {
   const c = noseLiftCfg();
@@ -888,6 +932,18 @@ async function waitNoseLift(timeoutMs = 40000) {
 }
 $('#btn-takeoff').addEventListener('click', async () => {
   try {
+    if (status.mode === 'sitl' && +((params.NLF_ENABLE || {}).value ?? (airframe.px4_overrides || {}).NLF_ENABLE) === 1) {
+      if (status.armed) return;
+      const landing = await api('/api/params/set', { name: 'NLF_LAND_ANG', value: Number(airframe.landed_pitch_deg) });
+      if (!landing.ok) throw new Error(landing.error || 'Could not apply landed pitch');
+      logLine('[ui] native PX4 nose lift: normal arming, front-fan lift, then heading-held hover');
+      await api('/api/sim/nose_lift', { stop: true });
+      await api('/api/px4/shell', { command: 'atlas_nose_lift start', timeout: 0.5 });
+      const result = await api('/api/px4/shell', { command: 'atlas_nose_lift takeoff', timeout: 0.5 });
+      if (result.output) logLine(result.output);
+      return;
+    }
+
     const useNl = airframe && airframe.design && airframe.design.nose_lift && airframe.design.nose_lift.enabled;
     if (useNl && !status.armed) {
       logLine('[ui] takeoff: lifting the nose first');
@@ -1040,8 +1096,17 @@ $('#param-meta-fetch').addEventListener('click', async () => {
 });
 
 // ============================================================ flight / sim
-$$('#tab-sim button[data-cmd]').forEach(b => b.addEventListener('click', () =>
-  api('/api/px4/command', { command: b.dataset.cmd, mode: b.dataset.mode, force: b.dataset.cmd === 'kill' }).catch(e => logLine('[ui] ' + e.message))));
+$$('#tab-sim button[data-cmd], #btn-land').forEach(b => b.addEventListener('click', async () => {
+  try {
+    if (b.dataset.mode === 'land' && status.mode === 'sitl' && +((params.NLF_ENABLE || {}).value ?? (airframe.px4_overrides || {}).NLF_ENABLE) === 1) {
+      logLine('[ui] native landing: rear legs first, slow nose lowering, then motors off');
+      const result = await api('/api/px4/shell', { command: 'atlas_nose_lift land', timeout: 0.5 });
+      if (result.output) logLine(result.output);
+      return;
+    }
+    await api('/api/px4/command', { command: b.dataset.cmd, mode: b.dataset.mode, force: b.dataset.cmd === 'kill' });
+  } catch(e) { logLine('[ui] ' + e.message); }
+}));
 async function recover(btn, full) {
   const label = btn.textContent; btn.textContent = 'Resetting…'; btn.disabled = true;
   try { const r = await api('/api/px4/reset_all', {}); logLine('[ui] reset: ' + (r.steps || []).join(', ')); }
@@ -1741,3 +1806,19 @@ setInterval(async () => {
     liveStop.hidden = !r.running;
   } catch {} finally { livePolling = false; }
 }, 1000);
+
+$('#af-takeoff').addEventListener('change', async () => {
+  const inp = $('#af-takeoff');
+  const value = Number(inp.value);
+  try {
+    if (status.armed || !status.ctl_connected || !Number.isFinite(value)) throw new Error('Enter a finite takeoff pitch while connected and disarmed');
+    const saved = await api('/api/params/set', { name: 'NLF_TARGET', value });
+    if (!saved.ok || Math.abs(Number(saved.value) - value) > 0.01) throw new Error(saved.error || 'PX4 did not confirm the takeoff pitch');
+    params.NLF_TARGET = { ...(params.NLF_TARGET || {}), value };
+    airframe.px4_overrides = { ...(airframe.px4_overrides || {}), NLF_TARGET: value };
+    logLine('[ui] Takeoff pitch saved: ' + value + '°');
+  } catch (e) {
+    logLine('[ui] ' + e.message);
+    inp.value = (params.NLF_TARGET || {}).value ?? (airframe.px4_overrides || {}).NLF_TARGET ?? 25;
+  }
+});

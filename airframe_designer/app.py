@@ -24,16 +24,16 @@ from pathlib import Path
 import uvicorn
 
 from .geometry.airframe import Airframe, quad_x
-from .px4.connection import ConnectionManager, list_serial_ports
+from .px4.connection import list_serial_ports
+from .native import NativeConnectionManager as ConnectionManager, NativeSimulator as Simulator
 from .px4.events import EventDecoder
 from .px4 import param_meta
 from .px4.sitl import find_px4_dir
 from .sensors import Home
-from .sim.simulator import Simulator
 from .server.app import AppState, build_app
 
 PROJECT_DIR = Path(__file__).resolve().parent.parent
-DEFAULT_AIRFRAME = "atlas_08.json"
+DEFAULT_AIRFRAME = "atlas_09.json"
 
 
 def free_http_port(host: str, port: int, log, tries: int = 20) -> int:
@@ -63,7 +63,7 @@ def main(argv=None) -> int:
     ap.add_argument("--baud", type=int, default=921600)
     ap.add_argument("--qgc", default="127.0.0.1:14550", help="HITL: forward vehicle MAVLink to QGC at this UDP address ('' to disable)")
     ap.add_argument("--airframe", default=None, help=f"airframe JSON to load (default: airframes/{DEFAULT_AIRFRAME})")
-    ap.add_argument("--px4-dir", default=os.path.expanduser("~/PX4-Autopilot"))
+    ap.add_argument("--px4-dir", default=str(PROJECT_DIR / "firmware" / "atlas"))
     ap.add_argument("--launch-px4", action="store_true", default=True, help="SITL: start PX4 SITL from --px4-dir (default)")
     ap.add_argument("--no-launch-px4", dest="launch_px4", action="store_false", help="SITL: do not start PX4, wait for one")
     ap.add_argument("--px4-model", default="none_iris", help="PX4_SIM_MODEL for --launch-px4 (default none_iris)")
@@ -78,7 +78,10 @@ def main(argv=None) -> int:
     ap.add_argument("--http", default="127.0.0.1:8080", help="UI address")
     ap.add_argument("--no-browser", action="store_true")
     args = ap.parse_args(argv)
-    args.px4_dir = find_px4_dir(args.px4_dir)
+    # Never silently substitute the old stock PX4 build.
+    args.px4_dir = str(Path(args.px4_dir).expanduser())
+    if args.mode != "hitl" and args.launch_px4 and not (Path(args.px4_dir) / "build/px4_sitl_default/bin/px4").is_file():
+        ap.error("Native PX4 build missing; see firmware/atlas/README.md for build instructions")
 
     log_buffer: deque = deque(maxlen=1000)
 

@@ -2,14 +2,12 @@
 
 The module lifts the nose to the existing 25° hover frame while ground contact remains, then transfers control to PX4 position control and climbs 1 m above the starting position, holding heading. It now also provides rear-leg landing, controlled nose lowering and automatic motor shutdown; see [LANDING.md](LANDING.md). Geometry, mass, inertia, fan properties and landing feet are unchanged. This build is deliberately restricted to SITL; it is not a hardware-ready flight controller.
 
-## Repository setup
+## Standard application
 
-This directory contains the self-contained experimental module and a simulator launcher. The default model is `current-session.json`, a snapshot of the running ATLAS_09 session. Pass `atlas_07d.native.json` explicitly to use the earlier ATLAS_07D model.
-Activate the repository Python environment, set `PX4_SOURCE_DIR` to a compatible PX4 checkout,
-then follow the build instructions below. Run `python prepare_ui.py` before `python run_visible.py`.
-The generated UI and build outputs are ignored by Git. The launcher imports this repository,
-uses port 8081 and PX4 instance 1, and accepts an optional airframe JSON path.
-Validation JSON files summarize earlier simulation runs; raw logs and local runtime state are not included.
+This is the native firmware source used by the main app. There is no separate demo UI or launcher.
+After building below, run `python -m airframe_designer ui` from the repository root.
+The default model is `airframes/atlas_09.json`; use `--airframe` to select another model.
+The app refuses to silently fall back to stock firmware when this build is missing.
 
 ## Use the running simulator
 
@@ -17,15 +15,15 @@ Open http://127.0.0.1:8081/, select **Flight**, then click **Takeoff** in the bo
 
 `NLF_ALT` controls the requested climb above the initial estimated position; it is not `MIS_TAKEOFF_ALT`. At rest the model's CG is already about 0.21 m above the floor, so a 1 m climb results in approximately 1.2 m displayed altitude.
 
-The app on port 8081 uses its own UI copy and isolated PX4 build. The original AIRFRAME_DESIGNER UI, original PX4 sources, port 8080 and PX4 instance 0 were not modified. The original model file hash is recorded in `model_fingerprint.json`; `atlas_07d.native.json` differs in PX4 parameter overrides and the configured landed pitch.
+The app uses the standard repository UI and the native PX4 build in `firmware/atlas`. The original model file hash is recorded in `model_fingerprint.json`; `atlas_07d.native.json` differs in PX4 parameter overrides and the configured landed pitch.
 
 To restart this session after closing it, first stop the existing port-8081 session, then run:
 
 ```sh
-python run_visible.py
+python -m airframe_designer ui
 ```
 
-Run this command from this directory. The launcher uses port 8081 and PX4 instance 1. Do not launch a second copy on the same instance. Reset reapplies the saved demo parameters; persist intentional changes in `atlas_07d.native.json` before restarting.
+Run this command from the repository root. Select the port and instance with `--http` and `--px4-instance`. Do not launch a second copy on the same instance. Reset reapplies the saved demo parameters; persist intentional changes in `atlas_07d.native.json` before restarting.
 
 ## What was built
 
@@ -111,7 +109,7 @@ Use an unused SITL instance for tests. The implementation follows PX4's Offboard
 
 ## SITL connection recovery
 
-The demo launcher now restarts its owned PX4 process when reconnecting a fixed SITL instance, and Reset restarts both PX4 and simulator state. Restarting only EKF2 can leave the native module or a closed simulator socket alive. Parameter seeding uses the currently loaded model, so reconnecting does not revert model edits. An optional first argument to `run_visible.py` selects a saved model JSON at startup. These changes apply to this demo's owned SITL instance, not hardware connections or other simulator instances.
+The standard launcher restarts its owned PX4 process when reconnecting a fixed SITL instance, and Reset restarts both PX4 and simulator state. Restarting only EKF2 can leave the native module or a closed simulator socket alive. Parameter seeding uses the currently loaded model, so reconnecting does not revert model edits. Use `--airframe path/to/model.json` to select a saved model at startup. These changes apply to the app’s owned SITL instance, not hardware connections or other simulator instances.
 
 ### Editable nose lift target
 

@@ -87,8 +87,12 @@
         <label>Iyy <input id="af-iyy" type="number" step="0.001" min="0"></label>
         <label>Izz <input id="af-izz" type="number" step="0.001" min="0"></label>
         <button id="af-estimate" class="pill small" title="Estimate inertia from mass, rotor layout, wings and legs">Estimate</button>
+      </div>
+      <div class="row">
+        <label title="Nose-up angle reached on the ground before takeoff. Editable while connected and disarmed; does not change hover pitch.">Takeoff pitch° <input id="af-takeoff" type="number" step="any" value="25" disabled></label>
         <label title="Nose-up pitch of the airframe in hover. PX4 treats this attitude as level: the geometry is exported rotated into that frame and SENS_BOARD_Y_OFF is set to match.">Hover pitch° <input id="af-hover" type="number" step="1" min="-90" max="90"></label>
-        <label title="Nose-up pitch of the airframe when it stands on its legs; the simulator rests the vehicle at this attitude.">Landed pitch° <input id="af-landed" type="number" step="1" min="-90" max="90"></label>
+        <label title="Calculated automatically from the enabled landing feet. Actual resting pitch can differ slightly as the legs compress.">Landed pitch° (auto) <input id="af-landed" type="number" step="1" min="-90" max="90"></label>
+        <span class="hint">After changing hover pitch, use Update PX4, then Reset. Landed pitch is calculated from the landing legs.</span>
       </div>
 
       <details id="cad-details">
@@ -265,8 +269,6 @@
         <button class="pill small" data-cmd="mode" data-mode="altitude">Altitude</button>
         <button class="pill small" data-cmd="mode" data-mode="position">Position</button>
         <button class="pill small" data-cmd="mode" data-mode="hold">Hold</button>
-        <button class="pill small" data-cmd="takeoff" data-mode="takeoff">Takeoff</button>
-        <button class="pill small" data-cmd="mode" data-mode="land">Land</button>
         <button class="pill small" data-cmd="mode" data-mode="rtl">RTL</button>
         <button class="pill small" data-cmd="mode" data-mode="mission">Mission</button>
       </div>
@@ -351,6 +353,7 @@
       <span id="update-status" class="hint"></span>
       <span class="panel-spacer"></span>
       <button id="btn-takeoff" class="pill" title="Automatic takeoff: arms if needed, climbs to MIS_TAKEOFF_ALT, then holds">Takeoff</button>
+      <button id="btn-land" class="pill" data-cmd="mode" data-mode="land" disabled>Land</button>
       <button id="btn-arm" class="pill">Arm</button>
     </div>
   </aside>

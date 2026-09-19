@@ -1,6 +1,7 @@
 # AIRFRAME_DESIGNER
 
-The current ATLAS simulator session (including the ATLAS_09 model, native PX4 takeoff/landing, and automatic landed pitch) is packaged in [experiments/atlas_nose_lift](experiments/atlas_nose_lift/README.md). Follow its build and launch instructions to run this version on port 8081.
+The standard `airframe-designer ui` app includes native PX4 takeoff/landing, automatic landed pitch, and CAD editing. Build the [native firmware](firmware/atlas/README.md) first; the app never falls back to the old stock PX4 build.
+
 
 A real-time, physics-based aircraft simulator with **PX4 in the loop**, for designing unconventional airframes:
 wings and fins with their own dimensions, angles and coefficients; propellers, ducted fans and jetfoils with
@@ -144,4 +145,4 @@ in the structural frame.
 
 ## Experimental ATLAS PX4 ground sequences
 
-See [ATLAS nose-lift takeoff and landing](experiments/atlas_nose_lift/README.md) for the SITL-only native PX4 module, simulator controls, build instructions, and validation summaries.
+See [ATLAS nose-lift takeoff and landing](firmware/atlas/README.md) for the SITL-only native PX4 module, simulator controls, build instructions, and validation summaries.

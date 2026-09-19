@@ -166,6 +166,10 @@ class ConnectionManager:
         self._stop = threading.Event()
         threading.Thread(target=self._watch, name="link-watch", daemon=True).start()
 
+    def _launch_sitl(self, instance):
+        return launch_px4(self.args.px4_dir, self.args.px4_model, self.log,
+                          instance=instance, rootfs=self.args.px4_rootfs)
+
     # ------------------------------------------------------------ connect
     def connect_sitl(self, launch: bool | None = None) -> dict:
         with self._lock:
@@ -193,8 +197,7 @@ class ConnectionManager:
                 self.px4_instance = instance
                 if launch and (self.px4_process is None or self.px4_process.poll() is not None):
                     try:
-                        self.px4_process = launch_px4(self.args.px4_dir, self.args.px4_model, self.log,
-                                                      instance=instance, rootfs=self.args.px4_rootfs)
+                        self.px4_process = self._launch_sitl(instance)
                     except RuntimeError as e:
                         self.error = str(e)
                         self.log(f"[px4] {e}")
@@ -420,8 +423,7 @@ class ConnectionManager:
                 if main_mode == 10 and self.px4_running() and self.args.launch_px4:
                     self._reset_busy_until = time.time() + 20
                     self.stop_px4(); time.sleep(1.0)
-                    self.px4_process = launch_px4(self.args.px4_dir, self.args.px4_model, self.log,
-                                                  instance=self.px4_instance or 0, rootfs=self.args.px4_rootfs)
+                    self.px4_process = self._launch_sitl(self.px4_instance or 0)
                     steps.append("PX4 SITL relaunched (was in flight termination)")
                 else:
                     self._reset_busy_until = time.time() + 8
