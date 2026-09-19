@@ -1509,29 +1509,33 @@ $('#arch-snapshot').addEventListener('click', async () => {
 $('#arch-pull').addEventListener('click', async () => { try { const r = await api('/api/archive/pull', {}); if (!r.ok) alert(r.error); } catch (e) { alert(e.message); } refreshArchive(); });
 
 
-// ============================================================ Remote control (PX4 tab): indicator, channels, mapping
-let lastRc = {}, lastManual = {}, rcLearn = null, rcLearnBase = null, rcLastRender = 0, rcIndKey = '', rcBuiltFor = '';
+// ============================================================ Remote control (PX4 tab): indicator + one row per channel
+let lastRc = {}, lastManual = {}, rcLastRender = 0, rcIndKey = '', rcBuiltFor = '';
 let rcCal = null;   // stick calibration in progress: { step, min: [], max: [] }
-// every RC_MAP_* PX4 knows, grouped like QGroundControl's Radio and Flight Modes pages (labels override the metadata)
-const RC_GROUPS = [
-  { title: 'Sticks', items: [['RC_MAP_ROLL', 'Roll'], ['RC_MAP_PITCH', 'Pitch'], ['RC_MAP_THROTTLE', 'Throttle'], ['RC_MAP_YAW', 'Yaw']] },
-  { title: 'Flight mode', items: [['RC_MAP_FLTMODE', 'Mode switch (6 slots)']] },
-  { title: 'Switches', items: [['RC_MAP_ARM_SW', 'Arm', 'RC_ARMSWITCH_TH'], ['RC_MAP_KILL_SW', 'Kill', 'RC_KILLSWITCH_TH'], ['RC_MAP_RETURN_SW', 'Return', 'RC_RETURN_TH'],
-    ['RC_MAP_LOITER_SW', 'Hold / loiter', 'RC_LOITER_TH'], ['RC_MAP_OFFB_SW', 'Offboard', 'RC_OFFB_TH'], ['RC_MAP_TRANS_SW', 'VTOL transition', 'RC_TRANS_TH'],
-    ['RC_MAP_GEAR_SW', 'Landing gear', 'RC_GEAR_TH'], ['RC_MAP_ENG_MOT', 'Engine / motor', 'RC_ENG_MOT_TH'], ['RC_MAP_PAY_SW', 'Payload', 'RC_PAYLOAD_TH'],
-    ['RC_MAP_TERM_SW', 'Flight termination'], ['RC_MAP_FAILSAFE', 'Failsafe channel']] },
-  { title: 'Extra channels', items: [['RC_MAP_FLAPS', 'Flaps'], ['RC_MAP_AUX1', 'Aux 1'], ['RC_MAP_AUX2', 'Aux 2'], ['RC_MAP_AUX3', 'Aux 3'], ['RC_MAP_AUX4', 'Aux 4'], ['RC_MAP_AUX5', 'Aux 5'], ['RC_MAP_AUX6', 'Aux 6'],
-    ['RC_MAP_PARAM1', 'Parameter tuning 1'], ['RC_MAP_PARAM2', 'Parameter tuning 2'], ['RC_MAP_PARAM3', 'Parameter tuning 3']] },
+// what a channel can control (PX4's RC_MAP_* functions); 'switch' ones have a threshold, 'mode' has six slots
+const RC_FUNCS = [
+  { p: 'RC_MAP_ROLL', label: 'Roll', kind: 'stick' }, { p: 'RC_MAP_PITCH', label: 'Pitch', kind: 'stick' }, { p: 'RC_MAP_THROTTLE', label: 'Throttle', kind: 'stick' }, { p: 'RC_MAP_YAW', label: 'Yaw', kind: 'stick' },
+  { p: 'RC_MAP_FLTMODE', label: 'Flight mode', kind: 'mode' },
+  { p: 'RC_MAP_ARM_SW', label: 'Arm', kind: 'switch', th: 'RC_ARMSWITCH_TH' }, { p: 'RC_MAP_KILL_SW', label: 'Kill', kind: 'switch', th: 'RC_KILLSWITCH_TH' },
+  { p: 'RC_MAP_RETURN_SW', label: 'Return home', kind: 'switch', th: 'RC_RETURN_TH' }, { p: 'RC_MAP_LOITER_SW', label: 'Hold', kind: 'switch', th: 'RC_LOITER_TH' },
+  { p: 'RC_MAP_OFFB_SW', label: 'Offboard', kind: 'switch', th: 'RC_OFFB_TH' }, { p: 'RC_MAP_TRANS_SW', label: 'VTOL transition', kind: 'switch', th: 'RC_TRANS_TH' },
+  { p: 'RC_MAP_GEAR_SW', label: 'Landing gear', kind: 'switch', th: 'RC_GEAR_TH' }, { p: 'RC_MAP_ENG_MOT', label: 'Engine', kind: 'switch', th: 'RC_ENG_MOT_TH' },
+  { p: 'RC_MAP_PAY_SW', label: 'Payload', kind: 'switch', th: 'RC_PAYLOAD_TH' }, { p: 'RC_MAP_TERM_SW', label: 'Flight termination', kind: 'switch' },
+  { p: 'RC_MAP_FAILSAFE', label: 'Failsafe', kind: 'aux' }, { p: 'RC_MAP_FLAPS', label: 'Flaps', kind: 'aux' },
+  { p: 'RC_MAP_AUX1', label: 'Aux 1', kind: 'aux' }, { p: 'RC_MAP_AUX2', label: 'Aux 2', kind: 'aux' }, { p: 'RC_MAP_AUX3', label: 'Aux 3', kind: 'aux' },
+  { p: 'RC_MAP_AUX4', label: 'Aux 4', kind: 'aux' }, { p: 'RC_MAP_AUX5', label: 'Aux 5', kind: 'aux' }, { p: 'RC_MAP_AUX6', label: 'Aux 6', kind: 'aux' },
+  { p: 'RC_MAP_PARAM1', label: 'Tuning 1', kind: 'aux' }, { p: 'RC_MAP_PARAM2', label: 'Tuning 2', kind: 'aux' }, { p: 'RC_MAP_PARAM3', label: 'Tuning 3', kind: 'aux' },
 ];
-const RC_FUNCS = RC_GROUPS.flatMap(g => g.items.map(([p, label, th]) => ({ p, label, th })));
+const MODE_SLOTS = { 0: [1, 2], 50: [3, 4], 100: [5, 6] };   // a 3-position switch lands in slots 1, 4 and 6; keep each third consistent
 const rcFresh = () => lastRc && lastRc.count > 0 && lastRc.t && (Date.now() / 1000 - lastRc.t) < 3;
 const rcAlive = () => rcFresh() && (lastRc.channels || []).some(v => v > 0);      // a bound receiver with the transmitter on
 const pv = (name, d = null) => (params[name] && params[name].value != null) ? +params[name].value : d;
 function rcNorm(ch, v) {   // PWM -> -1..1 with the board's calibration (RCn_MIN/TRIM/MAX), like PX4's rc_update
   const mn = pv(`RC${ch}_MIN`, 1000), mx = pv(`RC${ch}_MAX`, 2000), tr = pv(`RC${ch}_TRIM`, 1500), rev = pv(`RC${ch}_REV`, 1);
-  let x = v > tr ? (v - tr) / Math.max(1, mx - tr) : (v - tr) / Math.max(1, tr - mn);
+  const x = v > tr ? (v - tr) / Math.max(1, mx - tr) : (v - tr) / Math.max(1, tr - mn);
   return Math.max(-1, Math.min(1, x * (rev < 0 ? -1 : 1)));
 }
+const rcThird = (x) => x < -0.33 ? 0 : x > 0.33 ? 100 : 50;
 function renderRcIndicator() {
   const src = joyCurrent();
   const viaBoard = rcAlive(), viaApp = !!src;
@@ -1544,71 +1548,68 @@ function renderRcIndicator() {
   if (key !== rcIndKey) { rcIndKey = key; const el = $('#rc-ind'); el.classList.toggle('on', on); $('#rc-ind-text').textContent = text; }
   $('#joy-card').hidden = !viaApp;
 }
-function rcMapped() {
-  const m = {};
-  RC_FUNCS.forEach(f => { const ch = pv(f.p, 0); if (ch > 0) (m[ch] = m[ch] || []).push(f.label.replace(/ \(.*\)/, '')); });
-  return m;
-}
+const rcKnownFuncs = () => RC_FUNCS.filter(f => params[f.p] || Object.keys(params).length < 100);
+const rcFuncOf = (ch) => rcKnownFuncs().find(f => pv(f.p, 0) === ch) || null;
 async function rcSet(name, value) {
   try { await api('/api/params/set', { name, value }); params[name] = { ...(params[name] || {}), value }; } catch (e) { logLine('[rc] ' + e.message); }
+}
+async function rcAssign(ch, p) {        // give channel ch the function p (moving it away from wherever it was), or none
+  const had = rcFuncOf(ch);
+  if (had && had.p !== p) await rcSet(had.p, 0);
+  if (p) await rcSet(p, ch);
+  rcBuiltFor = '';
+}
+function switchOnAt(f, pos) {          // does this switch function count as ON at the 0 / 50 / 100 % stick position?
+  const th = pv(f.th, 0.5), x = pos === 0 ? -1 : pos === 100 ? 1 : 0;
+  return th >= 0 ? x > th : x < th;
 }
 function renderRcBoard() {
   const el = $('#rc-board');
   if (!rcFresh()) { if (el.dataset.mode !== 'none') { el.dataset.mode = 'none'; el.hidden = true; } return; }
   el.hidden = false;
   const n = lastRc.count >= 1 && lastRc.count <= 18 ? lastRc.count : 18;   // MAVLink RC_CHANNELS and PX4's RC input carry 18 at most
-  const known = RC_FUNCS.filter(f => params[f.p] || !status.param_count || Object.keys(params).length < 100);   // hide what this firmware lacks
-  const key = `${n}|${known.map(f => f.p).join(',')}|${pv('RC_MAP_FLTMODE', 0) > 0}`;
+  const funcs = rcKnownFuncs();
+  const key = `${n}|${funcs.map(f => f.p + ':' + pv(f.p, 0)).join(',')}|${[1, 2, 3, 4, 5, 6].map(i => pv('COM_FLTMODE' + i, -1)).join(',')}`;
   if (el.dataset.mode !== 'rc' || rcBuiltFor !== key) {
     el.dataset.mode = 'rc'; rcBuiltFor = key;
-    const opts = (cur) => `<option value="0" ${!cur ? 'selected' : ''}>–</option>` + Array.from({ length: n }, (_, i) => `<option value="${i + 1}" ${cur === i + 1 ? 'selected' : ''}>${i + 1}</option>`).join('');
     const modeVals = ((meta.COM_FLTMODE1 || {}).values || [{ value: -1, description: 'Unassigned' }, { value: 0, description: 'Manual' }, { value: 1, description: 'Altitude' }, { value: 2, description: 'Position' }, { value: 3, description: 'Mission' }, { value: 4, description: 'Hold' }, { value: 5, description: 'Return' }, { value: 6, description: 'Acro' }, { value: 7, description: 'Offboard' }, { value: 8, description: 'Stabilized' }, { value: 10, description: 'Takeoff' }, { value: 11, description: 'Land' }]);
-    const groupsHtml = RC_GROUPS.map(g => {
-      const rows = g.items.filter(([p]) => known.some(f => f.p === p)).map(([p, label, th]) => `<tr data-p="${p}"><td>${label}</td><td><select class="rc-sel" data-p="${p}">${opts(pv(p, 0))}</select></td><td><button class="pill small rc-learn" data-p="${p}" title="click, then move that stick or switch">Learn</button></td><td class="rc-state" data-p="${p}"></td>${th ? `<td class="rc-th"><input type="number" class="rc-thin" data-p="${th}" step="0.05" min="-1" max="1" value="${pv(th, 0.5)}" title="${th}: switch threshold on the –1…1 range; negative = active below"></td>` : '<td></td>'}</tr>`).join('');
-      return rows ? `<tr class="rc-group"><td colspan="5">${g.title}</td></tr>${rows}` : '';
+    const modeSel = (pos) => `<select class="rc-mode" data-pos="${pos}">${modeVals.map(v => `<option value="${v.value}" ${pv('COM_FLTMODE' + MODE_SLOTS[pos][1], -1) === v.value ? 'selected' : ''}>${esc(v.description.replace(' / Cruise', ''))}</option>`).join('')}</select>`;
+    const rows = Array.from({ length: n }, (_, i) => {
+      const ch = i + 1, f = rcFuncOf(ch);
+      const fnSel = `<select class="rc-fn-sel" data-ch="${ch}"><option value="">–</option>${funcs.map(x => `<option value="${x.p}" ${f && f.p === x.p ? 'selected' : ''}>${x.label}</option>`).join('')}</select>`;
+      let cells = '<span class="rc-c"></span><span class="rc-c"></span><span class="rc-c"></span>';
+      if (f && f.kind === 'mode') cells = [0, 50, 100].map(pos => `<span class="rc-c" data-pos="${pos}">${modeSel(pos)}</span>`).join('');
+      else if (f && f.kind === 'switch') cells = [0, 50, 100].map(pos => `<span class="rc-c" data-pos="${pos}">${f.th ? `<button class="rc-sw ${switchOnAt(f, pos) ? 'on' : ''}" data-ch="${ch}" data-pos="${pos}" title="click: ${f.label} is ON at this position">${switchOnAt(f, pos) ? 'ON' : 'off'}</button>` : `<span class="rc-dim">${pos === 100 ? 'ON' : 'off'}</span>`}</span>`).join('');
+      else if (f && f.kind === 'stick') cells = `<span class="rc-c rc-dim">${f.p === 'RC_MAP_THROTTLE' ? 'idle' : 'full −'}</span><span class="rc-c rc-dim">centre</span><span class="rc-c rc-dim">${f.p === 'RC_MAP_THROTTLE' ? 'full' : 'full +'}</span>`;
+      return `<div class="rc-line" data-ch="${ch}"><span class="rc-n">${ch}</span><span class="rc-bar"><i data-ch="${ch}" style="width:50%"></i></span><span class="rc-val" data-ch="${ch}">–</span><span class="rc-fsel">${fnSel}</span>${cells}</div>`;
     }).join('');
-    const fltRows = pv('RC_MAP_FLTMODE', 0) > 0 ? `<tr class="rc-group"><td colspan="5">Flight mode slots <span class="hint">(the mode switch splits its range into six; the active slot is highlighted)</span></td></tr>` +
-      [1, 2, 3, 4, 5, 6].map(i => `<tr class="rc-slot" data-slot="${i}"><td>Slot ${i}</td><td colspan="4"><select class="rc-mode" data-p="COM_FLTMODE${i}">${modeVals.map(v => `<option value="${v.value}" ${pv('COM_FLTMODE' + i, -1) === v.value ? 'selected' : ''}>${esc(v.description)}</option>`).join('')}</select></td></tr>`).join('') : '';
-    el.innerHTML = `<div class="rc-grid">${Array.from({ length: n }, (_, i) => `<div class="rc-row"><span class="rc-n">${i + 1}</span><span class="rc-bar"><i data-ch="${i + 1}" style="width:50%"></i></span><span class="rc-val" data-ch="${i + 1}">–</span><span class="rc-fn" data-ch="${i + 1}"></span></div>`).join('')}</div>
-      <div id="rc-cal" class="rc-cal"></div>
-      <table class="grid rc-map"><tbody>${groupsHtml}${fltRows}</tbody></table>
-      <div class="rc-foot hint" id="rc-foot"></div>`;
-    $$('#rc-board .rc-sel').forEach(sel => sel.addEventListener('change', () => { rcSet(sel.dataset.p, +sel.value); rcBuiltFor = ''; }));
-    $$('#rc-board .rc-mode').forEach(sel => sel.addEventListener('change', () => rcSet(sel.dataset.p, +sel.value)));
-    $$('#rc-board .rc-thin').forEach(inp => inp.addEventListener('change', () => rcSet(inp.dataset.p, Math.max(-1, Math.min(1, +inp.value || 0)))));
-    $$('#rc-board .rc-learn').forEach(b => b.addEventListener('click', () => { rcLearn = b.dataset.p; rcLearnBase = (lastRc.channels || []).slice(); $$('#rc-board .rc-learn').forEach(x => x.textContent = x.dataset.p === rcLearn ? 'Move it…' : 'Learn'); }));
+    el.innerHTML = `<div class="rc-table"><div class="rc-line rc-head"><span></span><span></span><span></span><span>Controls</span><span>0 %</span><span>50 %</span><span>100 %</span></div>${rows}</div>
+      <div id="rc-cal" class="rc-cal"></div><div class="rc-foot hint" id="rc-foot"></div>`;
+    $$('#rc-board .rc-fn-sel').forEach(sel => sel.addEventListener('change', () => rcAssign(+sel.dataset.ch, sel.value || null)));
+    $$('#rc-board .rc-mode').forEach(sel => sel.addEventListener('change', async () => { const v = +sel.value; for (const slot of MODE_SLOTS[+sel.dataset.pos]) await rcSet('COM_FLTMODE' + slot, v); rcBuiltFor = ''; }));
+    $$('#rc-board .rc-sw').forEach(b => b.addEventListener('click', async () => {
+      const f = rcFuncOf(+b.dataset.ch); if (!f || !f.th) return;
+      const pos = +b.dataset.pos;                                     // ON at 100 % -> threshold +0.5, ON at 0 % -> -0.5; 50 % cannot be isolated on a two-state switch
+      if (pos === 50) return;
+      await rcSet(f.th, pos === 100 ? 0.5 : -0.5); rcBuiltFor = '';
+    }));
   }
-  const ch = lastRc.channels || [], mapped = rcMapped();
+  const ch = lastRc.channels || [];
   ch.forEach((v, i) => {
-    const bar = el.querySelector(`.rc-bar i[data-ch="${i + 1}"]`), val = el.querySelector(`.rc-val[data-ch="${i + 1}"]`), fn = el.querySelector(`.rc-fn[data-ch="${i + 1}"]`);
+    const bar = el.querySelector(`.rc-bar i[data-ch="${i + 1}"]`), val = el.querySelector(`.rc-val[data-ch="${i + 1}"]`), line = el.querySelector(`.rc-line[data-ch="${i + 1}"]`);
     if (bar) bar.style.width = (Math.max(0, Math.min(1, (v - 1000) / 1000)) * 100).toFixed(0) + '%';
     if (val) val.textContent = v ? v : '–';
-    if (fn) fn.textContent = (mapped[i + 1] || []).join(' · ');
+    if (line) { const third = v ? rcThird(rcNorm(i + 1, v)) : null; line.querySelectorAll('.rc-c').forEach(c => c.classList.toggle('active', third != null && +c.dataset.pos === third)); }
   });
-  RC_FUNCS.forEach(f => {
-    const c = pv(f.p, 0);
-    const sel = el.querySelector(`.rc-sel[data-p="${f.p}"]`); if (sel && document.activeElement !== sel && sel.value !== String(c)) sel.value = String(c);
-    const st = el.querySelector(`.rc-state[data-p="${f.p}"]`);
-    if (st) {
-      if (!c || !ch[c - 1]) st.textContent = '';
-      else if (f.th) { const x = rcNorm(c, ch[c - 1]), th = pv(f.th, 0.5); const on = th >= 0 ? x > th : x < th; st.innerHTML = on ? '<span class="ok">ON</span>' : 'off'; }
-      else st.textContent = ch[c - 1] + ' µs';
-    }
-  });
-  const fm = pv('RC_MAP_FLTMODE', 0);
-  if (fm > 0 && ch[fm - 1]) {
-    const x = rcNorm(fm, ch[fm - 1]); const slot = Math.min(6, Math.max(1, Math.floor((x + 1) / 2 * 6) + 1));
-    $$('#rc-board .rc-slot').forEach(tr => tr.classList.toggle('active', +tr.dataset.slot === slot));
-  }
   // stick calibration flow
   const cal = $('#rc-cal');
   if (cal) {
     if (rcCal) {
       ch.forEach((v, i) => { if (v) { rcCal.min[i] = Math.min(rcCal.min[i] ?? v, v); rcCal.max[i] = Math.max(rcCal.max[i] ?? v, v); } });
       const seen = rcCal.min.filter((m, i) => m != null && rcCal.max[i] - m > 400).length;
-      if (rcCal.step === 1 && cal.dataset.step !== '1') { cal.dataset.step = '1'; cal.innerHTML = `<b>Calibrating sticks · step 1</b> Move every stick and switch to both ends. <span id="rc-cal-n"></span> <button class="pill small primary" id="rc-cal-next">Next</button> <button class="pill small" id="rc-cal-stop">Cancel</button>`; $('#rc-cal-next').onclick = () => { rcCal.step = 2; }; $('#rc-cal-stop').onclick = () => { rcCal = null; cal.dataset.step = ''; cal.innerHTML = ''; }; }
-      if (rcCal.step === 1) { const nEl = $('#rc-cal-n'); if (nEl) nEl.textContent = `${seen} channels moved through their range`; }
-      if (rcCal.step === 2 && cal.dataset.step !== '2') { cal.dataset.step = '2'; cal.innerHTML = `<b>Calibrating sticks · step 2</b> Centre roll, pitch and yaw, throttle fully down, switches off, then <button class="pill small primary" id="rc-cal-done">Finish</button> <button class="pill small" id="rc-cal-stop">Cancel</button>`;
+      if (rcCal.step === 1 && cal.dataset.step !== '1') { cal.dataset.step = '1'; cal.innerHTML = `<b>Calibrating · 1/2</b> Move every stick and switch to both ends. <span id="rc-cal-n"></span> <button class="pill small primary" id="rc-cal-next">Next</button> <button class="pill small" id="rc-cal-stop">Cancel</button>`; $('#rc-cal-next').onclick = () => { rcCal.step = 2; }; $('#rc-cal-stop').onclick = () => { rcCal = null; cal.dataset.step = ''; cal.innerHTML = ''; }; }
+      if (rcCal.step === 1) { const nEl = $('#rc-cal-n'); if (nEl) nEl.textContent = `${seen} channels done.`; }
+      if (rcCal.step === 2 && cal.dataset.step !== '2') { cal.dataset.step = '2'; cal.innerHTML = `<b>Calibrating · 2/2</b> Centre roll, pitch and yaw, throttle down, switches off. <button class="pill small primary" id="rc-cal-done">Finish</button> <button class="pill small" id="rc-cal-stop">Cancel</button>`;
         $('#rc-cal-stop').onclick = () => { rcCal = null; cal.dataset.step = ''; cal.innerHTML = ''; };
         $('#rc-cal-done').onclick = async () => {
           const out = {}; let cnt = 0;
@@ -1623,19 +1624,10 @@ function renderRcBoard() {
     } else if (cal.dataset.step !== '' && cal.dataset.step !== 'done') { cal.dataset.step = ''; cal.innerHTML = ''; }
   }
   const foot = $('#rc-foot'); if (foot) foot.innerHTML = [
-    `${lastRc.count <= 18 ? lastRc.count : '?'} channels reach PX4 (the receiver protocol decides; PX4 and MAVLink carry at most 18).`,
-    pv('RC_CHAN_CNT', 0) > 0 ? `Sticks calibrated (${pv('RC_CHAN_CNT')} channels).` : '<span class="warn">Sticks not calibrated.</span>',
-    `<a href="#" id="rc-cal-start">${pv('RC_CHAN_CNT', 0) > 0 ? 'Recalibrate' : 'Calibrate'} sticks</a>`].join(' ');
+    `${lastRc.count <= 18 ? lastRc.count : '?'} channels from the receiver (PX4 carries at most 18).`,
+    pv('RC_CHAN_CNT', 0) > 0 ? `Sticks calibrated.` : '<span class="warn">Sticks not calibrated.</span>',
+    `<a href="#" id="rc-cal-start">${pv('RC_CHAN_CNT', 0) > 0 ? 'Recalibrate' : 'Calibrate'}</a>`].join(' ');
   const cs = $('#rc-cal-start'); if (cs) cs.onclick = (e) => { e.preventDefault(); rcCal = { step: 1, min: [], max: [] }; };
-  if (rcLearn && rcLearnBase) {
-    let best = -1, bestD = 150;
-    ch.forEach((v, i) => { const d = Math.abs(v - (rcLearnBase[i] || 0)); if (d > bestD) { bestD = d; best = i; } });
-    if (best >= 0) {
-      const p = rcLearn; rcLearn = null; rcLearnBase = null;
-      rcSet(p, best + 1).then(() => { const sel = el.querySelector(`.rc-sel[data-p="${p}"]`); if (sel) sel.value = String(best + 1); rcBuiltFor = ''; });
-      $$('#rc-board .rc-learn').forEach(x => x.textContent = 'Learn');
-    }
-  }
 }
 function renderRcLive() {
   const now = performance.now();
