@@ -314,6 +314,7 @@ class ConnectionManager:
         link.event_decoder = self.event_decoder
         self.link = link
         self.mode = mode
+        self.native_module_seen = False
         if mode == "hitl":
             # a real flight controller flies the aircraft exactly as it would on the real drone: the simulator is only the
             # plant, so drop every simulator-side assist (motor overrides, the Python nose-lift hook)
@@ -442,6 +443,19 @@ class ConnectionManager:
                     self.archive_after_flash(image, atlas=(atlas or (firmware_file is None and self.firmware_is_atlas(target))), note=note)
             threading.Thread(target=reconnect, daemon=True).start()
         return r
+
+    native_module_seen = False
+
+    def _module_present(self) -> bool:
+        """Does the connected firmware have the nose-lift module (answers its status command)?"""
+        link = self.link
+        if link is None or not link.ctl_connected:
+            return False
+        try:
+            out = link.shell("atlas_nose_lift status", timeout=1.5)
+        except Exception:
+            return False
+        return "phase=" in out or "not running" in out
 
     def ensure_native_module(self) -> bool:
         """On a board flashed with the ATLAS firmware, start the nose-lift module (idle until a takeoff is requested,
@@ -706,18 +720,18 @@ class ConnectionManager:
             hil_detail = f"{link.actuator_seq} actuator messages"
         elif not up:
             hil_detail = ""
-        elif not params_ok:
-            hil_detail = f"reading the board ({len(link.params)}/{link.param_count or '?'} parameters)…"
-        elif not has_hil_driver:
-            hil_detail = "this firmware has no HIL output driver: flash the ATLAS firmware"
+        elif sys_hitl is None:
+            hil_detail = "reading the board…"
         elif sys_hitl != 1:
             hil_detail = "SYS_HITL is 0 on the board"; hil_action = "enable_hitl"
+        elif params_ok and not has_hil_driver:
+            hil_detail = "this firmware has no HIL output driver: flash the ATLAS firmware"
         else:
             hil_detail = "waiting for the board to enter HIL mode (reboot it if this stays)"; hil_action = "reboot"
         steps.append({"id": "hil", "label": "Board in HIL mode, streaming outputs", "ok": streaming, "detail": hil_detail, "action": hil_action})
         want_module = bool(export_params) and export_params.get("NLF_ENABLE") == 1
         if hitl and want_module:
-            has_module = params_ok and "NLF_ENABLE" in link.params
+            has_module = self.native_module_seen or "NLF_ENABLE" in link.params
             fw = self.board_firmware_status()
             a_detail, a_action = "", None
             if job["running"]:
@@ -726,8 +740,8 @@ class ConnectionManager:
                 a_detail = "same modules as the SITL"
             elif has_module:
                 a_detail = "newer module sources than the board: use Flash firmware below"
-            elif not params_ok:
-                a_detail = "reading the board…"
+            elif not up:
+                a_detail = ""
             elif not self.toolchain_present():
                 a_detail = "ARM toolchain missing (see the README)"
             elif board["target"]:
@@ -891,11 +905,19 @@ class ConnectionManager:
                         and len(link.params) >= link.param_count)
                 try:
                     link.request_autopilot_version()
+                    if link.mode == "hitl":
+                        # what the checklist needs, in a few hundred milliseconds; the full list follows in the background
+                        self.native_module_seen = self.ensure_native_module() or self.native_module_seen or self._module_present()
+                        for name in ("SYS_HITL", "NLF_ENABLE", "NLF_HW_OK"):
+                            try:
+                                link.get_param(name, timeout=1.0)
+                            except Exception:
+                                pass
                     if keep:
                         self.log(f"[params] board rebooted by us: keeping the {len(link.params)} cached parameters")
                     else:
                         link.fetch_all_params()
-                    if self.ensure_native_module():
+                    if link.mode != "hitl" and self.ensure_native_module():
                         link.fetch_all_params()          # the module's parameters are listed only once it runs
                     if self.on_params:
                         self.on_params()
