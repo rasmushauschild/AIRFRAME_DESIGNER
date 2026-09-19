@@ -725,6 +725,16 @@ def build_app(state: AppState) -> FastAPI:
         sim.airframe.px4_overrides.pop(body.get("name", ""), None)
         return {"ok": True, "overrides": sim.airframe.px4_overrides}
 
+    @app.get("/api/px4/sitl_diff")
+    async def px4_sitl_diff():
+        return state.conn.sitl_diff()
+
+    @app.post("/api/px4/sync_sitl")
+    async def px4_sync_sitl():
+        """Make the board's parameters identical to the last SITL run (hardware/calibration/safety ones excepted)."""
+        r = await run_in_threadpool(state.conn.sync_to_sitl)
+        return r if r.get("ok") else JSONResponse(r, status_code=409)
+
     @app.post("/api/params/set_many")
     async def set_params_many(body: dict):
         """Write several parameters at once ({"params": {name: value}}), e.g. an RC calibration; saves them."""

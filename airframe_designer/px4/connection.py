@@ -756,6 +756,71 @@ class ConnectionManager:
                           "action": "enable_hw" if (has_module and up and hw_ok != 1) else None})
         return steps
 
+    # ------------------------------------------------------------ board == SITL: full parameter sync
+    SITL_REFERENCE = Path(os.path.expanduser("~/.airframe_designer")) / "sitl_reference.json"
+    # never written to a real flight controller: sensor/RC calibration, links, hardware drivers, safety checks and
+    # failsafes, the user's mode slots and consent, and the SITL-only conveniences the app seeds
+    SYNC_EXCLUDE = re.compile(r"^(CAL_|RC\d|RC_|COM_RC_IN_MODE|COM_FLTMODE|MAV_|SER_|UAVCAN|SENS_EN_|SENS_IMU|SENS_BOARD_ROT|IMU_|BAT\d?_|PWM_|HIL_ACT|SDLOG|SYS_HITL|SYS_AUTOSTART|SYS_AUTOCONFIG|SYS_HAS_|SYS_PARAM_VER|SYS_BL|SYS_USE_IO|MNT_|GPS_|TEL_|NLF_HW_OK|NLF_RC_|CBRK_|COM_ARM_|COM_PREARM|COM_DISARM_|NAV_DLL_ACT|NAV_RCL_ACT|COM_OBL_|COM_RCL_|COM_LOW_BAT|COM_POWER_|COM_CPU_|BAT_|LND_|_HASH)")
+
+    def save_sitl_reference(self) -> None:
+        link = self.link
+        if link is None or link.mode != "sitl":
+            return
+        try:
+            self.SITL_REFERENCE.parent.mkdir(parents=True, exist_ok=True)
+            self.SITL_REFERENCE.write_text(json.dumps({"time": time.time(), "airframe": getattr(self.sim.airframe, "name", None),
+                                                       "count": link.param_count,
+                                                       "params": {k: v["value"] for k, v in link.params.items() if k != "_HASH_CHECK"}}))
+            self.log(f"[params] SITL reference saved ({len(link.params)} parameters) for board syncing")
+        except Exception as e:
+            self.log(f"[params] could not save the SITL reference: {e}")
+
+    def sitl_reference(self) -> dict | None:
+        try:
+            return json.loads(self.SITL_REFERENCE.read_text())
+        except Exception:
+            return None
+
+    def sitl_diff(self) -> dict:
+        """Parameters on the connected board that differ from the last SITL run (same names, excluded ones skipped)."""
+        ref = self.sitl_reference()
+        link = self.link
+        if not ref:
+            return {"ok": False, "error": "no SITL reference yet: connect the app to PX4 SITL once (Connect tab), it is captured automatically"}
+        if link is None or link.mode != "hitl" or not link.param_count or len(link.params) < link.param_count:
+            return {"ok": False, "error": "board parameters not fully downloaded yet"}
+        differ, skipped = [], 0
+        for name, sv in ref["params"].items():
+            bp = link.params.get(name)
+            if bp is None:
+                continue
+            if self.SYNC_EXCLUDE.match(name):
+                if abs(float(bp["value"]) - float(sv)) > 1e-6:
+                    skipped += 1
+                continue
+            if abs(float(bp["value"]) - float(sv)) > 1e-6:
+                differ.append({"name": name, "board": bp["value"], "sitl": sv})
+        return {"ok": True, "reference_time": ref["time"], "reference_airframe": ref.get("airframe"), "differ": differ, "skipped": skipped,
+                "compared": sum(1 for n in ref["params"] if n in link.params)}
+
+    def sync_to_sitl(self) -> dict:
+        """Write every differing (non-excluded) parameter of the SITL reference to the board. Blocking."""
+        d = self.sitl_diff()
+        if not d.get("ok"):
+            return d
+        link = self.link
+        if link.armed:
+            return {"ok": False, "error": "vehicle is armed"}
+        todo = {x["name"]: x["sitl"] for x in d["differ"]}
+        t0 = time.time()
+        results = link.set_params(todo, lambda name, res: None) if todo else []
+        failed = [r["name"] for r in results if not r["ok"]]
+        if todo:
+            link.preflight_storage(True)
+        self.log(f"[params] board synced to the SITL reference: {len(todo) - len(failed)}/{len(todo)} written in {time.time() - t0:.1f} s"
+                 + (f", failed: {failed[:8]}" if failed else ""))
+        return {"ok": not failed, "written": len(todo) - len(failed), "failed": failed, "seconds": round(time.time() - t0, 1), "skipped": d["skipped"]}
+
     # ------------------------------------------------------------ board firmware freshness (HITL)
     def _last_flash_file(self, target: str) -> Path:
         return Path(os.path.expanduser("~/.airframe_designer")) / f"last_flash_{target}.json"
@@ -923,6 +988,8 @@ class ConnectionManager:
                         self.on_params()
                 except Exception as e:
                     self.log(f"[params] fetch failed: {e}")
+                if link.mode == "sitl" and link.param_count and len(link.params) >= link.param_count:
+                    self.save_sitl_reference()      # what "identical to the SITL" means for a board
                 if link.mode == "hitl" and link.param_count:
                     try:
                         link.trim_telemetry()

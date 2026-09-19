@@ -365,7 +365,7 @@ $('#af-save').addEventListener('click', async () => {
   } catch (e) {
     logLine('[ui] SAVE FAILED: ' + e.message);
     b.textContent = 'Save failed'; b.classList.add('danger'); setTimeout(() => { b.textContent = 'Save'; b.classList.remove('danger'); }, 4000);
-    alert('Save failed: ' + e.message + '\n\nThe design is still in the running app; fix the problem and save again.');
+    showProblems([`Save failed: ${e.message}. The design is still in the running app; fix the problem and save again.`]);   // alert() is silent in the desktop app's web view
   }
 });
 async function loadPresetList() {
@@ -1647,6 +1647,37 @@ function renderRcLive() {
 }
 $('#conn-goto-rc') && $('#conn-goto-rc').addEventListener('click', (e) => { e.preventDefault(); openTab('px4'); });
 setInterval(() => { if ($('#tab-px4').classList.contains('active')) renderRcLive(); }, 500);
+
+// ============================================================ board vs SITL parameter sync
+let syncTimer = null, syncLast = null;
+async function refreshSync() {
+  clearTimeout(syncTimer);
+  const card = $('#sync-card');
+  if (!$('#tab-px4').classList.contains('active')) return;
+  if (status.conn_mode !== 'hitl') { card.hidden = true; syncTimer = setTimeout(refreshSync, 3000); return; }
+  card.hidden = false;
+  try {
+    const d = await api('/api/px4/sitl_diff');
+    if (!d.ok) { $('#sync-text').textContent = d.error; $('#sync-btn').disabled = true; $('#sync-list').textContent = ''; }
+    else {
+      syncLast = d;
+      const when = new Date(d.reference_time * 1000).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+      $('#sync-text').textContent = d.differ.length ? `${d.differ.length} of ${d.compared} parameters differ from the SITL run of ${when}${d.skipped ? ` (${d.skipped} hardware/safety ones left alone)` : ''}` : `identical to the SITL run of ${when}${d.skipped ? ` (${d.skipped} hardware/safety ones left alone)` : ''}`;
+      $('#sync-btn').disabled = !d.differ.length || !!status.armed;
+      $('#sync-list').textContent = d.differ.slice(0, 40).map(x => `${x.name}: ${x.board} → ${x.sitl}`).join('   ') + (d.differ.length > 40 ? `   … +${d.differ.length - 40}` : '');
+    }
+  } catch (e) { $('#sync-text').textContent = e.message; }
+  syncTimer = setTimeout(refreshSync, 5000);
+}
+$('#sync-btn').addEventListener('click', async () => {
+  const b = $('#sync-btn');
+  if (!confirmTwice('sync-sitl', b, `write ${syncLast ? syncLast.differ.length : ''} parameters to the board`)) return;
+  b.disabled = true; b.textContent = 'Writing…';
+  try { const r = await api('/api/px4/sync_sitl', {}); $('#sync-text').textContent = r.ok ? `${r.written} parameters written in ${r.seconds} s` : `failed: ${(r.failed || []).join(', ') || r.error}`; paramsLoaded = false; ensureParams(); }
+  catch (e) { $('#sync-text').textContent = e.message; }
+  b.textContent = 'Sync board to SITL'; b.dataset.label = b.textContent; refreshSync();
+});
+$$('.tabs button').forEach(b => b.addEventListener('click', () => { if (b.dataset.tab === 'px4') refreshSync(); }));
 
 // ============================================================ USB remote (WebHID picker, Gamepad API fallback) -> MANUAL_CONTROL
 const JOY_FUNCS = [
