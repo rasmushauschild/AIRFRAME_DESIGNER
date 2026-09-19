@@ -54,7 +54,7 @@ public:
  }
  int print_status() override { PX4_INFO("phase=%d pitch=%.2f front9=%.3f", int(_phase), double(_pitch), double(_cmd9)); return 0; }
 private:
- enum Phase { Idle, Prime, Lift, Spool, Climb, Hover, Descend, LowerNose, Shutdown, Aborting, Failed };
+ enum Phase { Idle, Prime, Lift, Spool, Climb, Hover, Retake, Descend, LowerNose, Shutdown, Aborting, Failed };   // Retake: taking a PX4 hover back into Offboard to land
  Phase _phase{Idle};
  px4::atomic<bool> _request{false}, _land_request{false};
  static bool take(px4::atomic<bool> &flag) { bool expected = true; return flag.compare_exchange(&expected, false); }
@@ -70,6 +70,7 @@ private:
  hrt_abstime _diagnostic_time{};
  uint8_t _xy_reset{}, _z_reset{}, _heading_reset{};
  float _pitch{}, _yaw{}, _x{}, _y{}, _z{}, _target_z{};
+ bool _ground_ref{false};   // _z (ground height at the module's takeoff) is valid for this flight
  bool _was_armed{false};
  bool _released{false};
  orb_advert_t _mavlink_log_pub{nullptr};
@@ -226,22 +227,41 @@ private:
     _phase=Idle; return;
    }
    _xy_reset=pos.xy_reset_counter; _z_reset=pos.z_reset_counter; _heading_reset=pos.heading_reset_counter;
-   _yaw=e.psi(); _x=pos.x; _y=pos.y; _z=pos.z; _target_z=_z;
+   _yaw=e.psi(); _x=pos.x; _y=pos.y; _z=pos.z; _target_z=_z; _ground_ref=true;
    NL_INFO("priming nose lift at pitch %.1f",double(math::degrees(_pitch)));
   }
   if (take(_land_request)) {
    updateParams();
-   if (_phase!=Hover || !armed || !_enable.get() || !atlas_model_matches(_hover_angle, _ground)) {
-    NL_WARN("landing requires this module's active hover and matching model");
+   // from the module's own hover, or from any PX4 hover (e.g. Position mode after the pilot took over) as long as
+   // the module lifted off in this flight and therefore knows where the ground is
+   const bool own_hover = _phase==Hover;
+   const bool other_hover = (_phase==Idle || _phase==Failed) && armed && !land.landed;
+   if (other_hover && !_ground_ref) {
+    NL_WARN("no ground reference from a module takeoff: use PX4's Land mode");
+   } else if (!(own_hover || other_hover) || !armed || !_enable.get() || !atlas_model_matches(_hover_angle, _ground)) {
+    NL_WARN("landing needs an armed hover and a matching model");
    } else if (!PX4_ISFINITE(_land_speed.get()) || _land_speed.get()<0.05f || _land_speed.get()>0.3f ||
               !PX4_ISFINITE(_down_rate.get()) || _down_rate.get()<1.f || _down_rate.get()>5.f) {
     NL_ERR("invalid landing parameters");
    } else if (!PX4_ISFINITE(_disarm_delay.get()) || _disarm_delay.get()<40.f/_down_rate.get()+8.f) {
     NL_ERR("landing needs COM_DISARM_LAND long enough for controlled nose lowering (use 60 s)");
+   } else if (other_hover) {
+    _x=pos.x; _y=pos.y; _yaw=e.psi(); _target_z=pos.z; _phase=Retake; _phase_start=now; _last_command=0; _was_armed=false;
+    NL_INFO("taking the hover over for landing (Offboard)");
    } else {
     _phase=Descend; _phase_start=now; _contact_dwell=0; _target_z=pos.z;
     _x=pos.x; _y=pos.y; clear_floor();
     NL_INFO("landing: descending onto rear legs");
+   }
+  }
+  if (_phase==Retake) {
+   if (status.nav_state==vehicle_status_s::NAVIGATION_STATE_OFFBOARD) {
+    _was_armed=true; _phase=Descend; _phase_start=now; _contact_dwell=0; _target_z=pos.z; _x=pos.x; _y=pos.y; clear_floor();
+    NL_INFO("landing: descending onto rear legs");
+   } else if (now-_phase_start>5_s) {
+    NL_ERR("PX4 did not enter Offboard; landing cancelled"); _phase=Idle;
+   } else if (now-_last_command>500_ms) {
+    command(vehicle_command_s::VEHICLE_CMD_DO_SET_MODE,1.f,6.f,status); _last_command=now;
    }
   }
   if (_phase==Idle || _phase==Failed) { return; }
@@ -421,7 +441,7 @@ private:
    }
    mode.position=true; _mode_pub.publish(mode);
    if (_phase==Descend) { _target_z=math::min(_z+0.2f,_target_z+_land_speed.get()*0.004f); }
-   else { _target_z=math::max(_z-_alt.get(),_target_z-0.002f); }
+   else if (_phase!=Retake) { _target_z=math::max(_z-_alt.get(),_target_z-0.002f); }   // Retake holds where it is
    trajectory_setpoint_s sp{}; sp.timestamp=now;
    sp.position[0]=_x; sp.position[1]=_y; sp.position[2]=_target_z;
    for(int i=0;i<3;i++) { sp.velocity[i]=NAN; sp.acceleration[i]=NAN; sp.jerk[i]=NAN; }
