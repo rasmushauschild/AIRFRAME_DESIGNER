@@ -1561,7 +1561,11 @@ function renderRcBoard() {
     if (val) val.textContent = v ? v : '—';
     if (fn) fn.textContent = (mapped[i + 1] || []).join(', ');
   });
-  RC_FUNCS.forEach(f => { const c = +((params[f.p] || {}).value || 0); const st = el.querySelector(`.rc-state[data-p="${f.p}"]`); if (st) st.textContent = c ? `${ch[c - 1] || '—'} µs` : ''; });
+  RC_FUNCS.forEach(f => {
+    const c = +((params[f.p] || {}).value || 0);
+    const st = el.querySelector(`.rc-state[data-p="${f.p}"]`); if (st) st.textContent = c ? `${ch[c - 1] || '—'} µs` : '';
+    const sel = el.querySelector(`.rc-sel[data-p="${f.p}"]`); if (sel && document.activeElement !== sel && sel.value !== String(c)) sel.value = String(c);   // parameters arrive after the card was built
+  });
   if (rcLearn && rcLearnBase) {
     let best = -1, bestD = 150;
     ch.forEach((v, i) => { const d = Math.abs(v - (rcLearnBase[i] || 0)); if (d > bestD) { bestD = d; best = i; } });
