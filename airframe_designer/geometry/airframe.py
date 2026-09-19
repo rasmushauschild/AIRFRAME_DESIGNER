@@ -236,6 +236,10 @@ class Airframe:
             p["COM_DISARM_PRFLT"] = max(40.0, float(p.get("COM_DISARM_PRFLT", 0.0)))
             # the module commands the front fans as sqrt(thrust fraction) and checks that PX4 applies no thrust curve
             p["THR_MDL_FAC"] = 0.0
+            # moving a stick past half travel takes PX4 out of Offboard (and auto modes) into Position mode: after the
+            # nose-lift takeoff the pilot simply flies; the module lets go when the mode changes
+            p.setdefault("COM_RC_OVERRIDE", 3)
+            p.setdefault("COM_RC_STICK_OV", 50.0)
         p["SENS_BOARD_Y_OFF"] = round(float(self.hover_pitch_deg), 2)
         imu_pos = np.asarray(self.design.get("pixhawk_position", self.cg), float)
         imu_offset = self.hover_rotation() @ (imu_pos - self.cg)

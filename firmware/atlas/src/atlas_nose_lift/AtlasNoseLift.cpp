@@ -232,13 +232,11 @@ private:
   }
   if (take(_land_request)) {
    updateParams();
-   // from the module's own hover, or from any PX4 hover (e.g. Position mode after the pilot took over) as long as
-   // the module lifted off in this flight and therefore knows where the ground is
+   // from the module's own hover, or from any PX4 hover (e.g. Position mode after the pilot took over); the landing
+   // finds the ground by itself, so the takeoff spot and its height do not matter
    const bool own_hover = _phase==Hover;
    const bool other_hover = (_phase==Idle || _phase==Failed) && armed && !land.landed;
-   if (other_hover && !_ground_ref) {
-    NL_WARN("no ground reference from a module takeoff: use PX4's Land mode");
-   } else if (!(own_hover || other_hover) || !armed || !_enable.get() || !atlas_model_matches(_hover_angle, _ground)) {
+   if (!(own_hover || other_hover) || !armed || !_enable.get() || !atlas_model_matches(_hover_angle, _ground)) {
     NL_WARN("landing needs an armed hover and a matching model");
    } else if (!PX4_ISFINITE(_land_speed.get()) || _land_speed.get()<0.05f || _land_speed.get()>0.3f ||
               !PX4_ISFINITE(_down_rate.get()) || _down_rate.get()<1.f || _down_rate.get()>5.f) {
@@ -298,14 +296,13 @@ private:
    fail("attitude envelope",status,_phase!=Prime && _phase!=Lift); return;
   }
   if (_phase==Descend) {
-   // Contact inference uses PX4 estimates and the saved ground datum, never simulator truth.
-   // Require descent demand, stopped vertical motion near the known rear-foot plane, and dwell.
-   const float rear_contact_z=_z-0.18f;
-   const bool rear_contact=now-_phase_start>2_s && fabsf(pos.z-rear_contact_z)<0.18f &&
-       fabsf(pos.vz)<0.055f && _target_z-pos.z>0.065f && fabsf(e.phi())<math::radians(3.f);
+   // Contact inference uses PX4 estimates only and no ground datum, so the ground may differ from the takeoff spot:
+   // the rear feet are down when the position controller keeps demanding descent (setpoint well below the vehicle)
+   // while the vehicle has stopped moving vertically, level in roll, for half a second.
+   const bool rear_contact=now-_phase_start>2_s && fabsf(pos.vz)<0.055f && _target_touch_z-pos.z>0.12f && fabsf(e.phi())<math::radians(3.f);
    if (rear_contact) {
     if (!_contact_dwell) { _contact_dwell=now; }
-    if (now-_contact_dwell>200_ms) {
+    if (now-_contact_dwell>500_ms) {
      _phase=LowerNose; _phase_start=now; _dwell=0; _integral=0.f; _touch_z=pos.z;
      _lower_target=math::degrees(matrix::Eulerf(matrix::Dcmf(matrix::Quatf(att.q))*matrix::Dcmf(matrix::Eulerf(0.f,math::radians(_hover_angle),0.f))).theta());
      NL_INFO("landing: rear support detected; lowering nose");
@@ -385,8 +382,8 @@ private:
    const float delta=math::constrain(-3.f*omega(2),-0.25f,0.25f);
    _cmd9=sqrtf(math::constrain(frac*(w9+delta),0.f,1.f));
    _cmd10=sqrtf(math::constrain(frac*(2.f-w9-delta),0.f,1.f));
-   if (_phase==Lift && elapsed>_timeout.get()) { fail("lift timeout",status,_z-pos.z>0.3f); return; }
-   if (_phase==Lift && _z-pos.z>0.35f && fabsf(_pitch)>math::radians(3.f)) { fail("early liftoff",status,true); return; }
+   if (_phase==Lift && elapsed>_timeout.get()) { fail("lift timeout",status,_touch_z-pos.z>0.3f); return; }
+   if (_phase==Lift && _touch_z-pos.z>0.35f && fabsf(_pitch)>math::radians(3.f)) { fail("early liftoff",status,true); return; }
    if (_phase==Lift && land.landed && fabsf(math::degrees(theta)-_lift_target.get())<2.f && fabsf(rates.xyz[1])<math::radians(3.f)
        && fabsf(e.phi())<math::radians(3.f) && fabsf(rates.xyz[2])<math::radians(3.f)) {
     if (!_dwell) { _dwell=now; }
@@ -440,7 +437,7 @@ private:
     if (_fade_start && now-_fade_start>2_s) { _phase=Climb; _phase_start=now; _target_z=pos.z; NL_INFO("handover complete"); }
    }
    mode.position=true; _mode_pub.publish(mode);
-   if (_phase==Descend) { _target_z=math::min(_z+0.2f,_target_z+_land_speed.get()*0.004f); }
+   if (_phase==Descend) { _target_z=math::min(pos.z+0.5f,_target_z+_land_speed.get()*0.004f); }   // keep descending, at most 0.5 m below the vehicle
    else if (_phase!=Retake) { _target_z=math::max(_z-_alt.get(),_target_z-0.002f); }   // Retake holds where it is
    trajectory_setpoint_s sp{}; sp.timestamp=now;
    sp.position[0]=_x; sp.position[1]=_y; sp.position[2]=_target_z;
