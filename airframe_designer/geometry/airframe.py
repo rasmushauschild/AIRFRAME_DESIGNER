@@ -231,7 +231,7 @@ class Airframe:
             # (measured on ATLAS_09: ground slide 0.36 m at level, 0.10 m at -7 deg, 0.03-0.06 m at -10 deg).
             p.setdefault("NLF_TARGET", round(float(self.hover_pitch_deg) - float(self.design.get("nose_lift_below_hover_deg", 10.0)), 2))
             # A short stock takeoff ramp can pitch the grounded aircraft past its envelope at handoff.
-            p["MPC_TKO_RAMP_T"] = max(3.0, float(p.get("MPC_TKO_RAMP_T", 3.0)))
+            p["MPC_TKO_RAMP_T"] = max(1.5, float(p.get("MPC_TKO_RAMP_T", 1.5)))   # quicker rear thrust: less time on the feet
             # PX4's land detector reads a slow nose lift as "landed" (no thrust setpoint, near-zero velocities), so
             # the stock 2 s auto-disarm fires mid-lift; the module disarms itself after nose contact, these are backups.
             p["COM_DISARM_LAND"] = max(60.0, float(p.get("COM_DISARM_LAND", 0.0)))

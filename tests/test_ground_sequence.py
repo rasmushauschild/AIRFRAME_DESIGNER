@@ -27,7 +27,7 @@ def test_unsupported_model_is_not_approved():
 
 def test_native_takeoff_uses_gentle_thrust_ramp():
     af=model(); af.px4_overrides.update(NLF_ENABLE=1, MPC_TKO_RAMP_T=.2)
-    assert af.px4_params_sitl()["MPC_TKO_RAMP_T"] == 3
+    assert af.px4_params_sitl()["MPC_TKO_RAMP_T"] == 1.5
     af.px4_overrides["MPC_TKO_RAMP_T"] = 5
     assert af.px4_params_sitl()["MPC_TKO_RAMP_T"] == 5
 

@@ -71,6 +71,7 @@ private:
  hrt_abstime _diagnostic_time{};
  uint8_t _xy_reset{}, _z_reset{}, _heading_reset{};
  float _pitch{}, _yaw{}, _x{}, _y{}, _z{}, _target_z{};
+ float _spool_z{}; hrt_abstime _rear_fade_start{};   // handover: height at spool start; when the rear floor started fading (airborne)
  bool _ground_ref{false};   // _z (ground height at the module's takeoff) is valid for this flight
  bool _was_armed{false};
  bool _released{false};
@@ -140,6 +141,8 @@ private:
   (ParamFloat<px4::params::NLF_RATE>) _rate,
   (ParamFloat<px4::params::NLF_TARGET>) _lift_target,
  (ParamInt<px4::params::NLF_HW_OK>) _hw_ok,
+ (ParamFloat<px4::params::NLF_SPOOL_CMD>) _spool_cmd,
+ (ParamFloat<px4::params::NLF_SPOOL_T>) _spool_t,
  (ParamInt<px4::params::NLF_RC_CH>) _rc_ch,
  (ParamInt<px4::params::NLF_RC_LAND>) _rc_land,
   (ParamFloat<px4::params::SENS_BOARD_Y_OFF>) _hover_param,
@@ -403,7 +406,7 @@ private:
        && fabsf(e.phi())<math::radians(3.f) && fabsf(rates.xyz[2])<math::radians(3.f)) {
     if (!_dwell) { _dwell=now; }
     if ((now-_dwell)*1e-6f>=_hold.get()) {
-     _phase=Spool; _phase_start=now; _x=pos.x; _y=pos.y; _target_z=pos.z; _support_since=0;
+     _phase=Spool; _phase_start=now; _x=pos.x; _y=pos.y; _target_z=pos.z; _support_since=0; _spool_z=pos.z; _rear_fade_start=0;
      _yaw=e.psi();
      NL_INFO("nose settled and ground confirmed; climbing with heading held");
     }
@@ -445,15 +448,27 @@ private:
     if (now-_phase_start>15_s && !_fade_start) { fail("handover timeout",status,!land.landed); return; }
     atlas_nose_lift_floor_s floor{}; floor.timestamp=now; floor.timestamp_sample=att.timestamp; floor.active=true;
     for(int i=0;i<12;i++) { floor.control[i]=NAN; }
+    // Rear motors: while the rear feet touch, the aircraft cannot tilt to counter the front fans' rearward push and
+    // slides on its feet. Floor the rear motors with a fast ramp so the feet leave the ground at once; release the
+    // floor a second after the aircraft is airborne (PX4 is in charge by then). Roll stays neutral: all eight equal.
+    if (!_rear_fade_start && _spool_z-pos.z>0.10f) { _rear_fade_start=now; NL_INFO("airborne; releasing the rear floor"); }
+    const float rear_ramp=math::constrain((now-_phase_start)*1e-6f/math::max(0.2f,_spool_t.get()),0.f,1.f);
+    // The front floor was only holding the nose while the rear feet carried the weight: hand the nose to PX4's
+    // attitude loop as the rear lifts (a held front floor pins the nose up and PX4 cannot lower it).
+    const float front_scale=(_spool_cmd.get()>0.f) ? (1.f-rear_ramp) : 1.f;
     const float fade = _fade_start ? math::constrain(1.f-(now-_fade_start)*1e-6f/2.f,0.f,1.f) : 1.f;
-    floor.control[8]=_fade_start ? math::min(_cmd9,_fade9*fade) : _cmd9;
-    floor.control[9]=_fade_start ? math::min(_cmd10,_fade10*fade) : _cmd10;
+    floor.control[8]=(_fade_start ? math::min(_cmd9,_fade9*fade) : _cmd9)*front_scale;
+    floor.control[9]=(_fade_start ? math::min(_cmd10,_fade10*fade) : _cmd10)*front_scale;
+    const float rear_fade=_rear_fade_start ? math::constrain(1.f-(now-_rear_fade_start)*1e-6f/1.f,0.f,1.f) : 1.f;
+    const float rear=math::constrain(_spool_cmd.get(),0.f,1.f)*rear_ramp*rear_fade;
+    if (rear>0.f) { for (int i=0;i<8;i++) { floor.control[i]=rear; } }
     _floor_pub.publish(floor);
     if (_fade_start && now-_fade_start>2_s) { _phase=Climb; _phase_start=now; _target_z=pos.z; NL_INFO("handover complete"); }
    }
    mode.position=true; _mode_pub.publish(mode);
    if (_phase==Descend) { _target_z=math::min(pos.z+0.5f,_target_z+_land_speed.get()*0.004f); }   // keep descending, at most 0.5 m below the vehicle
-   else if (_phase!=Retake) { _target_z=math::max(_z-_alt.get(),_target_z-0.002f); }   // Retake holds where it is
+   else if (_phase==Spool && _spool_z-pos.z<=0.10f) { _target_z=pos.z; }   // on the feet: PX4 holds the current height, the floors do the lifting
+   else if (_phase!=Retake) { _target_z=math::max(_z-_alt.get(),_target_z-0.002f); }   // airborne (also during the floor fade): climb at once, never ask PX4 to sink back onto the legs
    trajectory_setpoint_s sp{}; sp.timestamp=now;
    sp.position[0]=_x; sp.position[1]=_y; sp.position[2]=_target_z;
    for(int i=0;i<3;i++) { sp.velocity[i]=NAN; sp.acceleration[i]=NAN; sp.jerk[i]=NAN; }

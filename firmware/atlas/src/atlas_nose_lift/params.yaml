@@ -88,6 +88,22 @@ parameters:
       min: 0
       max: 18
       default: 0
+    NLF_SPOOL_CMD:
+      description:
+        short: Rear motor command during the handover
+        long: Experimental, 0 = off. While PX4 takes over on the ground, the rear motors are floored at this command (0..1, ramped up over NLF_SPOOL_T) so the rear feet leave the ground quickly. In simulation it pitched the nose past the attitude envelope; left off.
+      type: float
+      min: 0
+      max: 1
+      default: 0
+    NLF_SPOOL_T:
+      description:
+        short: Rear motor ramp time during the handover
+      type: float
+      unit: s
+      min: 0.2
+      max: 3
+      default: 0.8
     NLF_HW_OK:
       description:
         short: Allow the experimental ground sequence on real hardware
