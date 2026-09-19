@@ -392,3 +392,5 @@ table.grid.trials tr.infeasible td { color: var(--text-3); }
 
 .pill.st.warn-pill { color: var(--amber); box-shadow: inset 0 0 0 1px var(--amber); }
 .pill.st.err-pill { color: var(--red); box-shadow: inset 0 0 0 1px var(--red); }
+
+.pill.confirm { color: var(--amber); box-shadow: inset 0 0 0 1.5px var(--amber); font-weight: 600; }

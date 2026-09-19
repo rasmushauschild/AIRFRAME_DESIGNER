@@ -56,6 +56,21 @@ $$('.tabs button').forEach(b => b.addEventListener('click', () => {
 }));
 function openTab(name) { $$('.tabs button').find(b => b.dataset.tab === name)?.click(); }
 
+
+// ============================================================ confirmation without dialogs
+// window.confirm() returns false at once inside the Claude desktop app's web view (and other embedded browsers),
+// so destructive buttons arm on the first click ("Click again to …", 8 s) and act on the second.
+const confirmArm = new Map();   // key -> expiry (ms)
+function confirmArmed(key) { return (confirmArm.get(key) || 0) > Date.now(); }
+function confirmTwice(key, btn, label) {
+  if (confirmArmed(key)) { confirmArm.delete(key); btn.classList.remove('confirm'); return true; }
+  confirmArm.set(key, Date.now() + 8000);
+  btn.dataset.label = btn.dataset.label || btn.textContent;
+  btn.textContent = 'Click again to ' + label; btn.classList.add('confirm');
+  setTimeout(() => { if (!confirmArmed(key)) { confirmArm.delete(key); if (document.body.contains(btn)) { btn.textContent = btn.dataset.label; btn.classList.remove('confirm'); } } }, 8100);
+  return false;
+}
+
 // ============================================================ airframe editing
 // An empty or unparsable number box yields NaN, which JSON turns into null and the server rejects. Replace every
 // non-finite number with 0 before sending and say so, so a stray blank field never blocks a push or a save.
@@ -298,7 +313,7 @@ async function cadFrameChanged() {
 }
 ['cad-rx', 'cad-ry', 'cad-rz', 'cad-ox', 'cad-oy', 'cad-oz', 'cad-scale'].forEach(id => $('#' + id).addEventListener('change', cadFrameChanged));
 $('#cad-reset-offsets').addEventListener('click', () => { if (!airframe.cad) return; airframe.cad.bodies.forEach(b => b.offset = [0, 0, 0]); scene.syncCad(); renderCadTable(); pushAirframe(true); });
-$('#cad-remove-all').addEventListener('click', () => { if (!airframe.cad || !confirm('Remove the CAD file and all its bodies from this airframe?')) return; airframe.cad = null; cadSelected = null; scene.selectCad(null); setAirframe(airframe); pushAirframe(true); });
+$('#cad-remove-all').addEventListener('click', () => { if (!airframe.cad || !confirmTwice('cad-remove', $('#cad-remove-all'), 'remove the CAD file and all its bodies')) return; airframe.cad = null; cadSelected = null; scene.selectCad(null); setAirframe(airframe); pushAirframe(true); });
 
 function bindNumber(id, fn) {
   $('#' + id).addEventListener('change', (e) => { fn(parseFloat(e.target.value) || 0); scene.setAirframe(airframe); pushAirframe(true); });
@@ -1112,7 +1127,7 @@ $('#param-search').addEventListener('input', renderParams);
 $('#param-group').addEventListener('change', renderParams);
 $('#param-refresh').addEventListener('click', async () => { $('#param-count').textContent = 'loading…'; await api('/api/params/refresh', {}); await loadParams(); });
 $('#param-save').addEventListener('click', () => api('/api/params/save', {}));
-$('#param-reboot').addEventListener('click', () => { if (confirm('Reboot the flight controller?')) api('/api/px4/command', { command: 'reboot' }); });
+$('#param-reboot').addEventListener('click', () => { if (confirmTwice('param-reboot', $('#param-reboot'), 'reboot the flight controller')) api('/api/px4/command', { command: 'reboot' }); });
 $('#param-meta-fetch').addEventListener('click', async () => {
   $('#param-count').textContent = 'downloading descriptions via MAVLink FTP…';
   try { const r = await api('/api/params/meta/fetch', {}); await loadMeta(); logLine(`[ui] ${r.count} parameter descriptions from ${r.source}`); }
@@ -1328,13 +1343,13 @@ api('/api/log?since=0').then(lines => lines.forEach(l => logLine(l[1]))).catch((
 
 
 // ============================================================ connection / HITL
-let connTimer = null;
+let connTimer = null, lastChecklistHtml = '';
 $('#st-link').addEventListener('click', () => openTab('connect'));
 $('#st-detected').addEventListener('click', async () => { openTab('connect'); await connectHitl(); });
 $('#conn-sitl').addEventListener('click', async () => { await connCall('/api/connection/connect', { mode: 'sitl' }); });
 $('#conn-rescan').addEventListener('click', refreshConnection);
 $('#conn-disconnect').addEventListener('click', async () => { await connCall('/api/connection/disconnect', {}); });
-$('#conn-reboot').addEventListener('click', async () => { if (confirm('Reboot the flight controller? The link reconnects by itself.')) { await api('/api/px4/command', { command: 'reboot' }); setTimeout(refreshConnection, 3000); } });
+$('#conn-reboot').addEventListener('click', async () => { if (confirmTwice('conn-reboot', $('#conn-reboot'), 'reboot the board (the link reconnects by itself)')) { await api('/api/px4/command', { command: 'reboot' }); setTimeout(refreshConnection, 3000); } });
 // ---- PX4 messages (decoded events) in the Flight tab
 let eventsTimer = null;
 async function refreshEvents() {
@@ -1399,7 +1414,7 @@ async function refreshConnection() {
     : '<div class="card"><div class="conn-row"><div><b>No USB flight controller found</b><div class="hint">Plug the Pixhawk in over USB and click Rescan. If QGroundControl is open, close it or disable its serial auto-connect.</div></div></div></div>';
   $$('#conn-ports button[data-dev]').forEach(b => b.addEventListener('click', () => connectHitl(b.dataset.dev)));
   const steps = c.checklist || [];
-  $('#conn-checklist').innerHTML = steps.map(s => `<div class="check ${s.ok ? 'ok' : ''}"><div class="mark">${s.ok ? '✓' : ''}</div>
+  const checklistHtml = steps.map(s => `<div class="check ${s.ok ? 'ok' : ''}"><div class="mark">${s.ok ? '✓' : ''}</div>
     <div class="body"><div class="label">${s.label}</div>${s.detail ? `<div class="detail">${s.detail}</div>` : ''}</div>
     ${s.busy ? '<span class="pill small">Working…</span>' : ''}
     ${s.action === 'enable_hitl' ? '<button class="pill small primary" data-act="enable_hitl">Enable HITL</button>' : ''}
@@ -1411,7 +1426,12 @@ async function refreshConnection() {
     ${s.action === 'push' ? '<button class="pill small primary" data-act="push">Push geometry</button>' : ''}
     ${s.action === 'reboot' ? '<button class="pill small" data-act="reboot">Reboot board</button>' : ''}
     ${s.action === 'ekf' ? '<button class="pill small" data-act="ekf">Restart estimator</button>' : ''}</div>`).join('');
-  $$('#conn-checklist button[data-act]').forEach(b => b.addEventListener('click', async () => {
+  if (checklistHtml !== lastChecklistHtml) {          // re-rendering every 2 s would pull the buttons out from under a click
+    lastChecklistHtml = checklistHtml;
+    $('#conn-checklist').innerHTML = checklistHtml;
+    $$('#conn-checklist button[data-act]').forEach(b => { if (confirmArmed(b.dataset.act)) { b.dataset.label = b.textContent; b.textContent = 'Click again to confirm'; b.classList.add('confirm'); } });
+  }
+  $$('#conn-checklist button[data-act]').forEach(b => b.onclick = async () => {
     if (b.dataset.act === 'enable_hitl') { b.textContent = 'Rebooting…'; await connCall('/api/connection/enable_hitl', {}); }
     if (b.dataset.act === 'push') { if (status.armed) { alert('Disarm before updating PX4'); return; } await pushToPX4($('#update-status'), true); await refreshConnection(); }
     if (b.dataset.act === 'build_firmware') { b.textContent = 'Building…'; await connCall('/api/firmware/build', {}); }
@@ -1419,18 +1439,18 @@ async function refreshConnection() {
     if (b.dataset.act === 'reboot') { b.textContent = 'Rebooting…'; await api('/api/px4/command', { command: 'reboot' }); setTimeout(refreshConnection, 3000); }
     if (b.dataset.act === 'build_atlas') { b.textContent = 'Building…'; await connCall('/api/firmware/build', { atlas: true }); }
     if (b.dataset.act === 'upload_atlas') {
-      if (!confirm('Replace the firmware on the board with the ATLAS build (PX4 from the SITL source tree + nose-lift module + allocator overlay)? The board reboots and reconnects; parameters are kept and the result is archived to GitHub (Versions tab). Afterwards run Update PX4 and, if you accept flying the experimental sequence, allow it on hardware.')) return;
+      if (!confirmTwice('upload_atlas', b, 'replace the board firmware with the ATLAS build (reboots, parameters kept, archived)')) return;
       b.textContent = 'Flashing…'; await connCall('/api/firmware/upload', { atlas: true });
     }
     if (b.dataset.act === 'enable_hw') {
-      if (!confirm('Allow the experimental nose-lift sequence to arm and run the motors on the real aircraft (NLF_HW_OK = 1)?')) return;
+      if (!confirmTwice('enable_hw', b, 'allow the experimental sequence to arm and run motors on the real aircraft')) return;
       b.textContent = 'Setting…'; await api('/api/params/set', { name: 'NLF_HW_OK', value: 1 }); setTimeout(refreshConnection, 1500);
     }
     if (b.dataset.act === 'upload_firmware') {
-      if (!confirm('Flash the HITL-capable firmware to the board now? It reboots and reconnects when done. Parameters are kept.')) return;
+      if (!confirmTwice('upload_firmware', b, 'flash the HITL firmware (the board reboots, parameters kept)')) return;
       b.textContent = 'Flashing…'; await connCall('/api/firmware/upload', {});
     }
-  }));
+  });
   connTimer = setTimeout(refreshConnection, 2000);
 }
 
@@ -1464,11 +1484,11 @@ async function refreshArchive() {
       <a class="pill small" href="${esc(st.web)}/tree/main/versions/${encodeURIComponent(v.id)}" target="_blank" rel="noopener">GitHub</a></td></tr>`).join('')}</tbody></table>`
     : '<div class="hint">No versions yet. Flash a board from the Connect tab, or click "Snapshot board now".</div>';
   $$('#arch-list button[data-restore]').forEach(b => b.addEventListener('click', async () => {
-    if (!confirm(`Flash the firmware image of ${b.dataset.restore} to the board and restore all of its parameters? The board reboots; this replaces what is on it now (which gets archived first only if you snapshot it).`)) return;
+    if (!confirmTwice('restore:' + b.dataset.restore, b, 'flash this image and restore its parameters')) return;
     b.disabled = true; try { const r = await api('/api/archive/restore', { id: b.dataset.restore, flash: true, params: true }); if (!r.ok) alert(r.error); } catch (e) { alert(e.message); } refreshArchive();
   }));
   $$('#arch-list button[data-params]').forEach(b => b.addEventListener('click', async () => {
-    if (!confirm(`Write the parameters of ${b.dataset.params} to the connected board?`)) return;
+    if (!confirmTwice('params:' + b.dataset.params, b, 'write these parameters to the board')) return;
     b.disabled = true; try { const r = await api('/api/archive/restore', { id: b.dataset.params, flash: false, params: true }); if (!r.ok) alert(r.error); } catch (e) { alert(e.message); } refreshArchive();
   }));
   $$('#arch-list button[data-airframe]').forEach(b => b.addEventListener('click', async () => {
