@@ -222,7 +222,16 @@ class Airframe:
             p[f"CA_ROTOR{i}_AZ"] = round(ax[2], 4)
             p[f"CA_ROTOR{i}_KM"] = round(r.km, 4)
         # The flight controller is mounted in the structural frame; PX4 reads its IMU in the hover frame.
+        from .ground_sequence import ground_sequence_params
+        p.update(ground_sequence_params(self))
+        if p.get("NLF_ENABLE") == 1:
+            # A short stock takeoff ramp can pitch the grounded aircraft past its envelope at handoff.
+            p["MPC_TKO_RAMP_T"] = max(3.0, float(p.get("MPC_TKO_RAMP_T", 3.0)))
         p["SENS_BOARD_Y_OFF"] = round(float(self.hover_pitch_deg), 2)
+        imu_pos = np.asarray(self.design.get("pixhawk_position", self.cg), float)
+        imu_offset = self.hover_rotation() @ (imu_pos - self.cg)
+        for axis, value in zip("XYZ", imu_offset):
+            p[f"EKF2_IMU_POS_{axis}"] = round(float(value), 4)
         for n in range(1, 17):
             p[f"HIL_ACT_FUNC{n}"] = 101 + (n - 1) if n <= len(rotors) else 0
         if hitl:

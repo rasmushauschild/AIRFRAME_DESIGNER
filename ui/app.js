@@ -29,6 +29,10 @@ try {
     onSelect: (i) => { selected = i; if (i >= 0) cadSelected = null; renderRotorTable(); renderReadout(); if (i >= 0) renderCadTable(); },
     onRotorChanged: (i, r, commit) => { renderRotorRow(i); renderReadout(); if (commit) pushAirframe(); },
     onCadSelect: (id) => { cadSelected = id; if (id !== null && selected >= 0) { selected = -1; renderRotorTable(); renderReadout(); } renderCadTable(); },
+    onCadGroupChanged: (changes, commit) => {
+      for (const { id, offset } of changes) { const b = cadBody(id); if (b) { b.offset = offset; renderCadRow(id); } }
+      renderCadTotals(); if (commit) pushAirframe(true);
+    },
     onCadChanged: (id, offset, commit) => { const b = cadBody(id); if (!b) return; b.offset = offset; renderCadRow(id); renderCadTotals(); if (commit) pushAirframe(true); },
   });
 } catch (e) {
@@ -144,9 +148,11 @@ function setAirframe(af) {
 function fillMassCard() {
   const m = airframe.mass;
   const derived = !!m.from_items;
-  ['mass', 'cgx', 'cgy', 'cgz', 'ixx', 'iyy', 'izz'].forEach(k => { const el = $('#af-' + k); el.disabled = derived; el.title = derived ? 'derived from the CAD bodies / mass items (untick "Mass, CG & inertia from bodies" to type it)' : el.title; });
+  ['mass', 'cgx', 'cgy', 'cgz', 'ixx', 'iyy', 'izz'].forEach(k => { const el = $('#af-' + k); el.disabled = derived; el.title = derived ? 'derived from the CAD bodies / mass items (untick "Mass, CG & inertia from bodies" to type it)' : 'Manually entered value'; });
   $('#af-estimate').disabled = derived;
   $('#af-mass').value = m.mass;
+  const imu = airframe.design?.pixhawk_position || m.cg;
+  ['x', 'y', 'z'].forEach((axis, i) => { $('#imu-' + axis).value = imu[i]; });
   ['cgx', 'cgy', 'cgz'].forEach((k, i) => $('#af-' + k).value = +(+m.cg[i]).toFixed(4));
   ['ixx', 'iyy', 'izz'].forEach((k, i) => $('#af-' + k).value = +(+m.inertia[i]).toFixed(5));
   $('#af-hover').value = airframe.hover_pitch_deg || 0;
@@ -213,7 +219,7 @@ async function loadCadMesh(key) {
 function cadRowHtml(b, k) {
   const p = cadPos(b);
   const moved = (b.offset || [0, 0, 0]).some(v => Math.abs(v) > 1e-6);
-  return `<tr data-cad="${esc(b.id)}" class="${b.id === cadSelected ? 'selected' : ''}"><td class="idx">${k + 1}</td><td class="mono">${esc(b.name)}</td>
+  return `<tr data-cad="${esc(b.id)}" class="${(scene.selectedCadIds || []).includes(b.id) ? 'selected' : ''}"><td class="idx">${k + 1}</td><td class="mono">${esc(b.name)}</td>
   <td class="num" title="volume from the CAD solid">${(b.volume * 1e3).toFixed(3)}</td>
   <td><input type="number" step="0.01" min="0" data-k="mass" value="${+(+b.mass || 0).toFixed(4)}" title="mass of this body, kg (0 = ignored)"></td>
   <td class="num pos" title="centroid, structural frame, m${moved ? ' (dragged by ' + b.offset.map(v => v.toFixed(3)).join(', ') + ')' : ''}">${p.map(v => v.toFixed(3)).join('  ')}${moved ? ' <span class="warn" title="moved from the CAD position">•</span>' : ''}</td>
@@ -226,7 +232,7 @@ function renderCadTable() {
   el.innerHTML = `<table class="grid cad"><thead><tr><th>#</th><th>Body</th><th class="num" title="litres">Vol L</th><th>Mass kg</th><th title="centroid in the structural frame (x fwd, y right, z down), m: click a row to highlight the body, drag it in the 3D view along its axes">X Y Z</th><th></th></tr></thead><tbody>${live.map(cadRowHtml).join('') || '<tr><td colspan="6" class="hint">All bodies removed.</td></tr>'}</tbody></table>`;
   el.querySelectorAll('tr[data-cad]').forEach(tr => {
     const id = tr.dataset.cad;
-    tr.addEventListener('click', (e) => { if (['INPUT', 'BUTTON'].includes(e.target.tagName)) return; cadSelected = (cadSelected === id) ? null : id; scene.selectCad(cadSelected); if (cadSelected !== null && selected >= 0) { selected = -1; renderRotorTable(); renderReadout(); } renderCadTable(); });
+    tr.addEventListener('click', (e) => { if (['INPUT', 'BUTTON'].includes(e.target.tagName)) return; scene.selectCad(id, e.shiftKey); cadSelected = scene.selectedCad; if (cadSelected !== null && selected >= 0) { selected = -1; renderRotorTable(); renderReadout(); } renderCadTable(); });
     tr.querySelector('input[data-k="mass"]').addEventListener('change', (e) => { const b = cadBody(id); b.mass = Math.max(0, parseFloat(e.target.value) || 0); scene.syncCad(); renderCadTotals(); pushAirframe(true); });
     tr.querySelector('.del').addEventListener('click', () => { const b = cadBody(id); b.removed = true; if (cadSelected === id) { cadSelected = null; scene.selectCad(null); } scene.syncCad(); renderCadTable(); pushAirframe(true); });
   });
@@ -268,7 +274,13 @@ $('#cad-file').addEventListener('change', async (e) => {
   btn.disabled = false; btn.textContent = 'Import STEP…'; e.target.value = '';
 });
 $('#cad-show').addEventListener('change', (e) => { if (!airframe.cad) return; airframe.cad.visible = e.target.checked; scene.syncCad(); pushAirframe(true); });
-$('#cad-use').addEventListener('change', (e) => { airframe.mass.from_items = e.target.checked; fillMassCard(); renderCadTotals(); pushAirframe(true); });
+$('#cad-use').addEventListener('change', (e) => { const m = airframe.mass;
+  if (e.target.checked && !m.from_items) {
+    m.manual = structuredClone({ mass: m.mass, cg: m.cg, inertia: m.inertia, inertia_products: m.inertia_products || [0, 0, 0] });
+  } else if (!e.target.checked && m.manual) {
+    Object.assign(m, structuredClone(m.manual));
+  }
+  m.from_items = e.target.checked; fillMassCard(); renderCadTotals(); pushAirframe(true); });
 async function cadFrameChanged() {
   const cad = airframe.cad; if (!cad) return;
   cad.rotation_deg = ['rx', 'ry', 'rz'].map(k => parseFloat($('#cad-' + k).value) || 0);
@@ -833,7 +845,7 @@ function updateFooter() {
   armBtn.textContent = status.armed ? 'Kill' : 'Arm';
   armBtn.title = status.armed ? 'Force disarm immediately (motors stop, even in the air)' : 'Arm the vehicle';
   armBtn.classList.toggle('armed', !!status.armed);
-  armBtn.disabled = !status.ctl_connected || (!status.armed && !status.arm_ready);
+  armBtn.disabled = (!status.armed && !!status.resetting) || !status.ctl_connected || (!status.armed && !status.arm_ready);
   if (!status.armed && status.ctl_connected && !status.arm_ready) armBtn.title = 'Not armable yet: ' + (status.arm_block_reason || 'estimator not ready');
   const tko = $('#btn-takeoff');
   if (status.mode === 'sitl' && status.ctl_connected && !status.armed &&
@@ -848,7 +860,7 @@ function updateFooter() {
   const nativeNoseLift = status.mode === 'sitl' && +((params.NLF_ENABLE || {}).value ?? (airframe.px4_overrides || {}).NLF_ENABLE) === 1;
   tko.title = nativeNoseLift ? 'PX4 arms, raises the nose to the configured target, then climbs and holds heading' : 'Automatic takeoff';
   tko.textContent = 'Takeoff';
-  tko.disabled = !status.ctl_connected || (nativeNoseLift && status.armed) || (!status.armed && !status.arm_ready);
+  tko.disabled = !!status.resetting || !status.ctl_connected || (nativeNoseLift && status.armed) || (!status.armed && !status.arm_ready);
   $$('#nl-card input, #nl-card button').forEach(el => { el.disabled = !!nativeNoseLift; });
   const landButton = $('#btn-land');
   if (landButton) {
@@ -938,7 +950,8 @@ $('#btn-takeoff').addEventListener('click', async () => {
       if (!landing.ok) throw new Error(landing.error || 'Could not apply landed pitch');
       logLine('[ui] native PX4 nose lift: normal arming, front-fan lift, then heading-held hover');
       await api('/api/sim/nose_lift', { stop: true });
-      await api('/api/px4/shell', { command: 'atlas_nose_lift start', timeout: 0.5 });
+      const moduleStatus = await api('/api/px4/shell', { command: 'atlas_nose_lift status', timeout: 0.5 });
+      if (/not running/i.test(moduleStatus.output || '')) await api('/api/px4/shell', { command: 'atlas_nose_lift start', timeout: 0.5 });
       const result = await api('/api/px4/shell', { command: 'atlas_nose_lift takeoff', timeout: 0.5 });
       if (result.output) logLine(result.output);
       return;
@@ -1822,3 +1835,9 @@ $('#af-takeoff').addEventListener('change', async () => {
     inp.value = (params.NLF_TARGET || {}).value ?? (airframe.px4_overrides || {}).NLF_TARGET ?? 25;
   }
 });
+
+['x', 'y', 'z'].forEach((axis, i) => bindNumber('imu-' + axis, v => {
+  airframe.design ||= {};
+  airframe.design.pixhawk_position ||= [...airframe.mass.cg];
+  airframe.design.pixhawk_position[i] = v;
+}));

@@ -28,6 +28,8 @@ class MassProperties:
     items: list[MassItem] = field(default_factory=list)            # optional component masses
     from_items: bool = False                                        # derive mass/cg/inertia from ``items``
 
+    manual: dict | None = None  # saved manual mass, CG and inertia while component mode is active
+
     # ------------------------------------------------------------------ tensor
     def tensor(self) -> np.ndarray:
         ixx, iyy, izz = (float(v) for v in self.inertia)
@@ -38,6 +40,9 @@ class MassProperties:
         """Apply ``from_items``: totals from the component list plus ``extra`` items (e.g. the CAD bodies of
         geometry/cad.py); returns self for chaining."""
         items = list(self.items) + list(extra or [])
+        if self.from_items and self.manual is None:
+            self.manual = {"mass": self.mass, "cg": list(self.cg), "inertia": list(self.inertia),
+                           "inertia_products": list(self.inertia_products)}
         if self.from_items and items:
             m = sum(max(0.0, i.mass) for i in items)
             if m > 0:

@@ -53,6 +53,7 @@ private:
  enum Phase { Idle, Prime, Lift, Spool, Climb, Hover, Descend, LowerNose, Shutdown, Aborting, Failed };
  Phase _phase{Idle};
  std::atomic<bool> _request{false}, _land_request{false};
+ AtlasGroundModel _ground{};
  float _rest_pitch{}, _lower_target{}, _hover_angle{}, _landing_angle{};
  hrt_abstime _contact_dwell{};
  float _touch_z{};
@@ -153,7 +154,7 @@ private:
    PX4_ERR("SITL-only experimental module"); return;
 #endif
    _hover_angle=_hover_param.get();
-   if (!atlas_model_matches(_hover_angle)) { PX4_ERR("ATLAS_07D geometry or thrust mapping does not match"); return; }
+   if (!atlas_model_matches(_hover_angle, _ground)) { PX4_ERR("ground model configuration invalid; Update PX4"); return; }
    if (!_enable.get() || armed || !land.landed || !pos.xy_valid || !pos.z_valid || now-att.timestamp>200_ms
        || !PX4_ISFINITE(_pitch) || !PX4_ISFINITE(e.psi()) || !PX4_ISFINITE(pos.z)) {
     PX4_ERR("requires enabled, disarmed, landed, fresh valid attitude and position"); return;
@@ -179,7 +180,7 @@ private:
   }
   if (_land_request.exchange(false)) {
    updateParams();
-   if (_phase!=Hover || !armed || !_enable.get() || !atlas_model_matches(_hover_angle)) {
+   if (_phase!=Hover || !armed || !_enable.get() || !atlas_model_matches(_hover_angle, _ground)) {
     PX4_WARN("landing requires this module's active hover and matching model");
    } else if (!PX4_ISFINITE(_land_speed.get()) || _land_speed.get()<0.05f || _land_speed.get()>0.3f ||
               !PX4_ISFINITE(_down_rate.get()) || _down_rate.get()<1.f || _down_rate.get()>5.f) {
@@ -242,11 +243,9 @@ private:
    const float q_des=math::constrain(2.f*(_lower_target-math::degrees(theta)),-_down_rate.get(),_down_rate.get());
    const float error=q_des-math::degrees(omega(1));
    _integral=math::constrain(_integral+error*0.004f,-40.f,40.f);
-   const float ff=13.f*9.80665f*(0.3f*cosf(theta)-0.3f*sinf(theta))/(36.f*0.866019f*(0.75f+0.86f));
+   const float ff=_ground.mass*9.80665f*(_ground.gx*cosf(theta)+_ground.gz*sinf(theta))/_ground.moment;
    const float frac=math::constrain(ff+0.02f*error+0.012f*_integral,0.f,1.f);
-   const float yaw9=0.45f*0.500011f+0.01f*0.866019f;
-   const float yaw10=-0.56f*0.500011f+0.01f*0.866019f;
-   const float w9=-2.f*yaw10/(yaw9-yaw10);
+   const float w9 = _ground.w9;
    const float delta=math::constrain(-3.f*omega(2),-0.25f,0.25f);
    _cmd9=sqrtf(math::constrain(frac*(w9+delta),0.f,1.f));
    _cmd10=sqrtf(math::constrain(frac*(2.f-w9-delta),0.f,1.f));
@@ -300,12 +299,10 @@ private:
    const float q_des = math::constrain(_lift_target.get()-math::degrees(theta), -_rate.get(), _rate.get()*ease);
    const float error = q_des-q;
    _integral=math::constrain(_integral+error*0.004f,-40.f,40.f);
-   // Exact ATLAS_07D rear pivot and front fan moments. Model geometry remains unchanged.
-   const float ff = 13.f*9.80665f*(0.3f*cosf(theta)-0.3f*sinf(theta))/(36.f*0.866019f*(0.75f+0.86f));
+   // Feedforward from the exported current mass, rear pivot and front fan moments.
+   const float ff = _ground.mass*9.80665f*(_ground.gx*cosf(theta)+_ground.gz*sinf(theta))/_ground.moment;
    const float frac=math::constrain(ease*ff+0.02f*error+0.012f*_integral,0.f,1.f);
-   const float yaw9 = 0.45f*0.500011f+0.01f*0.866019f;
-   const float yaw10 = -0.56f*0.500011f+0.01f*0.866019f;
-   const float w9 = -2.f*yaw10/(yaw9-yaw10);
+   const float w9 = _ground.w9;
    const float delta=math::constrain(-3.f*omega(2),-0.25f,0.25f);
    _cmd9=sqrtf(math::constrain(frac*(w9+delta),0.f,1.f));
    _cmd10=sqrtf(math::constrain(frac*(2.f-w9-delta),0.f,1.f));

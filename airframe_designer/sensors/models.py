@@ -71,10 +71,24 @@ class SensorSuite:
             return np.zeros(n)
         return self.rng.normal(0.0, std, n)
 
+    def imu_lever_acceleration(self, sim, time_usec):
+        """Rigid-body acceleration at the IMU, relative to the CG, in structural axes."""
+        rates = np.asarray(sim.rates, float)
+        previous = getattr(self, "_imu_previous", None)
+        self._imu_previous = (time_usec, rates.copy(), id(sim))
+        alpha = np.zeros(3)
+        if previous and previous[2] == id(sim) and 0 < time_usec - previous[0] < 100000:
+            alpha = (rates - previous[1]) / ((time_usec - previous[0]) * 1e-6)
+        af = getattr(sim, "af", None)
+        if af is None:
+            return np.zeros(3)
+        offset = np.asarray(af.design.get("pixhawk_position", af.cg), float) - af.cg
+        return np.cross(alpha, offset) + np.cross(rates, np.cross(rates, offset))
+
     # ---------------------------------------------------------- HIL_SENSOR
     def hil_sensor(self, sim, time_usec: int) -> dict:
         R = sim.rotmat
-        accel = sim.accel_body + np.asarray(self.noise.accel_bias) + self._n(self.noise.accel)
+        accel = sim.accel_body + self.imu_lever_acceleration(sim, time_usec) + np.asarray(self.noise.accel_bias) + self._n(self.noise.accel)
         gyro = sim.rates + np.asarray(self.noise.gyro_bias) + self._n(self.noise.gyro)
         mag = R.T @ self.mag_ned + self._n(self.noise.mag)
 

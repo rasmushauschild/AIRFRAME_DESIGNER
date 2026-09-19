@@ -142,3 +142,11 @@ Takeoff pitch uses `NLF_TARGET`. Hover pitch sets `SENS_BOARD_Y_OFF` and the cor
 Ground contact takes priority over a requested angle below the ground. A requested landed pitch more than 3° above the measured resting posture is rejected before arming, with both angles in the error message, because it would otherwise stop lowering before the nose reaches the ground. The original ATLAS_07D legs settle around −12.75°; earlier regression runs used −13°. The demo now derives the unloaded support-plane angle from leg positions, tilt, cant, lengths, and foot radii; spring compression can cause a small difference in the actual resting posture. At least three non-collinear enabled feet sharing a plane within 1 cm are required. Actual contact detection still governs shutdown. These settings do not make arbitrary rotor layouts compatible with the controller.
 
 Three-angle regression: ATLAS_07D passed at takeoff/hover/landed settings 20/24/−13 and 30/27/−15 degrees. The captured ATLAS_09 completed both sequences and shut down after nose contact, with no link loss, but briefly pitched upward at 8.41°/s during landing handover, above the existing 8°/s regression threshold. This current-model run is not reported as passing the full landing checks.
+
+## Current-model ground control and automatic updates
+
+The standard app exports `NLF_MASS`, `NLF_GX`, `NLF_GZ`, `NLF_MOM`, and `NLF_W9` from the current mass, CG, rear-foot pivot, and front-fan forces. `NLF_CFG_OK` rejects unsupported layouts. The controller supports the ten-motor, two-front-fan, three-leg arrangement, not arbitrary aircraft. Native takeoff uses a minimum three-second thrust ramp.
+
+While disarmed, model edits affecting exported parameters are debounced for one second, then the owned SITL process and simulation reset with freshly seeded parameters. Edits while armed are deferred until disarm. No firmware rebuild is needed for these model parameters.
+
+Validation: the captured current model completed takeoff, hover, and landing with motors off using the three-second ramp; the earlier 0.2-second ramp aborted on the attitude envelope. The successful run still exceeded the strict landing drift threshold (7.1 cm), so it is not a full flight-regression pass. The original model also completed both sequences.

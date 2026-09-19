@@ -92,7 +92,7 @@
         <label title="Nose-up angle reached on the ground before takeoff. Editable while connected and disarmed; does not change hover pitch.">Takeoff pitch° <input id="af-takeoff" type="number" step="any" value="25" disabled></label>
         <label title="Nose-up pitch of the airframe in hover. PX4 treats this attitude as level: the geometry is exported rotated into that frame and SENS_BOARD_Y_OFF is set to match.">Hover pitch° <input id="af-hover" type="number" step="1" min="-90" max="90"></label>
         <label title="Calculated automatically from the enabled landing feet. Actual resting pitch can differ slightly as the legs compress.">Landed pitch° (auto) <input id="af-landed" type="number" step="1" min="-90" max="90"></label>
-        <span class="hint">After changing hover pitch, use Update PX4, then Reset. Landed pitch is calculated from the landing legs.</span>
+        <span class="hint">Model changes apply to PX4 automatically while disarmed. Landed pitch is calculated from the landing legs.</span>
       </div>
 
       <details id="cad-details">
@@ -101,7 +101,7 @@
           <input id="cad-file" type="file" accept=".step,.stp,.STEP,.STP" hidden>
           <button id="cad-import" class="pill small primary" title="Import a STEP file: every solid becomes a body you can give a mass; their centroids and inertia come from the CAD geometry">Import STEP…</button>
           <span id="cad-filename" class="hint mono" style="align-self:center"></span>
-          <label class="row" style="align-self:end;padding-bottom:6px" title="draw the CAD bodies in the 3D view"><input id="cad-show" type="checkbox" checked> Show in 3D</label>
+          <label class="row" style="align-self:end;padding-bottom:6px" title="Show CAD bodies instead of generic motor-to-CG tubes. Heavier bodies are redder; the heaviest is red."><input id="cad-show" type="checkbox" checked> Show in 3D</label>
           <label class="row" style="align-self:end;padding-bottom:6px" title="compute the aircraft mass, CG and inertia from the CAD bodies (plus any mass items) instead of the numbers typed above"><input id="cad-use" type="checkbox"> Mass, CG &amp; inertia from bodies</label>
         </div>
         <div class="row tight" id="cad-frame-row">
@@ -119,6 +119,13 @@
         <div id="cad-totals" class="hint"></div>
       </details>
 
+      <h3>Pixhawk position</h3>
+      <div class="row" title="IMU position in metres from the structural origin: X forward, Y right, Z down. PX4 receives the offset relative to the CG.">
+        <label>X m <input id="imu-x" type="number" step="0.001"></label>
+        <label>Y m <input id="imu-y" type="number" step="0.001"></label>
+        <label>Z m <input id="imu-z" type="number" step="0.001"></label>
+      </div>
+      <p class="hint">Use the Pixhawk IMU location. Changes apply to PX4 automatically while disarmed.</p>
       <h3>Rotors</h3>
       <div id="rotor-table"></div>
       <div class="row tight">

@@ -72,3 +72,33 @@ parameters:
       default: 3
       min: 1
       max: 5
+    NLF_CFG_OK:
+      description:
+        short: Ground geometry supported by exporter
+      type: int32
+      default: 0
+    NLF_MASS:
+      description:
+        short: Aircraft mass from current model
+      type: float
+      default: 0
+    NLF_GX:
+      description:
+        short: CG forward of rear contact pivot
+      type: float
+      default: 0
+    NLF_GZ:
+      description:
+        short: CG below rear contact pivot
+      type: float
+      default: 0
+    NLF_MOM:
+      description:
+        short: Yaw-balanced front pair pitch authority
+      type: float
+      default: 0
+    NLF_W9:
+      description:
+        short: Yaw-balanced motor 9 thrust weight
+      type: float
+      default: 1

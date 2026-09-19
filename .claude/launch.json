@@ -29,7 +29,7 @@
         "--px4-instance",
         "5",
         "--airframe",
-        "airframes/atlas_mvp_03.json"
+        "/private/tmp/claude-501/-Users-rasmushauschild-AIRFRAME-DESIGNER/c581d01d-7cdd-42b8-9878-49c61b9aa51b/scratchpad/atlas-ground-live.json"
       ],
       "port": 8095
     }

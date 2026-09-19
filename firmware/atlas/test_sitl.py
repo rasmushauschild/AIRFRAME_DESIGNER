@@ -62,7 +62,8 @@ try:
  limit=20 if os.environ.get('NLF_LAND_ONLY') else (65 if os.environ.get('NLF_GUARD_TEST') else (float(os.environ.get('NLF_LAND_AT','50'))+60 if os.environ.get('NLF_TEST_LANDING') else 51))
  reason=sim.run_sync(until=lambda s:s.t>limit or (landing_complete_t is not None and s.t>landing_complete_t+8),max_wall_time=300)
  cli('atlas_nose_lift','status')
- result={'name':name,'physics':physics,'seed':seed,'params':params,'reason':reason,'cols':['t','n','e','d','vn','ve','vd','roll','pitch','yaw','p','q','r','ground','armed']+[f'm{i}' for i in range(1,11)]+[f'foot_gap{i}' for i in range(1,4)],'rows':rows,'log':lines}
+ rear_feet = sorted([np.asarray(l.foot()) for l in af.active_legs()], key=lambda p:p[0])[:2]
+ result={'rear_pivot':(np.mean(rear_feet,axis=0)-af.cg).tolist(),'name':name,'physics':physics,'seed':seed,'params':params,'reason':reason,'cols':['t','n','e','d','vn','ve','vd','roll','pitch','yaw','p','q','r','ground','armed']+[f'm{i}' for i in range(1,11)]+[f'foot_gap{i}' for i in range(1,4)],'rows':rows,'log':lines}
  (base/'results'/f'{name}.json').write_text(json.dumps(result))
  a=np.asarray(rows)
  flight=a[(a[:,0]>40)&(a[:,0]<50)]

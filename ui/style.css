@@ -384,3 +384,6 @@ pre.joblog { margin: 6px 0 0; font-family: var(--mono); font-size: 11px; line-he
 table.grid.trials td, table.grid.trials th { white-space: nowrap; padding: 3px 5px; }
 table.grid.trials tr.pareto td.idx::after { content: '●'; color: var(--accent); margin-left: 4px; font-size: 9px; vertical-align: middle; }
 table.grid.trials tr.infeasible td { color: var(--text-3); }
+
+/* Calculated mass properties are visibly read-only. */
+#tab-airframe input:disabled { opacity: .5; cursor: not-allowed; }

@@ -572,8 +572,8 @@ def build_app(state: AppState) -> FastAPI:
             params = {k: v for k, v in params.items() if k in only}
         # skip output-function params the firmware does not have (e.g. HIL_ACT on SITL)
         if link.params:
-            missing = [k for k in params if k not in link.params]
-            params = {k: v for k, v in params.items() if k in link.params}
+            missing = [k for k in params if k not in link.params and not k.startswith("NLF_")]
+            params = {k: v for k, v in params.items() if k in link.params or k.startswith("NLF_")}
         else:
             missing = []
         state.export_log.clear()

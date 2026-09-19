@@ -109,7 +109,7 @@ export function createScene(canvas, handlers) {
   const cadNodes = new Map();      // id -> { mesh, marker, centroid (FRD, offset-free) }
   let selectedCad = null;          // body id
   const cadMat = new THREE.MeshStandardMaterial({ color: 0xaab0bb, roughness: 0.55, metalness: 0.15, transparent: true, opacity: 0.85, depthWrite: true });
-  const cadMatSel = new THREE.MeshStandardMaterial({ color: 0x0a84ff, emissive: 0x0a84ff, emissiveIntensity: 0.18, roughness: 0.45, metalness: 0.1 });
+  const cadHeavyColor = new THREE.Color(0xff2020);
   const cadMarkerMat = new THREE.MeshStandardMaterial({ color: 0xff2d92, emissive: 0xff2d92, emissiveIntensity: 0.4, roughness: 0.4 });
   let camMode = 'static';   // 'static' | 'track' (look at the drone) | 'follow' (move with it)
   const lastVehiclePos = new THREE.Vector3();
@@ -139,8 +139,8 @@ export function createScene(canvas, handlers) {
     const hits = raycaster.intersectObjects([...rotorNodes.flatMap(n => [n.disc, n.motor]), ...cadMeshes], false);
     if (hits.length && hits[0].object.userData.cadId !== undefined) {
       const id = hits[0].object.userData.cadId;
-      selectCad(id);
-      handlers.onCadSelect && handlers.onCadSelect(id);
+      selectCad(id, e.shiftKey);
+      handlers.onCadSelect && handlers.onCadSelect(selectedCad);
     } else if (hits.length) {
       const idx = hits[0].object.userData.rotorIndex;
       select(idx);
@@ -153,14 +153,20 @@ export function createScene(canvas, handlers) {
   window.addEventListener('keydown', (e) => {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA') return;
     if (e.key === 'w' || e.key === 'W') gizmo.setMode('translate');
-    if (e.key === 'e' || e.key === 'E') gizmo.setMode('rotate');
+    if ((e.key === 'e' || e.key === 'E') && selectedCad === null) gizmo.setMode('rotate');
     if (e.key === 'Escape') { select(-1); handlers.onSelect && handlers.onSelect(-1); if (selectedCad !== null) { selectCad(null); handlers.onCadSelect && handlers.onCadSelect(null); } }
   });
 
   function onGizmoChange() {
     if (selectedCad !== null) {
       const n = cadNodes.get(selectedCad); if (!n) return;
-      handlers.onCadChanged && handlers.onCadChanged(selectedCad, cadOffset(n), false);
+      const delta = n.mesh.position.clone().sub(cadDragPosition);
+      cadDragPosition.copy(n.mesh.position);
+      for (const id of selectedCadIds) {
+        const body = cadNodes.get(id); if (!body) continue;
+        if (id !== selectedCad) body.mesh.position.add(delta);
+      }
+      handlers.onCadGroupChanged && handlers.onCadGroupChanged([...selectedCadIds].map(id => ({ id, offset: cadOffset(cadNodes.get(id)) })), false);
       return;
     }
     if (selected < 0 || !airframe) return;
@@ -175,7 +181,7 @@ export function createScene(canvas, handlers) {
   function commitGizmo() {
     if (selectedCad !== null) {
       const n = cadNodes.get(selectedCad); if (!n) return;
-      handlers.onCadChanged && handlers.onCadChanged(selectedCad, cadOffset(n), true);
+      handlers.onCadGroupChanged && handlers.onCadGroupChanged([...selectedCadIds].map(id => ({ id, offset: cadOffset(cadNodes.get(id)) })), true);
       return;
     }
     if (selected < 0 || !airframe) return;
@@ -299,15 +305,19 @@ export function createScene(canvas, handlers) {
     cgNodes.push(cgMark, cgLabel);
 
     syncCad(af);
-    if (selectedCad !== null && cadNodes.has(selectedCad)) selectCad(selectedCad);
+    if (selectedCad !== null && cadNodes.has(selectedCad)) selectCad(selectedCad, false, true);
     else if (keepSel >= 0 && keepSel < rotorNodes.length) select(keepSel);
   }
+
+  const selectedCadIds = new Set();
+  const cadDragPosition = new THREE.Vector3();
 
   // ------------------------------------------------------------ CAD bodies
   const cadOffset = (n) => threeToFrd(n.mesh.position).map((v, i) => +(v - n.centroid[i]).toFixed(4));
   function clearCad() {
-    for (const n of cadNodes.values()) { cadGroup.remove(n.mesh); n.mesh.geometry.dispose(); }
+    for (const n of cadNodes.values()) { cadGroup.remove(n.mesh); n.mesh.geometry.dispose(); n.mesh.material.dispose(); n.marker.geometry.dispose(); }
     cadNodes.clear();
+    selectedCadIds.clear();
     if (selectedCad !== null) { selectedCad = null; gizmo.detach(); }
   }
   // payload = /api/cad/mesh: bodies with vertices/indices in the structural frame (offsets not applied)
@@ -323,7 +333,7 @@ export function createScene(canvas, handlers) {
       // the mesh origin is the body's centroid, so the drag gizmo sits on the body and moving it moves the mass point
       const c = frdToThree(b.centroid);
       g.translate(-c.x, -c.y, -c.z);
-      const mesh = new THREE.Mesh(g, cadMat);
+      const mesh = new THREE.Mesh(g, cadMat.clone());
       mesh.position.copy(c);
       mesh.userData.cadId = b.id;
       const marker = new THREE.Mesh(new THREE.SphereGeometry(0.008, 12, 12), cadMarkerMat);
@@ -336,21 +346,37 @@ export function createScene(canvas, handlers) {
   }
   function syncCad(af) {
     const cad = af && af.cad;
+    const showCad = !!(cad && cad.file && cad.visible !== false);
+    rotorNodes.forEach(n => { n.arm.visible = !showCad; });
     if (!cad || !cad.file) { if (cadNodes.size) clearCad(); return; }
-    cadGroup.visible = cad.visible !== false;
+    cadGroup.visible = showCad;
+    const maxMass = Math.max(0, ...(cad.bodies || []).filter(b => !b.removed).map(b => Math.max(0, +b.mass || 0)));
     for (const b of cad.bodies || []) {
       const n = cadNodes.get(b.id); if (!n) continue;
-      if (!gizmo.dragging || selectedCad !== b.id) n.mesh.position.copy(frdToThree(n.centroid.map((v, i) => v + ((b.offset || [0, 0, 0])[i] || 0))));
+      if (!gizmo.dragging || !selectedCadIds.has(b.id)) n.mesh.position.copy(frdToThree(n.centroid.map((v, i) => v + ((b.offset || [0, 0, 0])[i] || 0))));
+      const massFraction = maxMass > 0 ? Math.max(0, +b.mass || 0) / maxMass : 0;
+      n.mesh.material.color.copy(cadMat.color).lerp(cadHeavyColor, massFraction);
       n.mesh.visible = !b.removed;
       n.marker.visible = !b.removed && (+b.mass || 0) > 0;
     }
   }
-  function selectCad(id) {
+  function selectCad(id, additive = false, preserve = false) {
     if (id !== null && !cadNodes.has(id)) id = null;
     if (id !== null && selected >= 0) select(-1);
-    selectedCad = id;
-    for (const [k, n] of cadNodes) n.mesh.material = (k === id) ? cadMatSel : cadMat;
-    if (id !== null) { gizmo.setMode('translate'); gizmo.setSpace('local'); gizmo.attach(cadNodes.get(id).mesh); }
+    if (!preserve) {
+      if (!additive) selectedCadIds.clear();
+      if (id !== null) {
+        if (additive && selectedCadIds.has(id)) selectedCadIds.delete(id);
+        else selectedCadIds.add(id);
+      }
+    }
+    selectedCad = selectedCadIds.has(id) ? id : ([...selectedCadIds].pop() ?? null);
+    id = selectedCad;
+    for (const [k, n] of cadNodes) {
+      n.mesh.material.emissive.setHex(selectedCadIds.has(k) ? 0x0a84ff : 0x000000);
+      n.mesh.material.emissiveIntensity = selectedCadIds.has(k) ? 0.25 : 0;
+    }
+    if (id !== null) { gizmo.setMode('translate'); gizmo.setSpace('local'); gizmo.attach(cadNodes.get(id).mesh); cadDragPosition.copy(cadNodes.get(id).mesh.position); }
     else if (selected < 0) gizmo.detach();
   }
 
@@ -399,7 +425,7 @@ export function createScene(canvas, handlers) {
 
   function select(i) {
     selected = i;
-    if (i >= 0 && selectedCad !== null) { selectedCad = null; for (const n of cadNodes.values()) n.mesh.material = cadMat; gizmo.setSpace('world'); }
+    if (i >= 0 && selectedCad !== null) { selectedCad = null; selectedCadIds.clear(); for (const n of cadNodes.values()) n.mesh.material.emissive.setHex(0x000000); gizmo.setSpace('world'); }
     rotorNodes.forEach((n, k) => { n.motor.material = (k === i ? matSel : motorMat).clone(); n.motor.userData.ownMat = true; n.motor.material.transparent = true; n.motor.material.opacity = n.enabled ? 1 : OFF_OPACITY; });
     if (i >= 0 && rotorNodes[i]) gizmo.attach(rotorNodes[i].group);
     else if (selectedCad === null) gizmo.detach();
@@ -483,6 +509,7 @@ export function createScene(canvas, handlers) {
 
   return {
     setAirframe, updateState, select, updateRotorNode, setTheme,
+    get selectedCadIds() { return [...selectedCadIds]; },
     setCad, selectCad, syncCad: () => airframe && syncCad(airframe),
     get selectedCad() { return selectedCad; },
     setCameraMode: (m) => {

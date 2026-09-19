@@ -1,5 +1,6 @@
 """Standard interactive simulator with native PX4 ground sequences."""
 import time
+import threading
 from .geometry.landing import apply_landed_pitch
 from .sim.simulator import Simulator
 from .px4.connection import ConnectionManager
@@ -13,10 +14,51 @@ class NativeSimulator(Simulator):
         kwargs.update(physics='jsbsim',physics_substeps=4,seed=1)
         super().__init__(*args,**kwargs)
     def set_airframe(self, airframe, keep_state=True):
+        before = self.airframe.px4_params_sitl()
         apply_landed_pitch(airframe)
-        return super().set_airframe(airframe, keep_state=keep_state)
+        result = super().set_airframe(airframe, keep_state=keep_state)
+        if before != self.airframe.px4_params_sitl():
+            callback = getattr(self, "on_model_parameters_changed", None)
+            if callback: callback()
+        return result
 
 class NativeConnectionManager(ConnectionManager):
+    def __init__(self, simulator, args, log):
+        super().__init__(simulator, args, log)
+        self._model_timer = None
+        self._model_revision = 0
+        simulator.on_model_parameters_changed = self.queue_model_sync
+
+    def queue_model_sync(self):
+        if self.mode != "sitl" or not self.args.launch_px4:
+            return
+        with self._lock:
+            self._model_revision += 1
+            revision = self._model_revision
+            if self._model_timer: self._model_timer.cancel()
+            self._reset_busy_until = time.time() + 60
+            self._model_timer = threading.Timer(1.0, self._sync_model, args=(revision,))
+            self._model_timer.daemon = True
+            self._model_timer.start()
+
+    def _sync_model(self, revision):
+        with self._lock:
+            if revision != self._model_revision: return
+            if self.link and self.link.armed:
+                self._model_timer = threading.Timer(1.0, self._sync_model, args=(revision,))
+                self._model_timer.daemon = True
+                self._model_timer.start()
+                return
+            try:
+                self.log("[PX4] Applying model changes automatically and resetting the simulator")
+                self.connect_sitl(True)
+                self._reset_busy_until = time.time() + 8
+                self.log("[PX4] Current model parameters loaded; waiting for preflight checks")
+            except Exception as exc:
+                self.error = str(exc)
+                self.log(f"[PX4] Automatic model update failed: {exc}")
+                self._reset_busy_until = time.time() + 60
+
     def _launch_sitl(self, instance):
         current = self.sim.airframe
         apply_landed_pitch(current)
