@@ -155,6 +155,7 @@ function fillMassCard() {
   ['x', 'y', 'z'].forEach((axis, i) => { $('#imu-' + axis).value = imu[i]; });
   ['cgx', 'cgy', 'cgz'].forEach((k, i) => $('#af-' + k).value = +(+m.cg[i]).toFixed(4));
   ['ixx', 'iyy', 'izz'].forEach((k, i) => $('#af-' + k).value = +(+m.inertia[i]).toFixed(5));
+  $('#af-battery').value = (airframe.design && airframe.design.battery_wh) || 0;
   $('#af-hover').value = airframe.hover_pitch_deg || 0;
   $('#af-landed').value = airframe.landed_pitch_deg || 0;
 }
@@ -306,6 +307,8 @@ bindNumber('af-mass', v => airframe.mass.mass = v);
 bindNumber('af-cgx', v => airframe.mass.cg[0] = v);
 bindNumber('af-cgy', v => airframe.mass.cg[1] = v);
 bindNumber('af-cgz', v => airframe.mass.cg[2] = v);
+bindNumber('af-battery', v => { airframe.design = airframe.design || {}; airframe.design.battery_wh = Math.max(0, v); });
+$('#st-battery').addEventListener('click', () => { openTab('airframe'); const el = $('#af-battery'); el.focus(); el.select(); });
 bindNumber('af-ixx', v => airframe.mass.inertia[0] = v);
 bindNumber('af-iyy', v => airframe.mass.inertia[1] = v);
 bindNumber('af-izz', v => airframe.mass.inertia[2] = v);
@@ -1225,6 +1228,17 @@ function applyState(st) {
     const el = $('#st-lift');
     el.textContent = hasWing && f0.lift != null && weight > 0 ? `Lift ${(100 * f0.lift / weight).toFixed(0)}% · ${(+f0.lift).toFixed(0)} N` : 'Lift —';
     el.classList.toggle('armed', !!f0.stalled);
+    {   // battery gauge (nested: the lift block continues below)
+    const cap = +((airframe && airframe.design && airframe.design.battery_wh) || 0);
+    const el = $('#st-battery');
+    if (cap > 0) {
+      const used = +st.energy_wh || 0, left = Math.max(0, cap - used), pct = 100 * left / cap, pw = +st.power_avg_w || 0;
+      const mins = pw > 5 ? (left / pw) * 60 : null;
+      el.textContent = `Battery ${pct.toFixed(0)}% · ${mins == null ? '—' : mins >= 100 ? Math.round(mins) + ' min' : mins.toFixed(1) + ' min'}`;
+      el.title = `${left.toFixed(1)} of ${cap.toFixed(0)} Wh left · ${used.toFixed(2)} Wh used since reset · ${pw.toFixed(0)} W average. Click to set the capacity`;
+      el.classList.toggle('warn-pill', pct <= 25 && pct > 10); el.classList.toggle('err-pill', pct <= 10);
+    } else { el.textContent = 'Battery —'; el.title = 'Set the battery capacity (Wh) on the Geometry tab to see charge and minutes left'; el.classList.remove('warn-pill', 'err-pill'); }
+    }
     el.title = 'wing lift as a share of the weight, and in newtons' + (f0.stalled ? ' · a wing is STALLED' : '');
   }
   $('#st-rtf').textContent = `RTF ${st.rtf ? st.rtf.toFixed(2) : '—'}${st.lockstep_timeouts ? ' · ' + st.lockstep_timeouts + ' waits' : ''}`;

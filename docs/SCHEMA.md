@@ -135,3 +135,5 @@ centroid + offset, with the solid's inertia scaled to its mass) plus any hand-ma
 addressable as a parameter path: `cad.bodies[Battery].mass`, `cad.bodies[0].offset[0]`, `cad.rotation_deg[0]`, `cad.origin[2]`. The meshes for
 the 3D view are cached beside the STEP file as `<file>.bodies.json` (regenerated when the file changes; not committed).
 `MassItem` gained `inertia_products` (Ixy Ixz Iyz of the item's own inertia) for the same reason.
+
+`design.battery_wh` (optional, Wh): battery capacity for the gauge above the 3D view; the simulator integrates the ideal motor power into `energy_wh` (snapshot) and resets it with every simulation reset.

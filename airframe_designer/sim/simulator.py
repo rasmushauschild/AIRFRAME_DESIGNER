@@ -49,6 +49,8 @@ class Simulator:
         self._last_revive = 0.0
         self.real_time_factor = 0.0
         self.diverged = 0
+        self.energy_wh = 0.0            # ideal electrical energy drawn since the last reset (battery gauge)
+        self.power_avg_w = 0.0          # ~5 s moving average of the power, for the minutes-left estimate
         self._last_diverge_log = 0.0
         self.motor_override: list[float] | None = None
         self.nose_lift = None          # sim.nose_lift.NoseLift while a ground sequence runs
@@ -103,9 +105,17 @@ class Simulator:
     def stop(self) -> None:
         self._stop.set()
 
+    def _account_energy(self, dt: float) -> None:
+        """Integrate the ideal motor power of the last physics step (battery gauge; see energy_wh in the snapshot)."""
+        pw = float((getattr(self.sim, "breakdown", None) or {}).get("power", 0.0) or 0.0)
+        self.energy_wh += pw * dt / 3600.0
+        self.power_avg_w += (pw - self.power_avg_w) * min(1.0, dt / 5.0)
+
     def reset(self, yaw: float = 0.0) -> None:
         with self.lock:
             self.sim.reset(yaw=yaw)
+            self.energy_wh = 0.0
+            self.power_avg_w = 0.0
             self.motor_override = None
             self.nose_lift = None
             if self.link is not None:
@@ -208,6 +218,7 @@ class Simulator:
                 self.sim.reset()
                 link.clear_actuators()
             self.time_usec += int(round(dt * 1e6))
+            self._account_energy(dt)
             t_us = self.time_usec
             if self.nose_lift is not None:
                 try:
@@ -318,6 +329,7 @@ class Simulator:
                 "forces": {k: (float(v) if not isinstance(v, (list, bool)) else v) for k, v in bd.items()},
                 "rtf": self.real_time_factor, "paused": self.paused, "lockstep_timeouts": self.lockstep_timeouts,
                 "diverged": self.diverged,
+                "energy_wh": round(self.energy_wh, 4), "power_avg_w": round(self.power_avg_w, 1),
                 "motor_override": self.motor_override, "wind": s.wind_ned.tolist(),
                 "rotor_health": s.rotors.scale.tolist(),
                 "physics": self.physics,

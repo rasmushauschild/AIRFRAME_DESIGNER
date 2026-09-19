@@ -31,6 +31,7 @@
         <span class="pill st" id="st-flightmode">—</span>
         <span class="pill st num" id="st-thrust" title="collective thrust: sum of all motor thrusts as a share of the sum of their (jetfoil-corrected) maximum thrusts">Thrust —</span>
         <span class="pill st num" id="st-lift" title="wing lift as a share of the weight, and in newtons (red = a wing is stalled)">Lift —</span>
+        <button class="pill st num" id="st-battery" title="battery: charge left and minutes at the current power (5 s average). Resets with the simulation. Click to set the capacity">Battery —</button>
         <span class="pill st num" id="st-time">0.0 s</span>
         <span class="pill st num" id="st-rtf">RTF —</span>
       </div>
@@ -81,6 +82,7 @@
         <label title="centre of gravity in the structural frame (x forward, y right, z down), m">CG x <input id="af-cgx" type="number" step="0.005"></label>
         <label>CG y <input id="af-cgy" type="number" step="0.005"></label>
         <label title="Z is DOWN (+), like PX4: a CG above the reference point has negative Z">CG z <input id="af-cgz" type="number" step="0.005"></label>
+        <label title="battery capacity, Wh: the gauge above the 3D view counts it down from the ideal motor power and resets with every simulation reset (0 = no gauge)">Battery Wh <input id="af-battery" type="number" step="10" min="0"></label>
       </div>
       <div class="row">
         <label>Ixx <input id="af-ixx" type="number" step="0.001" min="0"></label>
