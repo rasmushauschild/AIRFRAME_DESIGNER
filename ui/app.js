@@ -821,13 +821,16 @@ async function loadExport() {
 let lastExport = null;
 $('#px4-refresh').addEventListener('click', loadExport);
 async function pushToPX4(statusEl, short = false) {
-  statusEl.innerHTML = '<span class="muted">Pushing…</span>';
+  const fwStale = status.firmware && (status.firmware.needs_rebuild || status.firmware.needs_relaunch);
+  statusEl.innerHTML = fwStale ? '<span class="muted">Rebuilding firmware, relaunching PX4, then pushing… (watch the log)</span>' : '<span class="muted">Pushing…</span>';
   try {
     await api('/api/airframe', { airframe, keep_state: true });
-    const r = await api('/api/px4/push', { save: true });
+    const r = await api('/api/px4/push', { save: true, firmware: true });
     const failed = r.results.filter(x => !x.ok);
+    const fw = r.firmware || {};
+    const fwNote = fw.rebuilt ? `firmware rebuilt${fw.build_seconds ? ' in ' + Math.round(fw.build_seconds) + ' s' : ''}, PX4 relaunched · ` : (fw.relaunched ? 'PX4 relaunched on the new firmware · ' : '');
     statusEl.innerHTML = r.ok
-      ? `<span class="ok">✓ PX4 updated (${r.results.length} parameters)</span>`
+      ? `<span class="ok">✓ ${fwNote}PX4 updated (${r.results.length} parameters)</span>`
       : `<span class="err">${failed.length} failed: ${failed.map(f => f.name + ' (' + f.error + ')').join(', ')}</span>`;
     if (!short && r.missing && r.missing.length) statusEl.innerHTML += `<div class="muted">not present in this firmware: ${r.missing.join(', ')}</div>`;
     geometryDirty = false;
@@ -886,8 +889,12 @@ function updateFooter() {
   tko.classList.toggle('hidden', !!status.armed && !status.on_ground_hint && false);
   const upd = $('#btn-update');
   upd.disabled = !status.ctl_connected || !!status.armed;
+  const fwStale = status.firmware && (status.firmware.needs_rebuild || status.firmware.needs_relaunch);
   upd.title = status.armed ? 'Disarm first: PX4 rebuilds its allocation when these parameters change' :
-    (status.ctl_connected ? 'Write the rotor geometry and output mapping to the flight controller and save it' : 'PX4 not connected');
+    (fwStale ? `Firmware sources changed (${(status.firmware.stale || []).slice(0, 3).join(', ') || 'new binary'}): rebuilds PX4 SITL, relaunches it, then pushes the parameters`
+      : (status.ctl_connected ? 'Write the rotor geometry and output mapping to the flight controller and save it' : 'PX4 not connected'));
+  upd.classList.toggle('fw-stale', !!fwStale);
+  if (fwStale && !geometryDirty && !$('#update-status').textContent) $('#update-status').innerHTML = '<span class="warn">Firmware sources changed: Update PX4 rebuilds it</span>';
   $$('#mode-pills .pill').forEach(b => b.classList.toggle('active', status.connected && (status.mode_name || '').toLowerCase() === b.textContent.toLowerCase()));
 }
 // ---- nose lift (ground sequence): settings live in airframe.design.nose_lift

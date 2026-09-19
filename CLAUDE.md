@@ -11,6 +11,8 @@ A PX4-in-the-loop aircraft design simulator. Python 3.12, venv at `.venv` (`.ven
 * Parallel / studies: `batch --tasks t.json --workers 6`, `study --spec studies/<name>.json`. See docs/AI_GUIDE.md.
 * Tests: `.venv/bin/python -m pytest -q` (the `px4` marked test boots a real PX4 on instance 8, ~15 s).
 * Static analysis: `.venv/bin/python -m airframe_designer analyse --airframe X`.
+* Native PX4 firmware (ATLAS nose lift) builds into `firmware/atlas/build`: `make firmware`, or the app's Update PX4
+  rebuilds + relaunches when sources changed (`px4/firmware.py`, `ConnectionManager.update_firmware`).
 * MCP server for other assistants: `.venv/bin/python -m airframe_designer mcp` (stdio) / `mcp --http 8765`; tools in
   `airframe_designer/mcp_server.py`, setup in docs/AI_GUIDE.md.
 

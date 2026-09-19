@@ -15,7 +15,8 @@ from pathlib import Path
 from typing import Callable
 
 from .link import PX4Link
-from .sitl import launch_px4, free_px4_instance, stop_px4 as _stop_px4
+from .sitl import launch_px4, free_px4_instance, stop_px4 as _stop_px4, find_px4_dir, px4_binary
+from . import firmware as fw
 
 PROJECT_DIR = Path(__file__).resolve().parents[2]
 
@@ -162,6 +163,7 @@ class ConnectionManager:
         self.event_decoder = None                           # events.EventDecoder shared by all links
         self._lock = threading.RLock()
         self.firmware_job = FirmwareJob(log)
+        self.launched_binary_mtime: float | None = None    # mtime of the SITL binary the running PX4 was started from
         self._params_session = 0
         self._stop = threading.Event()
         threading.Thread(target=self._watch, name="link-watch", daemon=True).start()
@@ -198,12 +200,58 @@ class ConnectionManager:
                 if launch and (self.px4_process is None or self.px4_process.poll() is not None):
                     try:
                         self.px4_process = self._launch_sitl(instance)
+                        self._note_launched_binary()
                     except RuntimeError as e:
                         self.error = str(e)
                         self.log(f"[px4] {e}")
                 return self.status()
             finally:
                 self.busy = False
+
+    # ------------------------------------------------------------ SITL firmware (custom module tree)
+    def _note_launched_binary(self) -> None:
+        try:
+            self.launched_binary_mtime = px4_binary(find_px4_dir(self.args.px4_dir)).stat().st_mtime
+        except Exception:
+            self.launched_binary_mtime = None
+
+    def firmware_status(self, max_age: float = 3.0) -> dict:
+        return fw.status(self.args.px4_dir, self.launched_binary_mtime, max_age=max_age)
+
+    def update_firmware(self, relaunch: bool = True) -> dict:
+        """Rebuild the SITL firmware when its sources are newer than the binary, then relaunch PX4 on the fresh
+        binary (also when a binary was built elsewhere since PX4 started). Blocking; streams to the log."""
+        st = fw.status(self.args.px4_dir, self.launched_binary_mtime, max_age=0)
+        out = {"ok": True, "rebuilt": False, "relaunched": False, "stale": st["stale"]}
+        if not st["custom"]:
+            return out
+        armed = self.link is not None and self.link.armed
+        if st["needs_rebuild"]:
+            if armed:
+                return {**out, "ok": False, "error": "vehicle is armed; disarm before rebuilding the firmware"}
+            names = ", ".join(st["stale"][:4]) + ("…" if len(st["stale"]) > 4 else "")
+            self.log(f"[firmware] {len(st['stale'])} source file(s) newer than the PX4 binary ({names}): rebuilding")
+            r = fw.build(self.args.px4_dir, self.log)
+            if not r["ok"]:
+                return {**out, "ok": False, "error": r["error"]}
+            out["rebuilt"] = True
+            out["build_seconds"] = r.get("seconds")
+        st = fw.status(self.args.px4_dir, self.launched_binary_mtime, max_age=0)
+        if relaunch and (out["rebuilt"] or st["needs_relaunch"]) and self.mode == "sitl" and self.args.launch_px4:
+            if armed:
+                return {**out, "ok": False, "error": "vehicle is armed; disarm before relaunching PX4"}
+            self.log("[firmware] relaunching PX4 SITL on the new binary")
+            self.connect_sitl(True)
+            deadline = time.time() + 90
+            while time.time() < deadline:
+                l = self.link
+                if l is not None and l.ctl_connected and l.param_count and l.status().get("params_loaded", 0) >= l.param_count:
+                    break
+                time.sleep(0.5)
+            else:
+                return {**out, "ok": False, "error": "PX4 did not come back within 90 s after the relaunch"}
+            out["relaunched"] = True
+        return out
 
     def connect_hitl(self, serial: str | None = None, baud: int | None = None) -> dict:
         if self.firmware_job.running() and self.firmware_job.action == "upload":

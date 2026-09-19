@@ -387,3 +387,5 @@ table.grid.trials tr.infeasible td { color: var(--text-3); }
 
 /* Calculated mass properties are visibly read-only. */
 #tab-airframe input:disabled { opacity: .5; cursor: not-allowed; }
+
+#btn-update.fw-stale { box-shadow: 0 0 0 2px var(--amber, #f0a020) inset; }

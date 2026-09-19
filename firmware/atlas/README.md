@@ -95,7 +95,7 @@ The final timeout test (`NLF_RATE=1`, `NLF_TIMEOUT=10`) aborts at 23.032 s, disa
 
 PX4 base commit: `2a0e9109238bd0274608e3c25201be7c40becd0c` (local PX4 v1.18 beta tree). AIRFRAME_DESIGNER base: `01d33154e909822ab6666b40510b8495d8cba1fa` with pre-existing local modifications. The allocator overlay checks original source hashes at configure time and refuses an unreviewed upstream change.
 
-The build lives in `firmware/atlas/build` inside this repository (git-ignored); `make firmware` from the project root
+**Update PX4** in the app rebuilds this firmware when any file under `src/`, `msg/` or `allocator_overlay/` is newer than the binary, relaunches PX4 SITL on it and then pushes the parameters (the button turns amber when a rebuild is pending; `GET /api/px4/firmware` reports it, `POST /api/px4/firmware/update` does it without pushing). The build lives in `firmware/atlas/build` inside this repository (git-ignored); `make firmware` from the project root
 runs the two commands below with the project's `.venv` Python (which needs PX4's build packages:
 `.venv/bin/pip install -r ~/PX4-Autopilot/Tools/setup/requirements.txt` once). Rebuild after editing the module,
 then Reset (or restart the app) so the fresh binary is launched.

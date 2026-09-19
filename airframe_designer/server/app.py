@@ -133,6 +133,10 @@ def build_app(state: AppState) -> FastAPI:
         s["conn_mode"] = state.conn.mode
         s["conn_error"] = state.conn.error
         s["flashing"] = state.conn.firmware_job.running() and state.conn.firmware_job.action == "upload"
+        try:
+            s["firmware"] = state.conn.firmware_status()      # SITL module tree: sources newer than the binary?
+        except Exception:
+            s["firmware"] = None
         # arm gating: PX4's last arming-check summary must report no system errors and a usable position
         ready, why = False, "waiting for PX4's arming check report"
         for x in reversed(list(getattr(state.link, "recent_events", []) or [])):
@@ -559,9 +563,26 @@ def build_app(state: AppState) -> FastAPI:
         return PlainTextResponse(sim.airframe.px4_params_file(hitl=link.mode == "hitl"),
                                  headers={"Content-Disposition": f'attachment; filename="{sim.airframe.name}.params"'})
 
+    @app.get("/api/px4/firmware")
+    async def px4_firmware_status():
+        return state.conn.firmware_status(max_age=0.0)   # fresh: scripts ask right after editing a source
+
+    @app.post("/api/px4/firmware/update")
+    async def px4_firmware_update(body: dict | None = None):
+        """Rebuild the SITL firmware if its sources changed and relaunch PX4 on it (what Update PX4 does first)."""
+        r = await run_in_threadpool(state.conn.update_firmware, (body or {}).get("relaunch", True))
+        return r if r.get("ok") else JSONResponse(r, status_code=500)
+
     @app.post("/api/px4/push")
     async def push_params(body: dict | None = None):
         body = body or {}
+        fw_res = {"ok": True, "rebuilt": False, "relaunched": False}
+        if body.get("firmware", True) and state.conn.mode == "sitl" and getattr(state.args, "launch_px4", False):
+            if link.armed:
+                return JSONResponse({"ok": False, "error": "vehicle is armed; disarm before updating PX4"}, status_code=409)
+            fw_res = await run_in_threadpool(state.conn.update_firmware)
+            if not fw_res.get("ok"):
+                return JSONResponse({"ok": False, "error": fw_res.get("error"), "firmware": fw_res}, status_code=500)
         if not link.ctl_connected:
             return JSONResponse({"ok": False, "error": "PX4 control link not connected"}, status_code=409)
         if link.armed:
@@ -596,7 +617,7 @@ def build_app(state: AppState) -> FastAPI:
         failed = [r for r in results if not r["ok"]]
         state.log(f"[export] pushed {len(results) - len(failed)}/{len(results)} params to PX4"
                   + (f", failed: {[r['name'] for r in failed]}" if failed else ""))
-        return {"ok": ok, "results": results, "missing": missing}
+        return {"ok": ok, "results": results, "missing": missing, "firmware": fw_res}
 
     # ---------------------------------------------------------- parameters
     @app.get("/api/params")
