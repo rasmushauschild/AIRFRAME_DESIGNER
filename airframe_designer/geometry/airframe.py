@@ -234,6 +234,8 @@ class Airframe:
             # the stock 2 s auto-disarm fires mid-lift; the module disarms itself after nose contact, these are backups.
             p["COM_DISARM_LAND"] = max(60.0, float(p.get("COM_DISARM_LAND", 0.0)))
             p["COM_DISARM_PRFLT"] = max(40.0, float(p.get("COM_DISARM_PRFLT", 0.0)))
+            # the module commands the front fans as sqrt(thrust fraction) and checks that PX4 applies no thrust curve
+            p["THR_MDL_FAC"] = 0.0
         p["SENS_BOARD_Y_OFF"] = round(float(self.hover_pitch_deg), 2)
         imu_pos = np.asarray(self.design.get("pixhawk_position", self.cg), float)
         imu_offset = self.hover_rotation() @ (imu_pos - self.cg)
