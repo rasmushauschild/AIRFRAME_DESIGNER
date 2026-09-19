@@ -59,6 +59,7 @@ private:
  float _touch_z{};
  hrt_abstime _start{}, _phase_start{}, _dwell{}, _last_command{};
  hrt_abstime _fade_start{};
+ hrt_abstime _support_since{};   // Spool: when PX4's own allocation first matched the floor (must persist before fading)
  float _fade9{}, _fade10{}, _abort9{}, _abort10{};
  float _integral{}, _cmd9{}, _cmd10{};
  hrt_abstime _diagnostic_time{};
@@ -321,7 +322,7 @@ private:
        && fabsf(e.phi())<math::radians(3.f) && fabsf(rates.xyz[2])<math::radians(3.f)) {
     if (!_dwell) { _dwell=now; }
     if ((now-_dwell)*1e-6f>=_hold.get()) {
-     _phase=Spool; _phase_start=now; _x=pos.x; _y=pos.y; _target_z=pos.z;
+     _phase=Spool; _phase_start=now; _x=pos.x; _y=pos.y; _target_z=pos.z; _support_since=0;
      _yaw=e.psi();
      PX4_INFO("nose settled and ground confirmed; climbing with heading held");
     }
@@ -351,9 +352,14 @@ private:
      bridge.control[8]=_cmd9; bridge.control[9]=_cmd10;
      _motors_pub.publish(bridge);
     }
-    // Compare unmodified allocation against support, avoiding feedback through the floor.
-    if (!_fade_start && output.active && now-output.timestamp<100_ms && output.control[8]>=0.95f*_cmd9 && output.control[9]>=0.95f*_cmd10) {
-     _fade_start=now; _fade9=_cmd9; _fade10=_cmd10; PX4_INFO("PX4 supports nose; fading motor floor");
+    // Compare unmodified allocation against support, avoiding feedback through the floor. A momentary match is not
+    // enough: right after the mode switch the attitude loop alone can put the front fans above the floor while the
+    // takeoff ramp still has the rear motors at zero, and fading then drops the nose and skids the aircraft forward.
+    // Fade only once PX4 has matched the floor continuously for half a second and its land detector reports liftoff.
+    const bool supported = output.active && now-output.timestamp<100_ms && output.control[8]>=0.95f*_cmd9 && output.control[9]>=0.95f*_cmd10;
+    if (!supported) { _support_since=0; } else if (!_support_since) { _support_since=now; }
+    if (!_fade_start && supported && now-_support_since>=500_ms && !land.landed) {
+     _fade_start=now; _fade9=_cmd9; _fade10=_cmd10; PX4_INFO("PX4 supports nose and is lifting; fading motor floor");
     }
     if (now-_phase_start>15_s && !_fade_start) { fail("handover timeout",status,!land.landed); return; }
     atlas_nose_lift_floor_s floor{}; floor.timestamp=now; floor.timestamp_sample=att.timestamp; floor.active=true;

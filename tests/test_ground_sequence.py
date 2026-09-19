@@ -40,3 +40,10 @@ def test_native_sequence_backs_off_auto_disarm_timers():
     assert af.px4_params_sitl()["COM_DISARM_LAND"] == 90
     af.px4_overrides["NLF_ENABLE"] = 0
     assert "COM_DISARM_LAND" not in af.px4_params_sitl() or af.px4_params_sitl()["COM_DISARM_LAND"] != 60
+
+
+def test_lift_target_defaults_to_hover_pitch():
+    af=model(); af.px4_overrides.update(NLF_ENABLE=1); af.hover_pitch_deg = 15
+    assert af.px4_params_sitl()["NLF_TARGET"] == 15
+    af.px4_overrides["NLF_TARGET"] = 22
+    assert af.px4_params_sitl()["NLF_TARGET"] == 22

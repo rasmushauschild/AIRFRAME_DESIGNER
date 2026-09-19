@@ -12,7 +12,9 @@
         "127.0.0.1:8081",
         "--px4-instance",
         "1",
-        "--no-browser"
+        "--no-browser",
+        "--airframe",
+        "airframes/atlas_09.json"
       ],
       "port": 8081
     },
@@ -29,7 +31,7 @@
         "--px4-instance",
         "5",
         "--airframe",
-        "/private/tmp/claude-501/-Users-rasmushauschild-AIRFRAME-DESIGNER/c581d01d-7cdd-42b8-9878-49c61b9aa51b/scratchpad/atlas-ground-live.json"
+        "airframes/atlas_09.json"
       ],
       "port": 8095
     }

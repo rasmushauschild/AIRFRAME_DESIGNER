@@ -225,6 +225,9 @@ class Airframe:
         from .ground_sequence import ground_sequence_params
         p.update(ground_sequence_params(self))
         if p.get("NLF_ENABLE") == 1:
+            # The ground sequence lifts the nose to the attitude PX4 will hold as "level" unless a takeoff pitch was
+            # set explicitly; a target away from the hover pitch makes PX4 rotate the nose at the moment it takes over.
+            p.setdefault("NLF_TARGET", round(float(self.hover_pitch_deg), 2))
             # A short stock takeoff ramp can pitch the grounded aircraft past its envelope at handoff.
             p["MPC_TKO_RAMP_T"] = max(3.0, float(p.get("MPC_TKO_RAMP_T", 3.0)))
             # PX4's land detector reads a slow nose lift as "landed" (no thrust setpoint, near-zero velocities), so
