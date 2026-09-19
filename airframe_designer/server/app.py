@@ -133,6 +133,11 @@ def build_app(state: AppState) -> FastAPI:
         s["conn_mode"] = state.conn.mode
         s["conn_error"] = state.conn.error
         s["flashing"] = state.conn.firmware_job.running() and state.conn.firmware_job.action == "upload"
+        # does the connected firmware carry the ATLAS nose-lift module, and is it enabled? (the UI decides the Takeoff
+        # path from this instead of from its lazily loaded parameter list)
+        lp = getattr(state.link, "params", None) or {}
+        s["native_module"] = "NLF_ENABLE" in lp
+        s["nlf_enable"] = (lp.get("NLF_ENABLE") or {}).get("value") if "NLF_ENABLE" in lp else None
         try:   # SITL module tree: sources newer than the binary? (meaningless while a real board is connected)
             s["firmware"] = state.conn.firmware_status() if state.conn.mode == "sitl" else None
         except Exception:

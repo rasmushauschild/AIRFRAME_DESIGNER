@@ -879,7 +879,7 @@ function updateFooter() {
       .catch(e => logLine('[ui] Could not refresh arming checks: ' + e.message))
       .finally(() => { prearmReportRequestPending = false; });
   }
-  const nativeNoseLift = status.mode === 'sitl' && +((params.NLF_ENABLE || {}).value ?? (airframe.px4_overrides || {}).NLF_ENABLE) === 1;
+  const nativeNoseLift = nativeModuleActive();
   tko.title = nativeNoseLift ? 'PX4 arms, raises the nose to the configured target, then climbs and holds heading' : 'Automatic takeoff';
   tko.textContent = 'Takeoff';
   tko.disabled = !!status.resetting || !status.ctl_connected || (nativeNoseLift && status.armed) || (!status.armed && !status.arm_ready);
@@ -968,10 +968,17 @@ async function waitNoseLift(timeoutMs = 40000) {
   }
   return false;
 }
+// The native (firmware) ground sequence is used whenever the connected firmware has the module and NLF_ENABLE is 1:
+// SITL always has it; a Pixhawk only once flashed with the ATLAS build. Reported by the status feed, not the lazily
+// loaded parameter list, so it works before the PX4 tab was ever opened.
+function nativeModuleActive() {
+  const has = status.mode === 'sitl' || !!status.native_module;
+  const enabled = status.nlf_enable ?? (params.NLF_ENABLE || {}).value ?? (airframe && airframe.px4_overrides || {}).NLF_ENABLE;
+  return has && +enabled === 1;
+}
 $('#btn-takeoff').addEventListener('click', async () => {
   try {
-    const firmwareHasModule = status.mode === 'sitl' || !!params.NLF_ENABLE;   // the ATLAS SITL always has it; a board only when flashed with it
-    if (firmwareHasModule && +((params.NLF_ENABLE || {}).value ?? (airframe.px4_overrides || {}).NLF_ENABLE) === 1) {
+    if (nativeModuleActive()) {
       if (status.armed) return;
       const landing = await api('/api/params/set', { name: 'NLF_LAND_ANG', value: Number(airframe.landed_pitch_deg) });
       if (!landing.ok) throw new Error(landing.error || 'Could not apply landed pitch');
