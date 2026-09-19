@@ -22,6 +22,7 @@
 #include <uORB/topics/atlas_nose_lift_floor.h>
 #include <uORB/topics/vehicle_thrust_setpoint.h>
 #include <uORB/topics/mavlink_log.h>
+#include <uORB/topics/vehicle_command_ack.h>
 #include <systemlib/mavlink_log.h>
 using namespace time_literals;
 
@@ -84,6 +85,23 @@ private:
 
  uORB::Publication<trajectory_setpoint_s> _traj_pub{ORB_ID(trajectory_setpoint)};
  uORB::Publication<vehicle_command_s> _command_pub{ORB_ID(vehicle_command)};
+ // External trigger, the same on SITL, HITL and the real aircraft: MAV_CMD_USER_1 (31010) with param1 = 1 (takeoff)
+ // or 2 (land), sent by any ground station or the designer app. The shell commands remain for the console.
+ static constexpr uint32_t CMD_ATLAS = 31010;
+ uORB::Subscription _cmd_sub{ORB_ID(vehicle_command)};
+ uORB::Publication<vehicle_command_ack_s> _ack_pub{ORB_ID(vehicle_command_ack)};
+ void poll_commands() {
+  vehicle_command_s cmd{};
+  while (_cmd_sub.update(&cmd)) {
+   if (cmd.command != CMD_ATLAS) { continue; }
+   const int what = (int)(cmd.param1 + 0.5f);
+   if (what == 1) { _request.store(true); } else if (what == 2) { _land_request.store(true); }
+   vehicle_command_ack_s ack{}; ack.timestamp=hrt_absolute_time(); ack.command=cmd.command;
+   ack.result=(what == 1 || what == 2) ? vehicle_command_ack_s::VEHICLE_CMD_RESULT_ACCEPTED : vehicle_command_ack_s::VEHICLE_CMD_RESULT_DENIED;
+   ack.target_system=cmd.source_system; ack.target_component=cmd.source_component; ack.from_external=false;
+   _ack_pub.publish(ack);
+  }
+ }
  DEFINE_PARAMETERS(
   (ParamInt<px4::params::NLF_ENABLE>) _enable,
   (ParamFloat<px4::params::NLF_RATE>) _rate,
@@ -121,6 +139,7 @@ private:
   command(vehicle_command_s::VEHICLE_CMD_NAV_LAND,0.f,0.f,status);
  }
  void Run() override {
+  poll_commands();
   vehicle_status_s status{}; _status_sub.copy(&status);
   vehicle_attitude_s att{}; _att_sub.copy(&att);
   vehicle_angular_velocity_s rates{}; _rates_sub.copy(&rates);

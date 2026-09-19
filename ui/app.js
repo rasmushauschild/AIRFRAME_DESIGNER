@@ -883,7 +883,8 @@ function updateFooter() {
   tko.title = nativeNoseLift ? 'PX4 arms, raises the nose to the configured target, then climbs and holds heading' : 'Automatic takeoff';
   tko.textContent = 'Takeoff';
   tko.disabled = !!status.resetting || !status.ctl_connected || (nativeNoseLift && status.armed) || (!status.armed && !status.arm_ready);
-  $$('#nl-card input, #nl-card button').forEach(el => { el.disabled = !!nativeNoseLift; });
+  $$('#nl-card input, #nl-card button').forEach(el => { el.disabled = !!nativeNoseLift || status.conn_mode === 'hitl'; });
+  { const me = $('#motor-enable'); if (me) { const hitl = status.conn_mode === 'hitl'; me.disabled = hitl; if (hitl && me.checked) { me.checked = false; } me.closest('label') && (me.closest('label').title = hitl ? 'Not with a flight controller connected: the simulator is only the plant' : ''); } }
   const landButton = $('#btn-land');
   if (landButton) {
     landButton.textContent = 'Land';
@@ -979,19 +980,13 @@ function nativeModuleActive() {
 $('#btn-takeoff').addEventListener('click', async () => {
   try {
     if (nativeModuleActive()) {
+      // one MAVLink command, the same a ground station would send to the real aircraft; the flight controller does the rest
       if (status.armed) return;
-      const landing = await api('/api/params/set', { name: 'NLF_LAND_ANG', value: Number(airframe.landed_pitch_deg) });
-      if (!landing.ok) throw new Error(landing.error || 'Could not apply landed pitch');
-      logLine('[ui] native PX4 nose lift: normal arming, front-fan lift, then heading-held hover');
-      await api('/api/sim/nose_lift', { stop: true });
-      const moduleStatus = await api('/api/px4/shell', { command: 'atlas_nose_lift status', timeout: 0.5 });
-      if (/not running/i.test(moduleStatus.output || '')) await api('/api/px4/shell', { command: 'atlas_nose_lift start', timeout: 0.5 });
-      const result = await api('/api/px4/shell', { command: 'atlas_nose_lift takeoff', timeout: 0.5 });
-      if (result.output) logLine(result.output);
+      await api('/api/px4/command', { command: 'nose_lift_takeoff' });
       return;
     }
 
-    const useNl = airframe && airframe.design && airframe.design.nose_lift && airframe.design.nose_lift.enabled;
+    const useNl = status.mode === 'sitl' && airframe && airframe.design && airframe.design.nose_lift && airframe.design.nose_lift.enabled;   // simulator-side hook: SITL only
     if (useNl && !status.armed) {
       logLine('[ui] takeoff: lifting the nose first');
       if (!(await startNoseLift())) return;
@@ -1145,10 +1140,8 @@ $('#param-meta-fetch').addEventListener('click', async () => {
 // ============================================================ flight / sim
 $$('#tab-sim button[data-cmd], #btn-land').forEach(b => b.addEventListener('click', async () => {
   try {
-    if (b.dataset.mode === 'land' && status.mode === 'sitl' && +((params.NLF_ENABLE || {}).value ?? (airframe.px4_overrides || {}).NLF_ENABLE) === 1) {
-      logLine('[ui] native landing: rear legs first, slow nose lowering, then motors off');
-      const result = await api('/api/px4/shell', { command: 'atlas_nose_lift land', timeout: 0.5 });
-      if (result.output) logLine(result.output);
+    if (b.dataset.mode === 'land' && nativeModuleActive()) {
+      await api('/api/px4/command', { command: 'nose_lift_land' });
       return;
     }
     await api('/api/px4/command', { command: b.dataset.cmd, mode: b.dataset.mode, force: b.dataset.cmd === 'kill' });
@@ -1187,7 +1180,7 @@ function renderMotorSliders() {
 }
 function sendOverride() {
   const vals = $$('#motor-sliders input').map(i => parseFloat(i.value));
-  if ($('#motor-enable').checked) api('/api/sim/motor_override', { values: vals });
+  if ($('#motor-enable').checked && status.conn_mode !== 'hitl') api('/api/sim/motor_override', { values: vals });
 }
 function updateMotorSliders(st) {
   const manual = $('#motor-enable').checked;
@@ -1511,28 +1504,27 @@ $('#arch-snapshot').addEventListener('click', async () => {
 $('#arch-pull').addEventListener('click', async () => { try { const r = await api('/api/archive/pull', {}); if (!r.ok) alert(r.error); } catch (e) { alert(e.message); } refreshArchive(); });
 
 
-// ============================================================ Remote control (PX4 tab): source, live channels, mapping
-let lastRc = {}, lastManual = {}, rcLearn = null, rcLearnBase = null, rcLastRender = 0, rcSourceKey = '';
+// ============================================================ Remote control (PX4 tab): indicator, channels, mapping
+let lastRc = {}, lastManual = {}, rcLearn = null, rcLearnBase = null, rcLastRender = 0, rcIndKey = '';
 const RC_FUNCS = [
   { p: 'RC_MAP_ROLL', label: 'Roll' }, { p: 'RC_MAP_PITCH', label: 'Pitch' }, { p: 'RC_MAP_THROTTLE', label: 'Throttle' }, { p: 'RC_MAP_YAW', label: 'Yaw' },
-  { p: 'RC_MAP_FLTMODE', label: 'Flight mode' }, { p: 'RC_MAP_ARM_SW', label: 'Arm switch' }, { p: 'RC_MAP_KILL_SW', label: 'Kill switch' },
-  { p: 'RC_MAP_RETURN_SW', label: 'Return switch' }, { p: 'RC_MAP_OFFB_SW', label: 'Offboard switch' }, { p: 'RC_MAP_LOITER_SW', label: 'Loiter switch' },
+  { p: 'RC_MAP_FLTMODE', label: 'Flight mode' }, { p: 'RC_MAP_ARM_SW', label: 'Arm' }, { p: 'RC_MAP_KILL_SW', label: 'Kill' },
+  { p: 'RC_MAP_RETURN_SW', label: 'Return' }, { p: 'RC_MAP_OFFB_SW', label: 'Offboard' }, { p: 'RC_MAP_LOITER_SW', label: 'Loiter' },
   { p: 'RC_MAP_AUX1', label: 'Aux 1' }, { p: 'RC_MAP_AUX2', label: 'Aux 2' }, { p: 'RC_MAP_AUX3', label: 'Aux 3' },
 ];
 const rcFresh = () => lastRc && lastRc.count > 0 && lastRc.t && (Date.now() / 1000 - lastRc.t) < 3;
-function renderRcSource() {
+const rcAlive = () => rcFresh() && (lastRc.channels || []).some(v => v > 0);      // a bound receiver with the transmitter on
+function renderRcIndicator() {
   const src = joyCurrent();
-  const boardRc = rcFresh();
-  const fwd = status.conn_mode === 'sitl' || !!status.hil_enabled;
-  const lines = [];
-  if (src) lines.push(`<div><b>Radio on this computer:</b> ${esc(src.name)} via ${src.kind === 'serial' ? 'serial (USB or Bluetooth)' : src.kind === 'hid' ? 'USB HID' : 'gamepad'} · ${src.axes.length} channels → MAVLink MANUAL_CONTROL ${fwd ? `<span class="ok">forwarded to PX4 (${status.conn_mode === 'sitl' ? 'SITL' : 'board in HIL'})</span>` : '<span class="warn">not forwarded: the board is not in HIL</span>'}</div>`);
-  else lines.push(`<div><b>Radio on this computer:</b> none connected <span class="hint">(Connect radio below: USB or a serial/Bluetooth link)</span></div>`);
-  if (boardRc) lines.push(`<div><b>Receiver on the flight controller:</b> <span class="ok">${lastRc.count} channels</span> · RSSI ${lastRc.rssi === 255 ? 'n/a' : lastRc.rssi} · the transmitter talks to the Pixhawk directly; PX4 maps them with the RC_MAP_* parameters below</div>`);
-  else lines.push(`<div><b>Receiver on the flight controller:</b> ${status.ctl_connected ? 'no RC_CHANNELS from PX4 (no receiver bound, transmitter off, or SITL)' : 'PX4 not connected'}</div>`);
-  const mode = (params.COM_RC_IN_MODE || {}).value;
-  if (mode != null) lines.push(`<div class="hint">COM_RC_IN_MODE = ${mode}: ${({0: 'RC receiver only', 1: 'joystick (MANUAL_CONTROL) only', 2: 'RC and joystick, RC has priority', 3: 'RC and joystick, joystick has priority', 4: 'stick input disabled'})[mode] || '?'} <button class="pill small" id="rc-inmode" title="cycle through the PX4 stick-input modes">change</button></div>`);
-  const key = lines.join('');
-  if (key !== rcSourceKey) { rcSourceKey = key; $('#rc-source').innerHTML = lines.join(''); const b = $('#rc-inmode'); if (b) b.addEventListener('click', async () => { const next = ((mode | 0) + 1) % 4; await api('/api/params/set', { name: 'COM_RC_IN_MODE', value: next }); params.COM_RC_IN_MODE = { ...(params.COM_RC_IN_MODE || {}), value: next }; rcSourceKey = ''; renderRcSource(); }); }
+  const viaBoard = rcAlive(), viaApp = !!src;
+  let text = 'not detected', on = false;
+  if (viaApp && viaBoard) { text = `${src.kind === 'serial' ? 'USB serial' : src.kind === 'hid' ? 'USB' : 'gamepad'} + Pixhawk`; on = true; }
+  else if (viaApp) { text = src.kind === 'serial' ? 'USB serial' : src.kind === 'hid' ? 'USB' : 'gamepad'; on = true; }
+  else if (viaBoard) { text = 'via Pixhawk'; on = true; }
+  else if (rcFresh()) { text = 'receiver bound · transmitter off'; }
+  const key = text + on;
+  if (key !== rcIndKey) { rcIndKey = key; const el = $('#rc-ind'); el.classList.toggle('on', on); $('#rc-ind-text').textContent = text; }
+  $('#joy-card').hidden = !viaApp;
 }
 function rcMapped() {
   const m = {};
@@ -1541,38 +1533,34 @@ function rcMapped() {
 }
 function renderRcBoard() {
   const el = $('#rc-board');
-  if (!rcFresh()) { if (el.dataset.mode !== 'none') { el.dataset.mode = 'none'; el.innerHTML = '<div class="hint">No receiver reported by the flight controller. Bind the transmitter to the Pixhawk\'s receiver and switch it on; the channels appear here (SITL has none).</div>'; } return; }
+  if (!rcFresh()) { if (el.dataset.mode !== 'none') { el.dataset.mode = 'none'; el.hidden = true; } return; }
+  el.hidden = false;
   if (el.dataset.mode !== 'rc') {
     el.dataset.mode = 'rc';
     const n = Math.min(18, lastRc.count);
-    const opts = (cur) => `<option value="0" ${!cur ? 'selected' : ''}>—</option>` + Array.from({ length: n }, (_, i) => `<option value="${i + 1}" ${cur === i + 1 ? 'selected' : ''}>ch ${i + 1}</option>`).join('');
-    el.innerHTML = `<div class="conn-row"><div><b>Receiver channels</b> <span class="hint">PWM µs · the label under a bar is the PX4 function mapped to it</span></div>
-      <span class="hint">${(params.RC_CHAN_CNT || {}).value > 0 ? `calibrated (${(params.RC_CHAN_CNT || {}).value} ch)` : '<span class="warn">not calibrated: run the radio calibration in QGroundControl once</span>'}</span></div>
-      <div id="rc-bars" class="rc-bars">${Array.from({ length: n }, (_, i) => `<div class="rc-ch"><span class="rc-n">${i + 1}</span><span class="rc-bar"><i data-ch="${i + 1}" style="width:50%"></i></span><span class="rc-val num" data-ch="${i + 1}">—</span><span class="rc-fn" data-ch="${i + 1}"></span></div>`).join('')}</div>
-      <div class="hint" style="margin:10px 0 4px"><b>Mapping</b> (RC_MAP_*): pick a channel, or click Learn and move that stick or switch</div>
-      <div id="rc-map">${RC_FUNCS.map(f => `<div class="joy-row"><span class="joy-label">${f.label}</span><select class="rc-sel" data-p="${f.p}">${opts(+((params[f.p] || {}).value || 0))}</select><button class="pill small rc-learn" data-p="${f.p}">Learn</button><span class="rc-state num" data-p="${f.p}"></span></div>`).join('')}</div>`;
-    $$('#rc-map .rc-sel').forEach(sel => sel.addEventListener('change', async () => { const v = +sel.value; try { await api('/api/params/set', { name: sel.dataset.p, value: v }); params[sel.dataset.p] = { ...(params[sel.dataset.p] || {}), value: v }; logLine(`[rc] ${sel.dataset.p} = ${v}`); } catch (e) { logLine('[rc] ' + e.message); } }));
-    $$('#rc-map .rc-learn').forEach(b => b.addEventListener('click', () => { rcLearn = b.dataset.p; rcLearnBase = (lastRc.channels || []).slice(); $$('#rc-map .rc-learn').forEach(x => x.textContent = x.dataset.p === rcLearn ? 'Move it…' : 'Learn'); }));
+    const opts = (cur) => `<option value="0" ${!cur ? 'selected' : ''}>–</option>` + Array.from({ length: n }, (_, i) => `<option value="${i + 1}" ${cur === i + 1 ? 'selected' : ''}>${i + 1}</option>`).join('');
+    el.innerHTML = `<div class="rc-grid">${Array.from({ length: n }, (_, i) => `<div class="rc-row"><span class="rc-n">${i + 1}</span><span class="rc-bar"><i data-ch="${i + 1}" style="width:50%"></i></span><span class="rc-val" data-ch="${i + 1}">–</span><span class="rc-fn" data-ch="${i + 1}"></span></div>`).join('')}</div>
+      <table class="grid rc-map"><tbody>${RC_FUNCS.map(f => `<tr><td>${f.label}</td><td><select class="rc-sel" data-p="${f.p}">${opts(+((params[f.p] || {}).value || 0))}</select></td><td><button class="pill small rc-learn" data-p="${f.p}" title="click, then move that stick or switch">Learn</button></td></tr>`).join('')}</tbody></table>
+      <div class="rc-foot hint" id="rc-foot"></div>`;
+    $$('#rc-board .rc-sel').forEach(sel => sel.addEventListener('change', async () => { const v = +sel.value; try { await api('/api/params/set', { name: sel.dataset.p, value: v }); params[sel.dataset.p] = { ...(params[sel.dataset.p] || {}), value: v }; } catch (e) { logLine('[rc] ' + e.message); } }));
+    $$('#rc-board .rc-learn').forEach(b => b.addEventListener('click', () => { rcLearn = b.dataset.p; rcLearnBase = (lastRc.channels || []).slice(); $$('#rc-board .rc-learn').forEach(x => x.textContent = x.dataset.p === rcLearn ? 'Move it…' : 'Learn'); }));
   }
   const ch = lastRc.channels || [], mapped = rcMapped();
   ch.forEach((v, i) => {
     const bar = el.querySelector(`.rc-bar i[data-ch="${i + 1}"]`), val = el.querySelector(`.rc-val[data-ch="${i + 1}"]`), fn = el.querySelector(`.rc-fn[data-ch="${i + 1}"]`);
     if (bar) bar.style.width = (Math.max(0, Math.min(1, (v - 1000) / 1000)) * 100).toFixed(0) + '%';
-    if (val) val.textContent = v ? v : '—';
-    if (fn) fn.textContent = (mapped[i + 1] || []).join(', ');
+    if (val) val.textContent = v ? v : '–';
+    if (fn) fn.textContent = (mapped[i + 1] || []).join(' · ');
   });
-  RC_FUNCS.forEach(f => {
-    const c = +((params[f.p] || {}).value || 0);
-    const st = el.querySelector(`.rc-state[data-p="${f.p}"]`); if (st) st.textContent = c ? `${ch[c - 1] || '—'} µs` : '';
-    const sel = el.querySelector(`.rc-sel[data-p="${f.p}"]`); if (sel && document.activeElement !== sel && sel.value !== String(c)) sel.value = String(c);   // parameters arrive after the card was built
-  });
+  RC_FUNCS.forEach(f => { const c = +((params[f.p] || {}).value || 0); const sel = el.querySelector(`.rc-sel[data-p="${f.p}"]`); if (sel && document.activeElement !== sel && sel.value !== String(c)) sel.value = String(c); });
+  const foot = $('#rc-foot'); if (foot) foot.textContent = (params.RC_CHAN_CNT || {}).value > 0 ? '' : 'Sticks not calibrated yet: run the radio calibration once in QGroundControl.';
   if (rcLearn && rcLearnBase) {
     let best = -1, bestD = 150;
     ch.forEach((v, i) => { const d = Math.abs(v - (rcLearnBase[i] || 0)); if (d > bestD) { bestD = d; best = i; } });
     if (best >= 0) {
       const p = rcLearn; rcLearn = null; rcLearnBase = null;
-      api('/api/params/set', { name: p, value: best + 1 }).then(() => { params[p] = { ...(params[p] || {}), value: best + 1 }; logLine(`[rc] learned ${p} = channel ${best + 1}`); const sel = el.querySelector(`.rc-sel[data-p="${p}"]`); if (sel) sel.value = String(best + 1); }).catch(e => logLine('[rc] ' + e.message));
-      $$('#rc-map .rc-learn').forEach(x => x.textContent = 'Learn');
+      api('/api/params/set', { name: p, value: best + 1 }).then(() => { params[p] = { ...(params[p] || {}), value: best + 1 }; const sel = el.querySelector(`.rc-sel[data-p="${p}"]`); if (sel) sel.value = String(best + 1); }).catch(e => logLine('[rc] ' + e.message));
+      $$('#rc-board .rc-learn').forEach(x => x.textContent = 'Learn');
     }
   }
 }
@@ -1580,7 +1568,7 @@ function renderRcLive() {
   const now = performance.now();
   if (now - rcLastRender < 80) return;
   rcLastRender = now;
-  renderRcSource(); renderRcBoard();
+  renderRcIndicator(); renderRcBoard();
 }
 $('#conn-goto-rc') && $('#conn-goto-rc').addEventListener('click', (e) => { e.preventDefault(); openTab('px4'); });
 setInterval(() => { if ($('#tab-px4').classList.contains('active')) renderRcLive(); }, 500);

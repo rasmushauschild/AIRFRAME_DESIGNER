@@ -735,7 +735,11 @@ def build_app(state: AppState) -> FastAPI:
         cmd = body.get("command", "")
         if cmd in ("arm", "takeoff") and sim.paused:
             return JSONResponse({"ok": False, "error": "the simulation is paused; resume it first (Pause button)"}, status_code=409)
-        if cmd == "arm":
+        if cmd in ("nose_lift_takeoff", "nose_lift_land"):
+            # the ATLAS module's trigger, identical on SITL, HITL and the real aircraft (any GCS can send it)
+            link.send_command_long(mavlink.MAV_CMD_USER_1, 1.0 if cmd == "nose_lift_takeoff" else 2.0)
+            state.log(f"[px4] {'takeoff' if cmd == 'nose_lift_takeoff' else 'landing'} requested from the nose-lift module (MAV_CMD_USER_1)")
+        elif cmd == "arm":
             link.send_command_long(mavlink.MAV_CMD_COMPONENT_ARM_DISARM, 1.0, 21196.0 if body.get("force") else 0.0)
         elif cmd == "disarm":
             link.send_command_long(mavlink.MAV_CMD_COMPONENT_ARM_DISARM, 0.0, 21196.0 if body.get("force") else 0.0)
@@ -776,9 +780,13 @@ def build_app(state: AppState) -> FastAPI:
         sim.speed = max(0.0, float(body.get("speed", 1.0)))
         return {"ok": True, "speed": sim.speed}
 
+    HITL_PLANT = "with a flight controller connected (HITL) the simulator is only the plant: nothing on this side may drive the motors or the sequence"
+
     @app.post("/api/sim/motor_override")
     async def motor_override(body: dict):
         v = body.get("values")
+        if v is not None and state.conn.mode == "hitl":
+            return JSONResponse({"ok": False, "error": HITL_PLANT}, status_code=409)
         sim.motor_override = None if v is None else [float(x) for x in v]
         return {"ok": True}
 
@@ -803,6 +811,8 @@ def build_app(state: AppState) -> FastAPI:
         if body.get("stop"):
             sim.stop_nose_lift()
             return {"ok": True}
+        if state.conn.mode == "hitl":
+            return JSONResponse({"ok": False, "error": HITL_PLANT}, status_code=409)
         if link.armed:
             return JSONResponse({"ok": False, "error": "disarm first: the nose lift runs before arming"}, status_code=409)
         if not sim.sim.on_ground:

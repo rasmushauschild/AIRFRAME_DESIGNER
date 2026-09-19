@@ -400,3 +400,18 @@ table.grid.trials tr.infeasible td { color: var(--text-3); }
 .rc-n { color: var(--text-3); font-variant-numeric: tabular-nums; }
 .rc-fn { color: var(--accent); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .rc-state { color: var(--text-3); font-size: 12px; margin-left: 6px; }
+
+/* remote control (PX4 tab) */
+.rc-head { display: flex; align-items: center; gap: 10px; margin: 4px 0 10px; }
+#rc-ind .dot { background: var(--text-3); }
+#rc-ind.on .dot { background: var(--green); box-shadow: 0 0 6px var(--green); }
+.rc-sub { margin-bottom: 8px; font-size: 13px; }
+.rc-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px 22px; margin-bottom: 14px; }
+.rc-row { display: grid; grid-template-columns: 18px 1fr 40px 76px; align-items: center; gap: 8px; font-size: 12px; color: var(--text-2); font-variant-numeric: tabular-nums; }
+.rc-row .rc-fn { color: var(--text-3); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+table.grid.rc-map td { padding: 3px 6px; font-size: 13px; }
+table.grid.rc-map select { width: 60px; }
+.rc-foot { margin-top: 8px; }
+#tab-airframe .card h3 { margin-top: 0; }
+#tab-airframe .card { margin: 10px 0; }
+#tab-airframe .card details summary { margin-top: 0; }

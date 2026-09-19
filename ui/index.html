@@ -77,6 +77,7 @@
         <label>Load <select id="af-preset" style="width:150px"><option value="">Choose…</option></select></label>
       </div>
 
+      <div class="card">
       <h3>Mass &amp; CG</h3>
       <div class="row">
         <label>Mass kg <input id="af-mass" type="number" step="0.01" min="0.01"></label>
@@ -97,7 +98,9 @@
         <label title="Calculated automatically from the enabled landing feet. Actual resting pitch can differ slightly as the legs compress.">Landed pitch° (auto) <input id="af-landed" type="number" step="1" min="-90" max="90"></label>
         <span class="hint">Model changes apply to PX4 automatically while disarmed. Landed pitch is calculated from the landing legs.</span>
       </div>
+      </div>
 
+      <div class="card">
       <details id="cad-details">
         <summary>CAD bodies (STEP) <span id="cad-summary" class="hint"></span></summary>
         <div class="row tight">
@@ -121,7 +124,9 @@
         <div id="cad-table"><div class="hint">No CAD file. Import a STEP file to place its bodies and give them masses.</div></div>
         <div id="cad-totals" class="hint"></div>
       </details>
+      </div>
 
+      <div class="card">
       <h3>Pixhawk position</h3>
       <div class="row" title="IMU position in metres from the structural origin: X forward, Y right, Z down. PX4 receives the offset relative to the CG.">
         <label>X m <input id="imu-x" type="number" step="0.001"></label>
@@ -129,6 +134,9 @@
         <label>Z m <input id="imu-z" type="number" step="0.001"></label>
       </div>
       <p class="hint">Use the Pixhawk IMU location. Changes apply to PX4 automatically while disarmed.</p>
+      </div>
+
+      <div class="card">
       <h3>Rotors</h3>
       <div id="rotor-table"></div>
       <div class="row tight">
@@ -137,7 +145,9 @@
         <button id="rotor-mirror-x" class="pill small" title="Duplicate the selected rotor mirrored front/back, with opposite spin">Mirror F/B</button>
         <button id="rotor-apply-all" class="pill small" title="Copy thrust, tau and prop size of the selected rotor to all rotors">Motor → all</button>
       </div>
+      </div>
 
+      <div class="card">
       <h3>Motors</h3>
       <div class="row">
         <label>Type <select id="m-kind" style="width:130px"><option value="prop">Propeller</option><option value="ducted">Ducted fan</option></select></label>
@@ -149,14 +159,18 @@
         <label class="row" style="align-self:end;padding-bottom:6px" title="momentum drag of the inlet mass flow"><input id="m-ram" type="checkbox"> ram drag</label>
         <label title="thrust lost when a jetfoil bends the jet by 90°, %">Jetfoil loss % <input id="m-turnloss" type="number" step="1" min="0" max="60"></label>
       </div>
+      </div>
 
+      <div class="card">
       <h3>Wings</h3>
       <div id="wing-table"></div>
       <div class="row tight">
         <button id="wing-add" class="pill small" title="Add a symmetric wing (both halves)">+ Wing</button>
         <button id="fin-add" class="pill small" title="Add a vertical fin: a single panel with 90° dihedral">+ Fin</button>
       </div>
+      </div>
 
+      <div class="card">
       <h3>Legs</h3>
       <div id="leg-table"></div>
       <div class="row tight">
@@ -173,7 +187,9 @@
         <button id="leg-auto-btn" class="pill small" title="size every leg's spring and damper from the aircraft mass: 2 cm of static sink under the weight and a damping ratio of 0.8, so it settles without bouncing and the feet stay at the ground">Auto k/c</button>
         <span id="leg-static" class="hint"></span>
       </div>
+      </div>
 
+      <div class="card">
       <details>
         <summary>Body, drag</summary>
         <div class="row">
@@ -197,20 +213,22 @@
           <label>z <input id="af-dcz" type="number" step="0.01"></label>
         </div>
       </details>
+      </div>
       <div id="af-problems" class="problems"></div>
     </section>
 
     <!-- ============================ PX4 ============================ -->
     <section id="tab-px4" class="tab">
-      <h3>Remote control <small>· how the transmitter reaches PX4, live channels, and the mapping</small></h3>
-      <div id="rc-source" class="card"><div class="hint">Waiting for PX4…</div></div>
-      <div id="joy-card" class="card">
-        <div class="conn-row"><div><b id="joy-name">No radio on this computer</b><div class="hint" id="joy-hint"></div></div>
-          <button id="joy-connect" class="pill small primary" title="RadioMaster / joystick on this computer: USB (HID) or a serial link such as Bluetooth. The app turns it into MAVLink MANUAL_CONTROL for PX4.">Connect radio</button></div>
+      <div class="rc-head">
+        <span class="pill st" id="rc-ind" title="a transmitter reaches PX4: over a receiver bound to the flight controller, or from a radio on this computer over USB / serial"><i class="dot"></i><b>Remote</b>&nbsp;<span id="rc-ind-text">not detected</span></span>
+        <span class="panel-spacer"></span>
+        <button id="joy-connect" class="pill small" title="use a RadioMaster or joystick attached to this computer (USB, or a serial link such as Bluetooth)">Connect radio…</button>
+      </div>
+      <div id="joy-card" class="card" hidden>
+        <div class="rc-sub"><b id="joy-name">No radio</b> <span class="hint" id="joy-hint"></span></div>
         <div id="joy-map"></div>
       </div>
-
-      <div id="rc-board" class="card"><div class="hint">No receiver reported by the flight controller.</div></div>
+      <div id="rc-board" class="card" hidden></div>
 
       <h3>Edited parameters</h3>
       <div id="px4-export-status"></div>

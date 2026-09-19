@@ -1,0 +1,7 @@
+#!/bin/sh
+# ATLAS: start the nose-lift ground sequence module at boot (it idles until MAV_CMD_USER_1 / the console asks for
+# takeoff or landing, and on a flight controller it refuses to run unless NLF_HW_OK = 1).
+if param compare NLF_ENABLE 1
+then
+	atlas_nose_lift start
+fi

@@ -58,7 +58,11 @@ else
   echo "CONFIG_MODULES_SIMULATION_PWM_OUT_SIM=y" >> "$CFG"
 fi
 
-cleanup() { git checkout -q -- "$CFG" 2>/dev/null || true; restore_ref; }
+EXTRAS="$BOARD_DIR/init/rc.board_extras"
+if [ -n "${ATLAS_MODULES:-}" ] && [ -f "$ATLAS_MODULES/rc.board_extras" ] && [ ! -f "$EXTRAS" ]; then
+  cp "$ATLAS_MODULES/rc.board_extras" "$EXTRAS"; ATLAS_EXTRAS_ADDED=1   # module starts at boot on the board
+fi
+cleanup() { git checkout -q -- "$CFG" 2>/dev/null || true; [ -n "${ATLAS_EXTRAS_ADDED:-}" ] && rm -f "$EXTRAS"; restore_ref; }
 trap cleanup EXIT          # leave the checkout clean; the built .px4 keeps the module regardless
 
 OUT="${FIRMWARE_FILE:-build/$TARGET/$TARGET.px4}"     # FIRMWARE_FILE=<image.px4>: flash that image (archive restore)

@@ -313,6 +313,14 @@ class ConnectionManager:
         link.event_decoder = self.event_decoder
         self.link = link
         self.mode = mode
+        if mode == "hitl":
+            # a real flight controller flies the aircraft exactly as it would on the real drone: the simulator is only the
+            # plant, so drop every simulator-side assist (motor overrides, the Python nose-lift hook)
+            self.sim.motor_override = None
+            try:
+                self.sim.stop_nose_lift()
+            except Exception:
+                pass
         self.serial = link.address if mode == "hitl" else None
         self.error = None
         self._params_session += 1
@@ -863,7 +871,7 @@ class ConnectionManager:
                         self.log(f"[params] board rebooted by us: keeping the {len(link.params)} cached parameters")
                     else:
                         link.fetch_all_params()
-                    if link.mode == "hitl" and self.ensure_native_module():
+                    if self.ensure_native_module():
                         link.fetch_all_params()          # the module's parameters are listed only once it runs
                     if self.on_params:
                         self.on_params()
