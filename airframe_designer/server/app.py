@@ -133,8 +133,8 @@ def build_app(state: AppState) -> FastAPI:
         s["conn_mode"] = state.conn.mode
         s["conn_error"] = state.conn.error
         s["flashing"] = state.conn.firmware_job.running() and state.conn.firmware_job.action == "upload"
-        try:
-            s["firmware"] = state.conn.firmware_status()      # SITL module tree: sources newer than the binary?
+        try:   # SITL module tree: sources newer than the binary? (meaningless while a real board is connected)
+            s["firmware"] = state.conn.firmware_status() if state.conn.mode == "sitl" else None
         except Exception:
             s["firmware"] = None
         # arm gating: PX4's last arming-check summary must report no system errors and a usable position
@@ -591,10 +591,17 @@ def build_app(state: AppState) -> FastAPI:
         only = body.get("only")
         if only:
             params = {k: v for k, v in params.items() if k in only}
-        # skip output-function params the firmware does not have (e.g. HIL_ACT on SITL)
+        # skip params this firmware does not have (HIL_ACT on SITL, the NLF_* nose-lift module on a stock board).
+        # While the parameter list is still downloading, keep the NLF_* ones: they belong to the ATLAS SITL build and
+        # are simply not listed yet.
+        complete = bool(link.params) and link.param_count and link.status().get("params_loaded", 0) >= link.param_count
         if link.params:
-            missing = [k for k in params if k not in link.params and not k.startswith("NLF_")]
-            params = {k: v for k, v in params.items() if k in link.params or k.startswith("NLF_")}
+            keep = lambda k: k in link.params or (k.startswith("NLF_") and not complete)
+            missing = [k for k in params if not keep(k)]
+            params = {k: v for k, v in params.items() if keep(k)}
+            if complete and any(k.startswith("NLF_") for k in missing):
+                state.log("[export] this firmware has no atlas_nose_lift module (NLF_* parameters unknown): the native "
+                          "ground sequence is unavailable on it; the simulator's own nose-lift hook is used instead")
         else:
             missing = []
         state.export_log.clear()
