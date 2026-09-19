@@ -426,7 +426,7 @@ table.grid.rc-map td.rc-state { color: var(--text-3); min-width: 56px; }
 
 /* remote control: one line per channel */
 .rc-table { display: flex; flex-direction: column; gap: 3px; }
-.rc-line { display: grid; grid-template-columns: 22px 1fr 44px 150px 96px 96px 96px; align-items: center; gap: 8px; font-size: 12px; color: var(--text-2); font-variant-numeric: tabular-nums; min-height: 26px; }
+.rc-line { display: grid; grid-template-columns: 22px 110px 1fr 44px 150px 96px 96px 96px; align-items: center; gap: 8px; font-size: 12px; color: var(--text-2); font-variant-numeric: tabular-nums; min-height: 26px; }
 .rc-line.rc-head { color: var(--text-3); font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600; min-height: 18px; margin-bottom: 2px; }
 .rc-line .rc-n { color: var(--text-3); text-align: right; }
 .rc-line .rc-val { text-align: right; }
@@ -436,3 +436,8 @@ table.grid.rc-map td.rc-state { color: var(--text-3); min-width: 56px; }
 .rc-c .rc-dim, .rc-c.rc-dim { color: var(--text-3); }
 .rc-sw { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 6px; background: var(--soft-2); color: var(--text-3); }
 .rc-sw.on { background: var(--green); color: #fff; }
+
+.rc-line input.rc-name { width: 100%; padding: 3px 6px; font-size: 12px; box-shadow: none; background: transparent; border-radius: 6px; color: var(--text-1); }
+.rc-line input.rc-name:hover, .rc-line input.rc-name:focus { background: var(--soft-2); }
+.rc-tag { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 6px; background: var(--soft-2); color: var(--text-3); }
+.rc-tag.on { background: var(--green); color: #fff; }

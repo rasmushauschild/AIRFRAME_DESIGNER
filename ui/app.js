@@ -1516,6 +1516,7 @@ let rcCal = null;   // stick calibration in progress: { step, min: [], max: [] }
 const RC_FUNCS = [
   { p: 'RC_MAP_ROLL', label: 'Roll', kind: 'stick' }, { p: 'RC_MAP_PITCH', label: 'Pitch', kind: 'stick' }, { p: 'RC_MAP_THROTTLE', label: 'Throttle', kind: 'stick' }, { p: 'RC_MAP_YAW', label: 'Yaw', kind: 'stick' },
   { p: 'RC_MAP_FLTMODE', label: 'Flight mode', kind: 'mode' },
+  { p: 'NLF_RC_CH', label: 'Nose-lift takeoff / land', kind: 'nlf' },
   { p: 'RC_MAP_ARM_SW', label: 'Arm', kind: 'switch', th: 'RC_ARMSWITCH_TH' }, { p: 'RC_MAP_KILL_SW', label: 'Kill', kind: 'switch', th: 'RC_KILLSWITCH_TH' },
   { p: 'RC_MAP_RETURN_SW', label: 'Return home', kind: 'switch', th: 'RC_RETURN_TH' }, { p: 'RC_MAP_LOITER_SW', label: 'Hold', kind: 'switch', th: 'RC_LOITER_TH' },
   { p: 'RC_MAP_OFFB_SW', label: 'Offboard', kind: 'switch', th: 'RC_OFFB_TH' }, { p: 'RC_MAP_TRANS_SW', label: 'VTOL transition', kind: 'switch', th: 'RC_TRANS_TH' },
@@ -1567,9 +1568,10 @@ function renderRcBoard() {
   const el = $('#rc-board');
   if (!rcFresh()) { if (el.dataset.mode !== 'none') { el.dataset.mode = 'none'; el.hidden = true; } return; }
   el.hidden = false;
-  const n = lastRc.count >= 1 && lastRc.count <= 18 ? lastRc.count : 18;   // MAVLink RC_CHANNELS and PX4's RC input carry 18 at most
+  const n = 18;   // PX4's RC input carries 18 channels at most; rows beyond what the receiver sends stay empty
   const funcs = rcKnownFuncs();
-  const key = `${n}|${funcs.map(f => f.p + ':' + pv(f.p, 0)).join(',')}|${[1, 2, 3, 4, 5, 6].map(i => pv('COM_FLTMODE' + i, -1)).join(',')}`;
+  const names = (airframe && airframe.design && airframe.design.rc_names) || {};
+  const key = `${n}|${funcs.map(f => f.p + ':' + pv(f.p, 0)).join(',')}|${[1, 2, 3, 4, 5, 6].map(i => pv('COM_FLTMODE' + i, -1)).join(',')}|${JSON.stringify(names)}`;
   if (el.dataset.mode !== 'rc' || rcBuiltFor !== key) {
     el.dataset.mode = 'rc'; rcBuiltFor = key;
     const modeVals = ((meta.COM_FLTMODE1 || {}).values || [{ value: -1, description: 'Unassigned' }, { value: 0, description: 'Manual' }, { value: 1, description: 'Altitude' }, { value: 2, description: 'Position' }, { value: 3, description: 'Mission' }, { value: 4, description: 'Hold' }, { value: 5, description: 'Return' }, { value: 6, description: 'Acro' }, { value: 7, description: 'Offboard' }, { value: 8, description: 'Stabilized' }, { value: 10, description: 'Takeoff' }, { value: 11, description: 'Land' }]);
@@ -1581,11 +1583,13 @@ function renderRcBoard() {
       if (f && f.kind === 'mode') cells = [0, 50, 100].map(pos => `<span class="rc-c" data-pos="${pos}">${modeSel(pos)}</span>`).join('');
       else if (f && f.kind === 'switch') cells = [0, 50, 100].map(pos => `<span class="rc-c" data-pos="${pos}">${f.th ? `<button class="rc-sw ${switchOnAt(f, pos) ? 'on' : ''}" data-ch="${ch}" data-pos="${pos}" title="click: ${f.label} is ON at this position">${switchOnAt(f, pos) ? 'ON' : 'off'}</button>` : `<span class="rc-dim">${pos === 100 ? 'ON' : 'off'}</span>`}</span>`).join('');
       else if (f && f.kind === 'stick') cells = `<span class="rc-c rc-dim">${f.p === 'RC_MAP_THROTTLE' ? 'idle' : 'full −'}</span><span class="rc-c rc-dim">centre</span><span class="rc-c rc-dim">${f.p === 'RC_MAP_THROTTLE' ? 'full' : 'full +'}</span>`;
-      return `<div class="rc-line" data-ch="${ch}"><span class="rc-n">${ch}</span><span class="rc-bar"><i data-ch="${ch}" style="width:50%"></i></span><span class="rc-val" data-ch="${ch}">–</span><span class="rc-fsel">${fnSel}</span>${cells}</div>`;
+      else if (f && f.kind === 'nlf') cells = `<span class="rc-c" data-pos="0"><span class="rc-tag">land</span></span><span class="rc-c rc-dim" data-pos="50">–</span><span class="rc-c" data-pos="100"><span class="rc-tag on">take off</span></span>`;
+      return `<div class="rc-line" data-ch="${ch}"><span class="rc-n">${ch}</span><input class="rc-name" data-ch="${ch}" value="${esc(names[ch] || '')}" placeholder="name" maxlength="18" title="your own name for this channel (saved with the airframe)"><span class="rc-bar"><i data-ch="${ch}" style="width:50%"></i></span><span class="rc-val" data-ch="${ch}">–</span><span class="rc-fsel">${fnSel}</span>${cells}</div>`;
     }).join('');
-    el.innerHTML = `<div class="rc-table"><div class="rc-line rc-head"><span></span><span></span><span></span><span>Controls</span><span>0 %</span><span>50 %</span><span>100 %</span></div>${rows}</div>
+    el.innerHTML = `<div class="rc-table"><div class="rc-line rc-head"><span></span><span>Name</span><span></span><span></span><span>Controls</span><span>0 %</span><span>50 %</span><span>100 %</span></div>${rows}</div>
       <div id="rc-cal" class="rc-cal"></div><div class="rc-foot hint" id="rc-foot"></div>`;
     $$('#rc-board .rc-fn-sel').forEach(sel => sel.addEventListener('change', () => rcAssign(+sel.dataset.ch, sel.value || null)));
+    $$('#rc-board .rc-name').forEach(inp => inp.addEventListener('change', () => { airframe.design = airframe.design || {}; const nm = airframe.design.rc_names = airframe.design.rc_names || {}; const v = inp.value.trim(); if (v) nm[inp.dataset.ch] = v; else delete nm[inp.dataset.ch]; rcBuiltFor = ''; pushAirframe(true); }));
     $$('#rc-board .rc-mode').forEach(sel => sel.addEventListener('change', async () => { const v = +sel.value; for (const slot of MODE_SLOTS[+sel.dataset.pos]) await rcSet('COM_FLTMODE' + slot, v); rcBuiltFor = ''; }));
     $$('#rc-board .rc-sw').forEach(b => b.addEventListener('click', async () => {
       const f = rcFuncOf(+b.dataset.ch); if (!f || !f.th) return;

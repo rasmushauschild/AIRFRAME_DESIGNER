@@ -72,6 +72,14 @@ parameters:
       default: 3
       min: 1
       max: 5
+    NLF_RC_CH:
+      description:
+        short: RC channel that requests the ground sequence
+        long: 0 = none. The switch on this channel requests takeoff (nose lift, climb, hover) when it goes high and the landing sequence (rear legs, nose down, motors off) when it goes low while hovering.
+      type: int32
+      min: 0
+      max: 18
+      default: 0
     NLF_HW_OK:
       description:
         short: Allow the experimental ground sequence on real hardware
