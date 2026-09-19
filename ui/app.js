@@ -1542,7 +1542,7 @@ function renderRcBoard() {
   el.hidden = false;
   if (el.dataset.mode !== 'rc') {
     el.dataset.mode = 'rc';
-    const n = Math.min(18, lastRc.count);
+    const n = lastRc.count >= 1 && lastRc.count <= 18 ? lastRc.count : 18;   // MAVLink RC_CHANNELS and PX4's RC input carry 18 at most
     const opts = (cur) => `<option value="0" ${!cur ? 'selected' : ''}>–</option>` + Array.from({ length: n }, (_, i) => `<option value="${i + 1}" ${cur === i + 1 ? 'selected' : ''}>${i + 1}</option>`).join('');
     el.innerHTML = `<div class="rc-grid">${Array.from({ length: n }, (_, i) => `<div class="rc-row"><span class="rc-n">${i + 1}</span><span class="rc-bar"><i data-ch="${i + 1}" style="width:50%"></i></span><span class="rc-val" data-ch="${i + 1}">–</span><span class="rc-fn" data-ch="${i + 1}"></span></div>`).join('')}</div>
       <table class="grid rc-map"><tbody>${RC_FUNCS.map(f => `<tr><td>${f.label}</td><td><select class="rc-sel" data-p="${f.p}">${opts(+((params[f.p] || {}).value || 0))}</select></td><td><button class="pill small rc-learn" data-p="${f.p}" title="click, then move that stick or switch">Learn</button></td></tr>`).join('')}</tbody></table>
@@ -1558,7 +1558,9 @@ function renderRcBoard() {
     if (fn) fn.textContent = (mapped[i + 1] || []).join(' · ');
   });
   RC_FUNCS.forEach(f => { const c = +((params[f.p] || {}).value || 0); const sel = el.querySelector(`.rc-sel[data-p="${f.p}"]`); if (sel && document.activeElement !== sel && sel.value !== String(c)) sel.value = String(c); });
-  const foot = $('#rc-foot'); if (foot) foot.textContent = (params.RC_CHAN_CNT || {}).value > 0 ? '' : 'Sticks not calibrated yet: run the radio calibration once in QGroundControl.';
+  const foot = $('#rc-foot'); if (foot) foot.textContent = [
+    `${lastRc.count <= 18 ? lastRc.count : '?'} channels reach PX4 (the receiver protocol decides; PX4 and MAVLink carry at most 18, so a 30-channel transmitter still shows up to 18 here).`,
+    (params.RC_CHAN_CNT || {}).value > 0 ? '' : 'Sticks not calibrated yet: run the radio calibration once in QGroundControl.'].filter(Boolean).join(' ');
   if (rcLearn && rcLearnBase) {
     let best = -1, bestD = 150;
     ch.forEach((v, i) => { const d = Math.abs(v - (rcLearnBase[i] || 0)); if (d > bestD) { bestD = d; best = i; } });
