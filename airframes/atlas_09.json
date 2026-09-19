@@ -383,8 +383,8 @@
     "MPC_TKO_RAMP_T": 0.20000000298023224,
     "MPC_THR_HOVER": 0.6000001430511475,
     "MC_AIRMODE": 1,
-    "MPC_MAN_Y_MAX": 150,
-    "MC_YAWRATE_I": 0.10000000149011612,
+    "MPC_MAN_Y_MAX": 150.0,
+    "MC_YAWRATE_I": 0.1,
     "CA_ROTOR0_CT": 6.5,
     "CA_ROTOR1_CT": 6.5,
     "CA_ROTOR2_CT": 6.5,
@@ -401,11 +401,18 @@
     "MC_PITCHRATE_P": 0.45,
     "MC_PITCHRATE_I": 0.3,
     "MC_PITCHRATE_D": 0.012,
-    "MC_PITCH_P": 3.0,
+    "MC_PITCH_P": 3,
     "MC_ROLLRATE_P": 0.5,
     "MC_ROLLRATE_I": 0.3,
     "MC_ROLLRATE_D": 0.012,
-    "MC_ROLL_P": 3.0
+    "MC_ROLL_P": 3,
+    "MPC_VEL_MANUAL": 10.0,
+    "MPC_ACC_HOR": 3.0,
+    "MPC_ACC_HOR_MAX": 5.0,
+    "MC_YAWRATE_MAX": 200.0,
+    "MC_YAW_P": 2.8,
+    "MC_YAWRATE_P": 0.2,
+    "MC_YAW_WEIGHT": 0.4
   },
   "design": {
     "cruise_speed_kmh": 50,
@@ -480,7 +487,8 @@
           "cantHi": 30
         }
       }
-    }
+    },
+    "battery_wh": 500
   },
   "notes": "",
   "cad": {
