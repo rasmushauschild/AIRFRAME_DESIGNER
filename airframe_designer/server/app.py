@@ -130,6 +130,7 @@ def build_app(state: AppState) -> FastAPI:
         s = link.status()
         s["mode_name"] = mode_name(s["custom_mode"])
         s["px4_running"] = state.conn.px4_running()
+        s["params_session"] = getattr(state.conn, "_params_session", 0)   # bumps on every (re)connect: the page re-downloads
         s["conn_mode"] = state.conn.mode
         s["conn_error"] = state.conn.error
         s["flashing"] = state.conn.firmware_job.running() and state.conn.firmware_job.action == "upload"

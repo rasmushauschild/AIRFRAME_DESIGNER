@@ -1060,6 +1060,7 @@ async function setParamValue(n, value) {
 
 // ============================================================ parameters
 let paramsLoaded = false;
+let paramsSession = null;
 async function ensureParams() {
   if (paramsLoaded) return;
   await loadMeta();
@@ -1223,7 +1224,10 @@ function applyStatus(s) {
   $('#st-armed').classList.toggle('armed', s.armed);
   $('#st-flightmode').textContent = s.connected ? s.mode_name + (s.mode === 'hitl' && !s.hil_enabled ? ' · HIL OFF (set SYS_HITL=1)' : '') : '—';
   if (!homeFilled) { $('#home-lat').value = s.home.lat; $('#home-lon').value = s.home.lon; $('#home-alt').value = s.home.alt; homeFilled = true; }
-  if (s.params_loaded && !paramsLoaded && $('#tab-px4').classList.contains('active')) ensureParams();
+  if (s.params_session !== undefined && s.params_session !== paramsSession) {   // board (re)connected or reflashed: forget the old list
+    paramsSession = s.params_session; paramsLoaded = false; params = {};
+  }
+  if (s.params_loaded && s.param_count && s.params_loaded >= s.param_count && !paramsLoaded && $('#tab-px4').classList.contains('active')) ensureParams();
   updateFooter();
 }
 const effectiveMax = (r) => {
@@ -1549,7 +1553,8 @@ function renderRcIndicator() {
   if (key !== rcIndKey) { rcIndKey = key; const el = $('#rc-ind'); el.classList.toggle('on', on); $('#rc-ind-text').textContent = text; }
   $('#joy-card').hidden = !viaApp;
 }
-const rcKnownFuncs = () => RC_FUNCS.filter(f => params[f.p] || Object.keys(params).length < 100);
+// functions this firmware has; with no (or a partial) parameter list, offer them all rather than nothing
+const rcKnownFuncs = () => params.RC_MAP_ROLL ? RC_FUNCS.filter(f => params[f.p]) : RC_FUNCS;
 const rcFuncOf = (ch) => rcKnownFuncs().find(f => pv(f.p, 0) === ch) || null;
 async function rcSet(name, value) {
   try { await api('/api/params/set', { name, value }); params[name] = { ...(params[name] || {}), value }; } catch (e) { logLine('[rc] ' + e.message); }
@@ -1628,6 +1633,7 @@ function renderRcBoard() {
     } else if (cal.dataset.step !== '' && cal.dataset.step !== 'done') { cal.dataset.step = ''; cal.innerHTML = ''; }
   }
   const foot = $('#rc-foot'); if (foot) foot.innerHTML = [
+    params.RC_MAP_ROLL ? '' : '<span class="warn">Reading the board\'s parameters…</span>',
     `${lastRc.count <= 18 ? lastRc.count : '?'} channels from the receiver (PX4 carries at most 18).`,
     pv('RC_CHAN_CNT', 0) > 0 ? `Sticks calibrated.` : '<span class="warn">Sticks not calibrated.</span>',
     `<a href="#" id="rc-cal-start">${pv('RC_CHAN_CNT', 0) > 0 ? 'Recalibrate' : 'Calibrate'}</a>`].join(' ');
