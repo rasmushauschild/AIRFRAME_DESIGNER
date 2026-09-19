@@ -202,6 +202,16 @@
 
     <!-- ============================ PX4 ============================ -->
     <section id="tab-px4" class="tab">
+      <h3>Remote control <small>· how the transmitter reaches PX4, live channels, and the mapping</small></h3>
+      <div id="rc-source" class="card"><div class="hint">Waiting for PX4…</div></div>
+      <div id="joy-card" class="card">
+        <div class="conn-row"><div><b id="joy-name">No radio on this computer</b><div class="hint" id="joy-hint"></div></div>
+          <button id="joy-connect" class="pill small primary" title="RadioMaster / joystick on this computer: USB (HID) or a serial link such as Bluetooth. The app turns it into MAVLink MANUAL_CONTROL for PX4.">Connect radio</button></div>
+        <div id="joy-map"></div>
+      </div>
+
+      <div id="rc-board" class="card"><div class="hint">No receiver reported by the flight controller.</div></div>
+
       <h3>Edited parameters</h3>
       <div id="px4-export-status"></div>
       <div id="overrides" class="card"></div>
@@ -362,11 +372,7 @@
       </div>
 
       <h3>Remote</h3>
-      <div id="joy-card" class="card">
-        <div class="conn-row"><div><b id="joy-name">No radio connected</b><div class="hint" id="joy-hint"></div></div>
-          <button id="joy-connect" class="pill small primary">Connect radio</button></div>
-        <div id="joy-map"></div>
-      </div>
+      <div class="hint" style="margin:6px 0 12px">Radio and channel mapping live on the <a href="#" id="conn-goto-rc">PX4 tab</a>.</div>
 
       <h3>HITL checklist</h3>
       <div id="conn-checklist" class="card"></div>

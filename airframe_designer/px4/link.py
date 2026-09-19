@@ -185,7 +185,7 @@ class PX4Link:
     # Board -> host telemetry the USB instance streams by default (about 400 messages/s on an FMU v6X). In HITL that
     # traffic shares the link with HIL_SENSOR/HIL_ACTUATOR_CONTROLS and adds latency to the control loop, so the
     # heavy streams are throttled or switched off; the UI reads ATTITUDE, HIGHRES_IMU and the status messages.
-    TELEMETRY_RATES_HZ = {30: 20, 105: 10, 31: 0, 33: 5, 32: 0, 331: 0, 65: 5, 83: 0, 36: 0, 141: 5, 24: 5, 74: 5, 85: 0,
+    TELEMETRY_RATES_HZ = {30: 20, 105: 10, 31: 0, 33: 5, 32: 0, 331: 0, 65: 10, 83: 0, 36: 0, 141: 5, 24: 5, 74: 5, 85: 0,
                           12901: 0}   # ATTITUDE, HIGHRES_IMU, ATT_QUAT, GLOBAL_POS, LOCAL_POS, ODOMETRY, RC_CH, ATT_TGT, SERVO_RAW, ALT, GPS_RAW, VFR_HUD, POS_TGT, ODID
 
     def trim_telemetry(self) -> None:

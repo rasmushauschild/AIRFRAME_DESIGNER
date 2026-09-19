@@ -1019,7 +1019,9 @@ def build_app(state: AppState) -> FastAPI:
                     m = json.loads(raw)
                 except Exception:
                     continue
-                if m.get("type") == "manual" and link.ctl_connected and state.conn.mode == "sitl":   # USB remote is SITL-only
+                # the app's radio drives PX4 like QGC's joystick: on SITL always, on a real board only while it is in HIL
+                # (simulated outputs); a receiver bound to the board needs no forwarding at all
+                if m.get("type") == "manual" and link.ctl_connected and (state.conn.mode == "sitl" or bool(getattr(link, "hil_enabled", False))):
                     try:
                         await run_in_threadpool(link.send_manual_control, float(m.get("roll", 0)), float(m.get("pitch", 0)),
                                                 float(m.get("throttle", 0)), float(m.get("yaw", 0)), int(m.get("buttons", 0)),
@@ -1033,6 +1035,9 @@ def build_app(state: AppState) -> FastAPI:
             while True:
                 now = time.time()
                 msg: dict[str, Any] = {"type": "state", "state": sim.snapshot()}
+                ls = link.status()
+                msg["rc"] = ls.get("rc") or {}                  # receiver on the flight controller (RC_CHANNELS)
+                msg["manual"] = ls.get("manual") or {}          # last MANUAL_CONTROL the app sent (USB/serial radio)
                 if now - last_status > 0.5:
                     msg["status"] = status_dict()
                     last_status = now

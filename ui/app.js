@@ -1295,7 +1295,7 @@ function connectWs() {
   ws.onmessage = (ev) => {
     const m = JSON.parse(ev.data);
     if (m.type === 'airframe') { setAirframe(m.airframe); }
-    if (m.type === 'state') { applyState(m.state); if (m.status) applyStatus(m.status); if (m.log) m.log.forEach(l => logLine(l[1])); }
+    if (m.type === 'state') { lastRc = m.rc || {}; lastManual = m.manual || {}; applyState(m.state); if (m.status) applyStatus(m.status); if (m.log) m.log.forEach(l => logLine(l[1])); if ($('#tab-px4').classList.contains('active')) renderRcLive(); }
   };
   ws.onclose = () => { logLine('[ui] connection to simulator lost, retrying…'); setTimeout(connectWs, 1500); };
 }
@@ -1509,6 +1509,77 @@ $('#arch-snapshot').addEventListener('click', async () => {
   b.disabled = false; b.textContent = 'Snapshot board now'; refreshArchive();
 });
 $('#arch-pull').addEventListener('click', async () => { try { const r = await api('/api/archive/pull', {}); if (!r.ok) alert(r.error); } catch (e) { alert(e.message); } refreshArchive(); });
+
+
+// ============================================================ Remote control (PX4 tab): source, live channels, mapping
+let lastRc = {}, lastManual = {}, rcLearn = null, rcLearnBase = null, rcLastRender = 0, rcSourceKey = '';
+const RC_FUNCS = [
+  { p: 'RC_MAP_ROLL', label: 'Roll' }, { p: 'RC_MAP_PITCH', label: 'Pitch' }, { p: 'RC_MAP_THROTTLE', label: 'Throttle' }, { p: 'RC_MAP_YAW', label: 'Yaw' },
+  { p: 'RC_MAP_FLTMODE', label: 'Flight mode' }, { p: 'RC_MAP_ARM_SW', label: 'Arm switch' }, { p: 'RC_MAP_KILL_SW', label: 'Kill switch' },
+  { p: 'RC_MAP_RETURN_SW', label: 'Return switch' }, { p: 'RC_MAP_OFFB_SW', label: 'Offboard switch' }, { p: 'RC_MAP_LOITER_SW', label: 'Loiter switch' },
+  { p: 'RC_MAP_AUX1', label: 'Aux 1' }, { p: 'RC_MAP_AUX2', label: 'Aux 2' }, { p: 'RC_MAP_AUX3', label: 'Aux 3' },
+];
+const rcFresh = () => lastRc && lastRc.count > 0 && lastRc.t && (Date.now() / 1000 - lastRc.t) < 3;
+function renderRcSource() {
+  const src = joyCurrent();
+  const boardRc = rcFresh();
+  const fwd = status.conn_mode === 'sitl' || !!status.hil_enabled;
+  const lines = [];
+  if (src) lines.push(`<div><b>Radio on this computer:</b> ${esc(src.name)} via ${src.kind === 'serial' ? 'serial (USB or Bluetooth)' : src.kind === 'hid' ? 'USB HID' : 'gamepad'} · ${src.axes.length} channels → MAVLink MANUAL_CONTROL ${fwd ? `<span class="ok">forwarded to PX4 (${status.conn_mode === 'sitl' ? 'SITL' : 'board in HIL'})</span>` : '<span class="warn">not forwarded: the board is not in HIL</span>'}</div>`);
+  else lines.push(`<div><b>Radio on this computer:</b> none connected <span class="hint">(Connect radio below: USB or a serial/Bluetooth link)</span></div>`);
+  if (boardRc) lines.push(`<div><b>Receiver on the flight controller:</b> <span class="ok">${lastRc.count} channels</span> · RSSI ${lastRc.rssi === 255 ? 'n/a' : lastRc.rssi} · the transmitter talks to the Pixhawk directly; PX4 maps them with the RC_MAP_* parameters below</div>`);
+  else lines.push(`<div><b>Receiver on the flight controller:</b> ${status.ctl_connected ? 'no RC_CHANNELS from PX4 (no receiver bound, transmitter off, or SITL)' : 'PX4 not connected'}</div>`);
+  const mode = (params.COM_RC_IN_MODE || {}).value;
+  if (mode != null) lines.push(`<div class="hint">COM_RC_IN_MODE = ${mode}: ${({0: 'RC receiver only', 1: 'joystick (MANUAL_CONTROL) only', 2: 'RC and joystick, RC has priority', 3: 'RC and joystick, joystick has priority', 4: 'stick input disabled'})[mode] || '?'} <button class="pill small" id="rc-inmode" title="cycle through the PX4 stick-input modes">change</button></div>`);
+  const key = lines.join('');
+  if (key !== rcSourceKey) { rcSourceKey = key; $('#rc-source').innerHTML = lines.join(''); const b = $('#rc-inmode'); if (b) b.addEventListener('click', async () => { const next = ((mode | 0) + 1) % 4; await api('/api/params/set', { name: 'COM_RC_IN_MODE', value: next }); params.COM_RC_IN_MODE = { ...(params.COM_RC_IN_MODE || {}), value: next }; rcSourceKey = ''; renderRcSource(); }); }
+}
+function rcMapped() {
+  const m = {};
+  RC_FUNCS.forEach(f => { const ch = +((params[f.p] || {}).value || 0); if (ch > 0) (m[ch] = m[ch] || []).push(f.label); });
+  return m;
+}
+function renderRcBoard() {
+  const el = $('#rc-board');
+  if (!rcFresh()) { if (el.dataset.mode !== 'none') { el.dataset.mode = 'none'; el.innerHTML = '<div class="hint">No receiver reported by the flight controller. Bind the transmitter to the Pixhawk\'s receiver and switch it on; the channels appear here (SITL has none).</div>'; } return; }
+  if (el.dataset.mode !== 'rc') {
+    el.dataset.mode = 'rc';
+    const n = Math.min(18, lastRc.count);
+    const opts = (cur) => `<option value="0" ${!cur ? 'selected' : ''}>—</option>` + Array.from({ length: n }, (_, i) => `<option value="${i + 1}" ${cur === i + 1 ? 'selected' : ''}>ch ${i + 1}</option>`).join('');
+    el.innerHTML = `<div class="conn-row"><div><b>Receiver channels</b> <span class="hint">PWM µs · the label under a bar is the PX4 function mapped to it</span></div>
+      <span class="hint">${(params.RC_CHAN_CNT || {}).value > 0 ? `calibrated (${(params.RC_CHAN_CNT || {}).value} ch)` : '<span class="warn">not calibrated: run the radio calibration in QGroundControl once</span>'}</span></div>
+      <div id="rc-bars" class="rc-bars">${Array.from({ length: n }, (_, i) => `<div class="rc-ch"><span class="rc-n">${i + 1}</span><span class="rc-bar"><i data-ch="${i + 1}" style="width:50%"></i></span><span class="rc-val num" data-ch="${i + 1}">—</span><span class="rc-fn" data-ch="${i + 1}"></span></div>`).join('')}</div>
+      <div class="hint" style="margin:10px 0 4px"><b>Mapping</b> (RC_MAP_*): pick a channel, or click Learn and move that stick or switch</div>
+      <div id="rc-map">${RC_FUNCS.map(f => `<div class="joy-row"><span class="joy-label">${f.label}</span><select class="rc-sel" data-p="${f.p}">${opts(+((params[f.p] || {}).value || 0))}</select><button class="pill small rc-learn" data-p="${f.p}">Learn</button><span class="rc-state num" data-p="${f.p}"></span></div>`).join('')}</div>`;
+    $$('#rc-map .rc-sel').forEach(sel => sel.addEventListener('change', async () => { const v = +sel.value; try { await api('/api/params/set', { name: sel.dataset.p, value: v }); params[sel.dataset.p] = { ...(params[sel.dataset.p] || {}), value: v }; logLine(`[rc] ${sel.dataset.p} = ${v}`); } catch (e) { logLine('[rc] ' + e.message); } }));
+    $$('#rc-map .rc-learn').forEach(b => b.addEventListener('click', () => { rcLearn = b.dataset.p; rcLearnBase = (lastRc.channels || []).slice(); $$('#rc-map .rc-learn').forEach(x => x.textContent = x.dataset.p === rcLearn ? 'Move it…' : 'Learn'); }));
+  }
+  const ch = lastRc.channels || [], mapped = rcMapped();
+  ch.forEach((v, i) => {
+    const bar = el.querySelector(`.rc-bar i[data-ch="${i + 1}"]`), val = el.querySelector(`.rc-val[data-ch="${i + 1}"]`), fn = el.querySelector(`.rc-fn[data-ch="${i + 1}"]`);
+    if (bar) bar.style.width = (Math.max(0, Math.min(1, (v - 1000) / 1000)) * 100).toFixed(0) + '%';
+    if (val) val.textContent = v ? v : '—';
+    if (fn) fn.textContent = (mapped[i + 1] || []).join(', ');
+  });
+  RC_FUNCS.forEach(f => { const c = +((params[f.p] || {}).value || 0); const st = el.querySelector(`.rc-state[data-p="${f.p}"]`); if (st) st.textContent = c ? `${ch[c - 1] || '—'} µs` : ''; });
+  if (rcLearn && rcLearnBase) {
+    let best = -1, bestD = 150;
+    ch.forEach((v, i) => { const d = Math.abs(v - (rcLearnBase[i] || 0)); if (d > bestD) { bestD = d; best = i; } });
+    if (best >= 0) {
+      const p = rcLearn; rcLearn = null; rcLearnBase = null;
+      api('/api/params/set', { name: p, value: best + 1 }).then(() => { params[p] = { ...(params[p] || {}), value: best + 1 }; logLine(`[rc] learned ${p} = channel ${best + 1}`); const sel = el.querySelector(`.rc-sel[data-p="${p}"]`); if (sel) sel.value = String(best + 1); }).catch(e => logLine('[rc] ' + e.message));
+      $$('#rc-map .rc-learn').forEach(x => x.textContent = 'Learn');
+    }
+  }
+}
+function renderRcLive() {
+  const now = performance.now();
+  if (now - rcLastRender < 80) return;
+  rcLastRender = now;
+  renderRcSource(); renderRcBoard();
+}
+$('#conn-goto-rc') && $('#conn-goto-rc').addEventListener('click', (e) => { e.preventDefault(); openTab('px4'); });
+setInterval(() => { if ($('#tab-px4').classList.contains('active')) renderRcLive(); }, 500);
 
 // ============================================================ USB remote (WebHID picker, Gamepad API fallback) -> MANUAL_CONTROL
 const JOY_FUNCS = [
@@ -1725,7 +1796,7 @@ function joyTick() {
       if (val) val.textContent = v.toFixed(2);
     });
     const now = performance.now();
-    if (status.conn_mode === 'sitl' && joyWs && joyWs.readyState === 1 && now - joyLastSend > 20) {   // 50 Hz, SITL only
+    if ((status.conn_mode === 'sitl' || status.hil_enabled) && joyWs && joyWs.readyState === 1 && now - joyLastSend > 20) {   // 50 Hz: SITL, or a board in HIL
       joyLastSend = now;
       const g = (k) => joyValue(src, joyMap.find(f => f.key === k));
       const aux = src.axes.slice(4, 10).map(v => +v.toFixed(3));
@@ -1733,7 +1804,7 @@ function joyTick() {
       joyWs.send(JSON.stringify({ type: 'manual', roll: g('roll'), pitch: g('pitch'), throttle: (g('throttle') + 1) / 2, yaw: g('yaw'), buttons, aux }));
     }
   }
-  if (src || $('#tab-connect').classList.contains('active')) requestAnimationFrame(joyTick); else setTimeout(joyTick, 500);
+  if (src || $('#tab-px4').classList.contains('active')) requestAnimationFrame(joyTick); else setTimeout(joyTick, 500);
 }
 if (navigator.hid) navigator.hid.addEventListener('disconnect', (e) => { if (e.device === hidDevice) { hidDevice = null; joySrc = null; logLine('[ui] radio disconnected'); joyRenderMap(); } });
 $('#joy-connect').addEventListener('click', serialConnect);
