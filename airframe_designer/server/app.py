@@ -138,8 +138,14 @@ def build_app(state: AppState) -> FastAPI:
         lp = getattr(state.link, "params", None) or {}
         s["native_module"] = "NLF_ENABLE" in lp
         s["nlf_enable"] = (lp.get("NLF_ENABLE") or {}).get("value") if "NLF_ENABLE" in lp else None
-        try:   # SITL module tree: sources newer than the binary? (meaningless while a real board is connected)
-            s["firmware"] = state.conn.firmware_status() if state.conn.mode == "sitl" else None
+        try:
+            if state.conn.mode == "sitl":          # SITL module tree: sources newer than the binary?
+                s["firmware"] = state.conn.firmware_status()
+            elif state.conn.mode == "hitl":        # board image older than the sources, or newer than what was flashed?
+                b = state.conn.board_firmware_status()
+                s["firmware"] = {"board": True, "custom": True, "needs_rebuild": b["needs_rebuild"], "needs_flash": b["needs_flash"], "stale": b["stale"]}
+            else:
+                s["firmware"] = None
         except Exception:
             s["firmware"] = None
         # arm gating: PX4's last arming-check summary must report no system errors and a usable position
@@ -619,13 +625,21 @@ def build_app(state: AppState) -> FastAPI:
     @app.post("/api/px4/push")
     async def push_params(body: dict | None = None):
         body = body or {}
-        fw_res = {"ok": True, "rebuilt": False, "relaunched": False}
+        fw_res = {"ok": True, "rebuilt": False, "relaunched": False, "flashed": False}
         if body.get("firmware", True) and state.conn.mode == "sitl" and getattr(state.args, "launch_px4", False):
             if link.armed:
                 return JSONResponse({"ok": False, "error": "vehicle is armed; disarm before updating PX4"}, status_code=409)
             fw_res = await run_in_threadpool(state.conn.update_firmware)
             if not fw_res.get("ok"):
                 return JSONResponse({"ok": False, "error": fw_res.get("error"), "firmware": fw_res}, status_code=500)
+        elif body.get("firmware", True) and state.conn.mode == "hitl" and (export_params().get("NLF_ENABLE") == 1):
+            b = state.conn.board_firmware_status()
+            if b["needs_rebuild"] or b["needs_flash"]:
+                if link.armed:
+                    return JSONResponse({"ok": False, "error": "vehicle is armed; disarm before flashing"}, status_code=409)
+                fw_res = await run_in_threadpool(state.conn.update_board_firmware)
+                if not fw_res.get("ok"):
+                    return JSONResponse({"ok": False, "error": fw_res.get("error"), "firmware": fw_res}, status_code=500)
         if not link.ctl_connected:
             return JSONResponse({"ok": False, "error": "PX4 control link not connected"}, status_code=409)
         if link.armed:

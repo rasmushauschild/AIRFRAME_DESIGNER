@@ -840,14 +840,15 @@ async function loadExport() {
 let lastExport = null;
 $('#px4-refresh').addEventListener('click', loadExport);
 async function pushToPX4(statusEl, short = false) {
-  const fwStale = status.firmware && (status.firmware.needs_rebuild || status.firmware.needs_relaunch);
-  statusEl.innerHTML = fwStale ? '<span class="muted">Rebuilding firmware, relaunching PX4, then pushing… (watch the log)</span>' : '<span class="muted">Pushing…</span>';
+  const fw0 = status.firmware || {};
+  const fwStale = !!(fw0.needs_rebuild || fw0.needs_relaunch || fw0.needs_flash);
+  statusEl.innerHTML = fwStale ? (fw0.board ? '<span class="muted">Building if needed, flashing the board, then pushing… (a few minutes; watch the log)</span>' : '<span class="muted">Rebuilding firmware, relaunching PX4, then pushing… (watch the log)</span>') : '<span class="muted">Pushing…</span>';
   try {
     await api('/api/airframe', { airframe, keep_state: true });
     const r = await api('/api/px4/push', { save: true, firmware: true });
     const failed = r.results.filter(x => !x.ok);
     const fw = r.firmware || {};
-    const fwNote = fw.rebuilt ? `firmware rebuilt${fw.build_seconds ? ' in ' + Math.round(fw.build_seconds) + ' s' : ''}, PX4 relaunched · ` : (fw.relaunched ? 'PX4 relaunched on the new firmware · ' : '');
+    const fwNote = fw.flashed ? `${fw.rebuilt ? 'firmware built and ' : ''}board flashed · ` : (fw.rebuilt ? `firmware rebuilt${fw.build_seconds ? ' in ' + Math.round(fw.build_seconds) + ' s' : ''}, PX4 relaunched · ` : (fw.relaunched ? 'PX4 relaunched on the new firmware · ' : ''));
     statusEl.innerHTML = r.ok
       ? `<span class="ok">✓ ${fwNote}PX4 updated (${r.results.length} parameters)</span>`
       : `<span class="err">${failed.length} failed: ${failed.map(f => f.name + ' (' + f.error + ')').join(', ')}</span>`;
@@ -909,12 +910,16 @@ function updateFooter() {
   tko.classList.toggle('hidden', !!status.armed && !status.on_ground_hint && false);
   const upd = $('#btn-update');
   upd.disabled = !status.ctl_connected || !!status.armed;
-  const fwStale = status.firmware && (status.firmware.needs_rebuild || status.firmware.needs_relaunch);
+  const fw = status.firmware || {};
+  const fwStale = !!(fw.needs_rebuild || fw.needs_relaunch || fw.needs_flash);
+  const onBoard = !!fw.board;
+  upd.textContent = fwStale && onBoard ? 'Flash firmware' : 'Update PX4';
   upd.title = status.armed ? 'Disarm first: PX4 rebuilds its allocation when these parameters change' :
-    (fwStale ? `Firmware sources changed (${(status.firmware.stale || []).slice(0, 3).join(', ') || 'new binary'}): rebuilds PX4 SITL, relaunches it, then pushes the parameters`
+    (fwStale ? (onBoard ? `Module sources changed (${(fw.stale || []).slice(0, 3).join(', ') || 'new image'}): builds the ATLAS firmware if needed, flashes the board (archived), then pushes the parameters`
+                        : `Firmware sources changed (${(fw.stale || []).slice(0, 3).join(', ') || 'new binary'}): rebuilds PX4 SITL, relaunches it, then pushes the parameters`)
       : (status.ctl_connected ? 'Write the rotor geometry and output mapping to the flight controller and save it' : 'PX4 not connected'));
-  upd.classList.toggle('fw-stale', !!fwStale);
-  if (fwStale && !geometryDirty && !$('#update-status').textContent) $('#update-status').innerHTML = '<span class="warn">Firmware sources changed: Update PX4 rebuilds it</span>';
+  upd.classList.toggle('fw-stale', fwStale);
+  if (fwStale && !geometryDirty && !$('#update-status').textContent) $('#update-status').innerHTML = onBoard ? '<span class="warn">The board firmware is out of date</span>' : '<span class="warn">Firmware sources changed: Update PX4 rebuilds it</span>';
   $$('#mode-pills .pill').forEach(b => b.classList.toggle('active', status.connected && (status.mode_name || '').toLowerCase() === b.textContent.toLowerCase()));
 }
 // ---- nose lift (ground sequence): settings live in airframe.design.nose_lift
