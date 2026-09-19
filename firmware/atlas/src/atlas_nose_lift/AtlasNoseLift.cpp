@@ -442,7 +442,7 @@ private:
     // Fade only once PX4 has matched the floor continuously for half a second and its land detector reports liftoff.
     const bool supported = output.active && now-output.timestamp<100_ms && output.control[8]>=0.95f*_cmd9 && output.control[9]>=0.95f*_cmd10;
     if (!supported) { _support_since=0; } else if (!_support_since) { _support_since=now; }
-    if (!_fade_start && supported && now-_support_since>=500_ms && !land.landed) {
+    if (!_fade_start && supported && now-_support_since>=150_ms) {
      _fade_start=now; _fade9=_cmd9; _fade10=_cmd10; NL_INFO("PX4 supports nose and is lifting; fading motor floor");
     }
     if (now-_phase_start>15_s && !_fade_start) { fail("handover timeout",status,!land.landed); return; }
@@ -456,14 +456,14 @@ private:
     // The front floor was only holding the nose while the rear feet carried the weight: hand the nose to PX4's
     // attitude loop as the rear lifts (a held front floor pins the nose up and PX4 cannot lower it).
     const float front_scale=(_spool_cmd.get()>0.f) ? (1.f-rear_ramp) : 1.f;
-    const float fade = _fade_start ? math::constrain(1.f-(now-_fade_start)*1e-6f/2.f,0.f,1.f) : 1.f;
+    const float fade = _fade_start ? math::constrain(1.f-(now-_fade_start)*1e-6f/1.f,0.f,1.f) : 1.f;
     floor.control[8]=(_fade_start ? math::min(_cmd9,_fade9*fade) : _cmd9)*front_scale;
     floor.control[9]=(_fade_start ? math::min(_cmd10,_fade10*fade) : _cmd10)*front_scale;
     const float rear_fade=_rear_fade_start ? math::constrain(1.f-(now-_rear_fade_start)*1e-6f/1.f,0.f,1.f) : 1.f;
     const float rear=math::constrain(_spool_cmd.get(),0.f,1.f)*rear_ramp*rear_fade;
     if (rear>0.f) { for (int i=0;i<8;i++) { floor.control[i]=rear; } }
     _floor_pub.publish(floor);
-    if (_fade_start && now-_fade_start>2_s) { _phase=Climb; _phase_start=now; _target_z=pos.z; NL_INFO("handover complete"); }
+    if (_fade_start && now-_fade_start>1_s) { _phase=Climb; _phase_start=now; _target_z=pos.z; NL_INFO("handover complete"); }
    }
    mode.position=true; _mode_pub.publish(mode);
    if (_phase==Descend) { _target_z=math::min(pos.z+0.5f,_target_z+_land_speed.get()*0.004f); }   // keep descending, at most 0.5 m below the vehicle
