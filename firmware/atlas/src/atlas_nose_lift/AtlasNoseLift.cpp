@@ -89,22 +89,22 @@ private:
  // External trigger, the same on SITL, HITL and the real aircraft: MAV_CMD_USER_1 (31010) with param1 = 1 (takeoff)
  // or 2 (land), sent by any ground station or the designer app. The shell commands remain for the console.
  static constexpr uint32_t CMD_ATLAS = 31010;
- // Remote-control trigger: the switch on NLF_RC_CH requests takeoff on its rising edge (high) and landing on its
- // falling edge (low) while hovering, exactly like a pilot would on the real aircraft.
+ // Remote-control triggers: two momentary buttons. NLF_RC_CH requests takeoff on its rising edge, NLF_RC_LAND
+ // requests landing on its rising edge; nothing happens for buttons already pressed at boot.
  uORB::Subscription _rc_sub{ORB_ID(rc_channels)};
- bool _rc_high{false}, _rc_low{true}, _rc_seen{false};
+ bool _btn_to{false}, _btn_land{false}, _rc_seen{false};
  void poll_rc_switch() {
-  const int ch = _rc_ch.get();
-  if (ch < 1) { _rc_seen = false; return; }
+  const int ct = _rc_ch.get(), cl = _rc_land.get();
+  if (ct < 1 && cl < 1) { _rc_seen = false; return; }
   rc_channels_s rc{};
   if (!_rc_sub.update(&rc)) { return; }
-  if (rc.signal_lost || ch > rc.channel_count) { return; }
-  const float v = rc.channels[ch - 1];
-  const bool high = v > 0.5f, low = v < -0.5f;
-  if (!_rc_seen) { _rc_seen = true; _rc_high = high; _rc_low = low; return; }   // no request from the switch's position at boot
-  if (high && !_rc_high) { _request.store(true); }
-  if (low && !_rc_low) { _land_request.store(true); }
-  _rc_high = high; _rc_low = low;
+  if (rc.signal_lost) { return; }
+  const bool to = ct >= 1 && ct <= rc.channel_count && rc.channels[ct - 1] > 0.5f;
+  const bool land = cl >= 1 && cl <= rc.channel_count && rc.channels[cl - 1] > 0.5f;
+  if (!_rc_seen) { _rc_seen = true; _btn_to = to; _btn_land = land; return; }
+  if (to && !_btn_to) { _request.store(true); }
+  if (land && !_btn_land) { _land_request.store(true); }
+  _btn_to = to; _btn_land = land;
  }
  uORB::Subscription _cmd_sub{ORB_ID(vehicle_command)};
  uORB::Publication<vehicle_command_ack_s> _ack_pub{ORB_ID(vehicle_command_ack)};
@@ -126,6 +126,7 @@ private:
   (ParamFloat<px4::params::NLF_TARGET>) _lift_target,
  (ParamInt<px4::params::NLF_HW_OK>) _hw_ok,
  (ParamInt<px4::params::NLF_RC_CH>) _rc_ch,
+ (ParamInt<px4::params::NLF_RC_LAND>) _rc_land,
   (ParamFloat<px4::params::SENS_BOARD_Y_OFF>) _hover_param,
   (ParamFloat<px4::params::NLF_LAND_ANG>) _land_angle_param,
 

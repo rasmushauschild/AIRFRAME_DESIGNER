@@ -1520,7 +1520,7 @@ let rcCal = null;   // stick calibration in progress: { step, min: [], max: [] }
 const RC_FUNCS = [
   { p: 'RC_MAP_ROLL', label: 'Roll', kind: 'stick' }, { p: 'RC_MAP_PITCH', label: 'Pitch', kind: 'stick' }, { p: 'RC_MAP_THROTTLE', label: 'Throttle', kind: 'stick' }, { p: 'RC_MAP_YAW', label: 'Yaw', kind: 'stick' },
   { p: 'RC_MAP_FLTMODE', label: 'Flight mode', kind: 'mode' },
-  { p: 'NLF_RC_CH', label: 'Nose-lift takeoff / land', kind: 'nlf' },
+  { p: 'NLF_RC_CH', label: 'Nose-lift takeoff (button)', kind: 'button' }, { p: 'NLF_RC_LAND', label: 'Nose-lift land (button)', kind: 'button' },
   { p: 'RC_MAP_ARM_SW', label: 'Arm', kind: 'switch', th: 'RC_ARMSWITCH_TH' }, { p: 'RC_MAP_KILL_SW', label: 'Kill', kind: 'switch', th: 'RC_KILLSWITCH_TH' },
   { p: 'RC_MAP_RETURN_SW', label: 'Return home', kind: 'switch', th: 'RC_RETURN_TH' }, { p: 'RC_MAP_LOITER_SW', label: 'Hold', kind: 'switch', th: 'RC_LOITER_TH' },
   { p: 'RC_MAP_OFFB_SW', label: 'Offboard', kind: 'switch', th: 'RC_OFFB_TH' }, { p: 'RC_MAP_TRANS_SW', label: 'VTOL transition', kind: 'switch', th: 'RC_TRANS_TH' },
@@ -1588,7 +1588,7 @@ function renderRcBoard() {
       if (f && f.kind === 'mode') cells = [0, 50, 100].map(pos => `<span class="rc-c" data-pos="${pos}">${modeSel(pos)}</span>`).join('');
       else if (f && f.kind === 'switch') cells = [0, 50, 100].map(pos => `<span class="rc-c" data-pos="${pos}">${f.th ? `<button class="rc-sw ${switchOnAt(f, pos) ? 'on' : ''}" data-ch="${ch}" data-pos="${pos}" title="click: ${f.label} is ON at this position">${switchOnAt(f, pos) ? 'ON' : 'off'}</button>` : `<span class="rc-dim">${pos === 100 ? 'ON' : 'off'}</span>`}</span>`).join('');
       else if (f && f.kind === 'stick') cells = `<span class="rc-c rc-dim">${f.p === 'RC_MAP_THROTTLE' ? 'idle' : 'full −'}</span><span class="rc-c rc-dim">centre</span><span class="rc-c rc-dim">${f.p === 'RC_MAP_THROTTLE' ? 'full' : 'full +'}</span>`;
-      else if (f && f.kind === 'nlf') cells = `<span class="rc-c" data-pos="0"><span class="rc-tag">land</span></span><span class="rc-c rc-dim" data-pos="50">–</span><span class="rc-c" data-pos="100"><span class="rc-tag on">take off</span></span>`;
+      else if (f && f.kind === 'button') cells = `<span class="rc-c rc-dim" data-pos="0">released</span><span class="rc-c rc-dim" data-pos="50">–</span><span class="rc-c" data-pos="100"><span class="rc-tag on">${f.p === 'NLF_RC_CH' ? 'take off' : 'land'}</span></span>`;
       return `<div class="rc-line" data-ch="${ch}"><span class="rc-n">${ch}</span><input class="rc-name" data-ch="${ch}" value="${esc(names[ch] || '')}" placeholder="name" maxlength="18" title="your own name for this channel (saved with the airframe)"><span class="rc-bar"><i data-ch="${ch}" style="width:50%"></i></span><span class="rc-val" data-ch="${ch}">–</span><span class="rc-fsel">${fnSel}</span>${cells}</div>`;
     }).join('');
     el.innerHTML = `<div class="rc-table"><div class="rc-line rc-head"><span></span><span>Name</span><span></span><span></span><span>Controls</span><span>0 %</span><span>50 %</span><span>100 %</span></div>${rows}</div>

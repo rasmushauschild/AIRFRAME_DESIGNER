@@ -74,8 +74,16 @@ parameters:
       max: 5
     NLF_RC_CH:
       description:
-        short: RC channel that requests the ground sequence
-        long: 0 = none. The switch on this channel requests takeoff (nose lift, climb, hover) when it goes high and the landing sequence (rear legs, nose down, motors off) when it goes low while hovering.
+        short: RC channel of the takeoff button
+        long: 0 = none. A momentary button on this channel requests the ground sequence (nose lift, climb, hover) when it is pressed (channel goes high).
+      type: int32
+      min: 0
+      max: 18
+      default: 0
+    NLF_RC_LAND:
+      description:
+        short: RC channel of the landing button
+        long: 0 = none. A momentary button on this channel requests the landing sequence (rear legs, nose down, motors off) when it is pressed while hovering.
       type: int32
       min: 0
       max: 18
