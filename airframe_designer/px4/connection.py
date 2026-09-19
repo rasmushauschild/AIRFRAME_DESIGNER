@@ -689,12 +689,15 @@ class ConnectionManager:
         link = self.link
         if link is None or link.mode != "hitl" or not link.ctl_connected:
             return {"ok": False, "error": "not connected to a Pixhawk"}
+        if link.armed:
+            return {"ok": False, "error": "disarm before switching sensor mode"}
         r = link.set_param("SYS_HITL", 1)
         if not r["ok"]:
             return {"ok": False, "error": f"could not set SYS_HITL: {r.get('error')}"}
         link.preflight_storage(True)
         time.sleep(0.5)
         link.reboot()
+        link.block_hil = False
         self.log("[hitl] SYS_HITL=1 saved, rebooting the flight controller; waiting for it to come back…")
         return {"ok": True}
 
@@ -716,7 +719,9 @@ class ConnectionManager:
         has_hil_driver = params_ok and any(k.startswith("HIL_ACT_FUNC") for k in link.params)
         board = self.detected_board()
         hil_detail, hil_action = "", None
-        if streaming:
+        if sys_hitl == 0:
+            hil_detail = "Real flight: onboard sensors, simulator sensor stream disabled"
+        elif streaming:
             hil_detail = f"{link.actuator_seq} actuator messages"
         elif not up:
             hil_detail = ""
@@ -728,7 +733,7 @@ class ConnectionManager:
             hil_detail = "this firmware has no HIL output driver: flash the ATLAS firmware"
         else:
             hil_detail = "waiting for the board to enter HIL mode (reboot it if this stays)"; hil_action = "reboot"
-        steps.append({"id": "hil", "label": "Board in HIL mode, streaming outputs", "ok": streaming, "detail": hil_detail, "action": hil_action})
+        steps.append({"id": "hil", "label": "Board sensing mode", "ok": streaming or sys_hitl == 0, "detail": hil_detail, "action": hil_action})
         want_module = bool(export_params) and export_params.get("NLF_ENABLE") == 1
         if hitl and want_module:
             has_module = self.native_module_seen or "NLF_ENABLE" in link.params
@@ -890,6 +895,47 @@ class ConnectionManager:
             if not self._wait_params(150.0):
                 return {**out, "ok": False, "error": "the board did not come back with its parameters after the flash"}
         return out
+
+    def prepare_real_flight(self) -> dict:
+        from .real_flight import flight_params, check_board, apply_verified
+        try:
+            check_board(self.link)
+            if self.link.params.get("SYS_AUTOSTART", {}).get("value") != 4001:
+                raise ValueError("Real-flight setup currently supports the Generic Multicopter base airframe (SYS_AUTOSTART=4001)")
+            params = flight_params(self.sim.airframe)
+            self.log("[real flight] updating ATLAS firmware if needed; aircraft remains disarmed")
+            result = self.update_board_firmware()
+            if not result.get("ok"):
+                return result
+            link = self.link
+            check_board(link)
+            link.block_hil = True
+            for key, value in (("NLF_HW_OK", 0), ("SYS_HITL", 0)):
+                r = link.set_param(key, value)
+                if not r.get("ok"):
+                    raise ValueError(f"Could not set {key}: {r.get('error')}")
+            link.preflight_storage(True)
+            self.log("[real flight] switching to onboard sensors and rebooting; waiting for physical output drivers")
+            before = link.heartbeat_time
+            link.reboot()
+            deadline = time.monotonic() + 120
+            # The old heartbeat is HIL-enabled. A fresh non-HIL heartbeat proves the reboot switched modes.
+            while time.monotonic() < deadline:
+                if link.heartbeat_time > before + 2 and not link.hil_enabled and link.ctl_connected:
+                    break
+                time.sleep(.25)
+            else:
+                raise ValueError("Board did not reconnect in real-flight mode; setup incomplete")
+            link.fetch_all_params()
+            if link.params.get("SYS_HITL", {}).get("value") != 0:
+                raise ValueError("Board did not confirm SYS_HITL=0")
+            applied = apply_verified(link, params)
+            self.log("[real flight] configuration saved. Verify calibration, RC/failsafes, PWM protocol and motor direction before flight.")
+            return {"ok": True, "params": applied, "firmware": result,
+                    "message": "Real-flight configuration saved. Aircraft remains disarmed; physical flight checks are still required."}
+        except Exception as exc:
+            self.log(f"[real flight] setup incomplete: {exc}")
+            return {"ok": False, "error": str(exc)}
 
     _ports_cache: tuple[float, list] = (0.0, [])
 

@@ -238,6 +238,25 @@ class Airframe:
             # the stock 2 s auto-disarm fires mid-lift; the module disarms itself after nose contact, these are backups.
             p["COM_DISARM_LAND"] = max(60.0, float(p.get("COM_DISARM_LAND", 0.0)))
             p["COM_DISARM_PRFLT"] = max(40.0, float(p.get("COM_DISARM_PRFLT", 0.0)))
+            if p.get("NLF_RC_THR") == 1:
+                p["COM_DISARM_LAND"] = max(120.0, float(p["COM_DISARM_LAND"]))
+            if int(p.get("NLF_PILOT", 0) or 0):
+                # Pilot handover (no GPS): the nose is held up while the pilot waits with the throttle at minimum, which
+                # PX4's land detector reads as "landed, not taking off". Neither auto-disarm may fire meanwhile.
+                p["COM_DISARM_LAND"] = max(120.0, float(p["COM_DISARM_LAND"]))
+                p["COM_DISARM_PRFLT"] = max(120.0, float(p["COM_DISARM_PRFLT"]))
+                # Airmode lets the allocator trade collective thrust for pitch authority. On the legs, nose 35 deg below
+                # PX4's level, that runs the front fans up and the rear fans down at any throttle: the aircraft cannot
+                # lift off, the nose cannot be lowered, and the pilot's throttle stops being the collective. Off.
+                p["MC_AIRMODE"] = 0
+                # Stabilized maps the throttle stick's centre to the hover thrust parameter (MPC_THR_CURVE 0 until the
+                # hover thrust estimator has run). PX4 sees commands, not thrust (THR_MDL_FAC 0) and the motors are
+                # quadratic: the rotor with the largest hover share is commanded the collective itself, so the hover
+                # collective is the square root of that rotor's thrust utilisation.
+                hover = self.hover_check()
+                shares, util = hover.get("shares", []), hover.get("hover_utilisation", [])
+                if shares and util and util[int(np.argmax(shares))]:
+                    p.setdefault("MPC_THR_HOVER", round(min(0.8, max(0.2, float(np.sqrt(util[int(np.argmax(shares))])))), 2))
             # the module commands the front fans as sqrt(thrust fraction) and checks that PX4 applies no thrust curve
             p["THR_MDL_FAC"] = 0.0
             # stick override is built into this PX4: a stick moved faster than MAN_OVERRIDE_SPD (normalised travel per

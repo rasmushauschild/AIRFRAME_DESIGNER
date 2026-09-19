@@ -33,7 +33,7 @@ RESULTS_DIR = PROJECT_DIR / "results"
 
 # PX4 custom mode encoding: main_mode << 16 | sub_mode << 24
 PX4_MODES = {
-    "manual": (1, 0), "altitude": (2, 0), "position": (3, 0), "acro": (5, 0), "stabilized": (7, 0),
+    "manual": (1, 0), "altitude": (2, 0), "position": (3, 0), "acro": (5, 0), "offboard": (6, 0), "stabilized": (7, 0),
     "takeoff": (4, 2), "hold": (4, 3), "mission": (4, 4), "rtl": (4, 5), "land": (4, 6),
 }
 PX4_MAIN_MODE_NAMES = {1: "Manual", 2: "Altitude", 3: "Position", 4: "Auto", 5: "Acro", 6: "Offboard", 7: "Stabilized",
@@ -495,6 +495,17 @@ def build_app(state: AppState) -> FastAPI:
     async def enable_hitl():
         return await run_in_threadpool(state.conn.enable_hitl)
 
+    real_flight_lock = asyncio.Lock()
+
+    @app.post("/api/firmware/real_flight")
+    async def prepare_real_flight(body: dict):
+        if body.get("confirmed") is not True:
+            return JSONResponse({"ok": False, "error": "Confirm the real-flight conversion in Connect first"}, status_code=409)
+        if real_flight_lock.locked():
+            return JSONResponse({"ok": False, "error": "Real-flight setup is already running"}, status_code=409)
+        async with real_flight_lock:
+            return await run_in_threadpool(state.conn.prepare_real_flight)
+
     @app.post("/api/firmware/build")
     async def firmware_build(body: dict | None = None):
         """Build board firmware; atlas=true builds it with the ATLAS modules the SITL uses (from the SITL's PX4 tree)."""
@@ -597,6 +608,9 @@ def build_app(state: AppState) -> FastAPI:
     # ------------------------------------------------------------ PX4 export
     def export_params() -> dict[str, float | int]:
         hitl = link.mode == "hitl"
+        if hitl and link.params.get("SYS_HITL", {}).get("value") == 0:
+            from ..px4.real_flight import flight_params
+            return flight_params(sim.airframe)
         return sim.airframe.px4_params(hitl=True) if hitl else sim.airframe.px4_params_sitl()
 
     @app.get("/api/px4/export")
@@ -605,12 +619,12 @@ def build_app(state: AppState) -> FastAPI:
         current = {k: link.params.get(k, {}).get("value") for k in params}
         ov = sim.airframe.px4_overrides or {}
         return json_safe({"params": params, "current": current, "problems": sim.airframe.validate() + sim.airframe.hover_check()["problems"],
-                "file": sim.airframe.px4_params_file(hitl=link.mode == "hitl"),
+                "file": "\n".join(["# AIRFRAME_DESIGNER parameters", *[f"1\t1\t{k}\t{v}\t{6 if isinstance(v, int) else 9}" for k, v in export_params().items()]]) + "\n",
                 "overrides": ov, "geometry_keys": [k for k in params if k not in ov]})
 
     @app.get("/api/px4/export.params")
     async def get_export_file():
-        return PlainTextResponse(sim.airframe.px4_params_file(hitl=link.mode == "hitl"),
+        return PlainTextResponse("\n".join(["# AIRFRAME_DESIGNER parameters", *[f"1\t1\t{k}\t{v}\t{6 if isinstance(v, int) else 9}" for k, v in export_params().items()]]) + "\n",
                                  headers={"Content-Disposition": f'attachment; filename="{sim.airframe.name}.params"'})
 
     @app.get("/api/px4/firmware")
@@ -649,6 +663,10 @@ def build_app(state: AppState) -> FastAPI:
         only = body.get("only")
         if only:
             params = {k: v for k, v in params.items() if k in only}
+        if link.mode == "hitl" and link.params.get("SYS_HITL", {}).get("value") == 0:
+            missing_outputs = [k for k in params if k.startswith("PWM_") and k not in link.params]
+            if missing_outputs:
+                return JSONResponse({"ok": False, "error": "Real-flight setup incomplete; missing outputs: " + ", ".join(missing_outputs)}, status_code=409)
         # skip params this firmware does not have (HIL_ACT on SITL, the NLF_* nose-lift module on a stock board).
         # While the parameter list is still downloading, keep the NLF_* ones: they belong to the ATLAS SITL build and
         # are simply not listed yet.
@@ -820,6 +838,18 @@ def build_app(state: AppState) -> FastAPI:
         return {"ok": True, "speed": sim.speed}
 
     HITL_PLANT = "with a flight controller connected (HITL) the simulator is only the plant: nothing on this side may drive the motors or the sequence"
+
+    from ..px4.motor_test import MotorTest
+    hardware_motor_test = MotorTest()
+
+    @app.post("/api/px4/motor_test")
+    async def motor_test(body: dict):
+        try:
+            if body.get("confirmed") is not True:
+                raise ValueError("Enable motor testing and acknowledge the bench-test precautions first")
+            return hardware_motor_test.send(link, body.get("motor"), float(body.get("value", 0)), len(sim.airframe.active_rotors()))
+        except (ValueError, TypeError, AttributeError) as exc:
+            return JSONResponse({"ok": False, "error": str(exc)}, status_code=409)
 
     @app.post("/api/sim/motor_override")
     async def motor_override(body: dict):

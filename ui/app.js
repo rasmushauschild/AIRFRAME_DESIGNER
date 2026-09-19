@@ -404,12 +404,13 @@ const nf = (v, d = 3) => (typeof v === 'number' && isFinite(v)) ? +v.toFixed(d) 
 function renderRotorTable() {
   const el = $('#rotor-table');
   const rows = airframe.rotors.map((r, i) => rotorRowHtml(i, r)).join('');
-  el.innerHTML = `<table class="grid"><thead><tr><th>#</th><th title="enabled: takes part in the simulation and the PX4 export">On</th><th>Name</th><th title="position, m, structural frame (FRD like PX4): X forward">X</th><th title="Y right (+)">Y</th><th title="Z DOWN (+): a rotor 10 cm above the reference point has Z = -0.10">Z</th><th title="forward lean of the thrust axis from vertical, degrees; negative = backward">Tilt°</th><th title="sideways lean, degrees; positive = outward from the centreline (right for a rotor on the centreline)">Cant°</th><th title="resulting unit thrust vector = CA_ROTORn_AX / AY / AZ">Axis AX AY AZ</th><th title="ducted fans: the fan along the thrust (jet), or a horizontal fan whose jetfoil bends the jet to the thrust axis (foil)">Duct</th><th>Spin</th><th title="max thrust N">Tmax</th><th title="share of max thrust this rotor needs to hover, as PX4's allocator would solve it">Hover</th><th></th></tr></thead><tbody>${rows || '<tr><td colspan="14" class="hint">No rotors. Add one below.</td></tr>'}</tbody></table>`;
+  el.innerHTML = `<table class="grid"><thead><tr><th title="Physical PWM port: 1–8 = MAIN 1–8; 9–10 = AUX 1–2">#</th><th title="enabled: takes part in the simulation and the PX4 export">On</th><th>Name</th><th title="position, m, structural frame (FRD like PX4): X forward">X</th><th title="Y right (+)">Y</th><th title="Z DOWN (+): a rotor 10 cm above the reference point has Z = -0.10">Z</th><th title="forward lean of the thrust axis from vertical, degrees; negative = backward">Tilt°</th><th title="sideways lean, degrees; positive = outward from the centreline (right for a rotor on the centreline)">Cant°</th><th title="resulting unit thrust vector = CA_ROTORn_AX / AY / AZ">Axis AX AY AZ</th><th title="ducted fans: the fan along the thrust (jet), or a horizontal fan whose jetfoil bends the jet to the thrust axis (foil)">Duct</th><th>Spin</th><th title="max thrust N">Tmax</th><th title="share of max thrust this rotor needs to hover, as PX4's allocator would solve it">Hover</th><th></th></tr></thead><tbody>${rows || '<tr><td colspan="14" class="hint">No rotors. Add one below.</td></tr>'}</tbody></table>`;
   api('/api/airframe/hover_check').then(showHover).catch(() => { });
   el.querySelectorAll('tr[data-i]').forEach(tr => {
     const i = +tr.dataset.i;
     tr.addEventListener('click', (e) => { if (!['INPUT', 'SELECT', 'OPTION', 'BUTTON'].includes(e.target.tagName) && !e.target.classList.contains('spin') && !e.target.classList.contains('del')) { selected = i; scene.select(i); renderRotorTable(); renderReadout(); } });
-    tr.querySelectorAll('input, select').forEach(inp => inp.addEventListener('change', () => applyRow(i, tr)));
+    tr.querySelectorAll('input, select:not(.rotor-port)').forEach(inp => inp.addEventListener('change', () => applyRow(i, tr)));
+    tr.querySelector('.rotor-port').addEventListener('change', e => changeMotorPort(e.target));
     tr.querySelector('.spin').addEventListener('click', () => { airframe.rotors[i].km = -airframe.rotors[i].km; scene.updateRotorNode(i, airframe.rotors[i]); renderRotorTable(); pushAirframe(true); });
     tr.querySelector('.del').addEventListener('click', () => { airframe.rotors.splice(i, 1); selected = -1; setAirframe(airframe); pushAirframe(true); });
   });
@@ -418,7 +419,7 @@ const axisText = (a) => a.map(v => (v >= 0 ? ' ' : '') + v.toFixed(2)).join(' ')
 function rotorRowHtml(i, r) {
   const ccw = r.km >= 0;
   const [tilt, cant] = axisToTilt(r.axis, r.pos[1]);
-  return `<tr data-i="${i}" class="${i === selected ? 'selected' : ''} ${r.enabled === false ? 'off' : ''}"><td class="idx">${i + 1}</td>
+  return `<tr data-i="${i}" class="${i === selected ? 'selected' : ''} ${r.enabled === false ? 'off' : ''}"><td class="idx">${rotorPortHtml(i, r)}</td>
   <td><input type="checkbox" data-k="on" ${r.enabled === false ? '' : 'checked'}></td>
   <td><input type="text" class="name" data-k="name" value="${esc(r.name)}"></td>
   <td><input type="number" step="0.005" data-k="x" value="${r.pos[0]}"></td>
@@ -881,16 +882,40 @@ function updateFooter() {
       .finally(() => { prearmReportRequestPending = false; });
   }
   const nativeNoseLift = nativeModuleActive();
+  const manualPrototype = Number(params.NLF_MANUAL?.value ?? 0) === 1;
+  const pilotHandover = Number(params.NLF_PILOT?.value ?? airframe?.px4_overrides?.NLF_PILOT ?? 0);   // what the flight controller runs now
+  const stagedRc = manualPrototype || (Number(params.NLF_RC_THR?.value ?? 0) === 1 && !pilotHandover);
+  const stagedCheckbox = $('#staged-rc-takeoff');
+  stagedCheckbox.disabled = !!status.armed || manualPrototype || !!pilotHandover;
+  { const sel = $('#handover-mode');
+    sel.disabled = !!status.armed || !nativeNoseLift;
+    if (document.activeElement !== sel) sel.value = String(airframe?.px4_overrides?.NLF_PILOT ?? params.NLF_PILOT?.value ?? 0);
+    const chosen = Number(sel.value);
+    $('#handover-hint').hidden = !chosen;
+    sel.title = nativeNoseLift ? (chosen && chosen !== pilotHandover ? 'Update PX4 to apply' : '') : 'Needs the native nose-lift module'; }
+  { const ng = $('#sim-nogps');
+    ng.disabled = !!status.armed;
+    if (document.activeElement !== ng) ng.checked = Number(airframe?.px4_overrides?.EKF2_GPS_CTRL ?? 7) === 0; }
+  const manualHint = $('#staged-rc-hint');
+  if (manualHint) {
+    manualHint.dataset.standard ||= manualHint.textContent;
+    manualHint.textContent = manualPrototype ? 'HITL/SITL manual prototype: first Takeoff lifts the nose under RC throttle. After pitch settles for one second, press again to climb gently to 2 m above the starting height and hold altitude. RC throttle is a power ceiling: lowering it overrides height hold. No horizontal position hold or automatic landing. Keep all motor batteries disconnected for HITL.' : manualHint.dataset.standard;
+  }
+  if (stagedCheckbox.nextSibling?.nodeType === Node.TEXT_NODE) stagedCheckbox.nextSibling.textContent = manualPrototype ? ' GPS-free manual prototype (simulation only)' : ' Two-stage takeoff with RC throttle (1 m)';
+  if (document.activeElement !== stagedCheckbox) stagedCheckbox.checked = Number(airframe.px4_overrides?.NLF_RC_THR ?? params.NLF_RC_THR?.value ?? 0) === 1;
   tko.title = nativeNoseLift ? 'PX4 arms, raises the nose to the configured target, then climbs and holds heading' : 'Automatic takeoff';
   tko.textContent = 'Takeoff';
-  tko.disabled = !!status.resetting || !status.ctl_connected || (nativeNoseLift && status.armed) || (!status.armed && !status.arm_ready);
+  if (stagedRc) tko.title = 'First press: RC-controlled nose lift. Once nose ready, press again to climb to 1 m. Lower throttle to request abort/landing.';
+  if (manualPrototype) tko.title = 'Simulation only: RC nose lift, then second press for 2 m altitude hold with RC power ceiling and attitude control.';
+  if (pilotHandover) tko.title = status.armed ? 'Second press (throttle at minimum): you get the throttle; raise it slowly to lift off' : `Arms, raises the nose to level and waits for "nose ready"; a second press gives you the throttle, PX4 (${pilotHandover === 2 ? 'Altitude' : 'Stabilized'}) takes over once airborne`;
+  tko.disabled = !!status.resetting || !status.ctl_connected || (nativeNoseLift && status.armed && !stagedRc && !pilotHandover) || (!status.armed && !status.arm_ready);
   $$('#nl-card input, #nl-card button').forEach(el => { el.disabled = !!nativeNoseLift || status.conn_mode === 'hitl'; });
-  { const me = $('#motor-enable'); if (me) { const hitl = status.conn_mode === 'hitl'; me.disabled = hitl; if (hitl && me.checked) { me.checked = false; } me.closest('label') && (me.closest('label').title = hitl ? 'Not with a flight controller connected: the simulator is only the plant' : ''); } }
+  { const me = $('#motor-enable'); if (me) { const hitl = status.conn_mode === 'hitl'; me.disabled = hitl && (status.armed || !status.ctl_connected); if (me.disabled && me.checked) { stopMotorTest(); me.checked = false; } me.closest('label') && (me.closest('label').title = hitl ? 'Real motor tests require a connected, disarmed flight controller' : ''); } }
   const landButton = $('#btn-land');
   if (landButton) {
     landButton.textContent = 'Land';
-    landButton.disabled = !status.ctl_connected || !status.armed;
-    landButton.title = nativeNoseLift ? 'From native hover: descend onto rear legs, lower the nose at 4 degrees/s, then disarm' : 'Land';
+    landButton.disabled = manualPrototype || !status.ctl_connected || !status.armed;
+    landButton.title = manualPrototype ? 'Manual prototype has no automatic landing; use RC throttle and attitude controls.' : (nativeNoseLift && pilotHandover) ? 'Before liftoff: lower the nose again. In the air: the module takes the motors back; lower the throttle to descend, the nose is lowered on rear-leg contact' : nativeNoseLift ? 'From native hover: descend onto rear legs, lower the nose at 4 degrees/s, then disarm' : 'Land';
   }
   $('#af-hover').disabled = !!status.armed;
   $('#af-landed').readOnly = true;
@@ -986,7 +1011,7 @@ $('#btn-takeoff').addEventListener('click', async () => {
   try {
     if (nativeModuleActive()) {
       // one MAVLink command, the same a ground station would send to the real aircraft; the flight controller does the rest
-      if (status.armed) return;
+      if (status.armed && Number(params.NLF_RC_THR?.value ?? 0) !== 1 && Number(params.NLF_MANUAL?.value ?? 0) !== 1 && Number(params.NLF_PILOT?.value ?? 0) === 0) return;
       await api('/api/px4/command', { command: 'nose_lift_takeoff' });
       return;
     }
@@ -1178,28 +1203,134 @@ $('#sim-noise').addEventListener('change', e => api('/api/sim/noise', { enabled:
 $('#wind-apply').addEventListener('click', () => api('/api/sim/wind', { north: +$('#wind-n').value, east: +$('#wind-e').value, down: +$('#wind-d').value }));
 $('#home-apply').addEventListener('click', () => api('/api/sim/home', { lat: +$('#home-lat').value, lon: +$('#home-lon').value, alt: +$('#home-alt').value }));
 
-// one set of sliders: shows PX4's live motor commands, or drives the physics directly with Manual override on
-function renderMotorSliders() {
-  const el = $('#motor-sliders');
-  el.innerHTML = airframe.rotors.map((r, i) => `<label><b title="${esc(r.name)}">M${i + 1}</b> <input type="range" min="0" max="1" step="0.01" value="0" data-i="${i}" ${$('#motor-enable').checked ? '' : 'disabled'}><span class="mv num">0%</span></label>`).join('');
-  el.querySelectorAll('input').forEach(inp => inp.addEventListener('input', sendOverride));
+// Hardware sliders send short PX4 actuator-test pulses only while held.
+let motorTestTimer = null, motorTestBusy = false, heldMotor = null, motorTestStarted = 0;
+const hardwareMotors = () => (status.conn_mode || status.mode) === 'hitl';
+// Physical connector numbering is independent of allocator motor identity.
+function rotorPortKey(port) {
+  return port <= 8 ? `PWM_MAIN_FUNC${port}` : `PWM_AUX_FUNC${port - 8}`;
 }
-function sendOverride() {
-  const vals = $$('#motor-sliders input').map(i => parseFloat(i.value));
-  if ($('#motor-enable').checked && status.conn_mode !== 'hitl') api('/api/sim/motor_override', { values: vals });
+function motorPortValues() {
+  const values = {}, overrides = airframe.px4_overrides || {};
+  // Keep a complete saved wiring map once edited. Older models default to 1..N.
+  const saved = Array.from({length:10}, (_,i) => rotorPortKey(i+1)).some(k => k in overrides);
+  const live = Array.from({length:10}, (_,i) => Number(params[rotorPortKey(i+1)]?.value || 0));
+  const liveMapped = live.some(v => v >= 101 && v <= 116);
+  const count = airframe.rotors.filter(r => r.enabled !== false).length;
+  for (let port=1; port<=10; port++) {
+    const key = rotorPortKey(port);
+    values[key] = saved ? Number(overrides[key] || 0) : liveMapped ? live[port-1] : port <= count ? 100+port : 0;
+  }
+  return values;
 }
-function updateMotorSliders(st) {
-  const manual = $('#motor-enable').checked;
-  st.rotors.forEach((x, i) => {
-    const inp = document.querySelector(`#motor-sliders input[data-i="${i}"]`), lab = document.querySelector(`#motor-sliders label:nth-child(${i + 1}) .mv`);
-    if (inp && !manual) inp.value = x.cmd.toFixed(2);
-    const pct = airframe.rotors[i] && airframe.rotors[i].max_thrust > 0 ? x.thrust / airframe.rotors[i].max_thrust * 100 : 0;
-    if (lab) lab.textContent = pct.toFixed(0) + '%';
+function rotorPortHtml(i, r) {
+  const motor = r.enabled === false ? 0 : airframe.rotors.slice(0,i+1).filter(x => x.enabled !== false).length;
+  const values = motorPortValues();
+  const port = Array.from({length:10},(_,i)=>i+1).find(p=>values[rotorPortKey(p)] === 100+motor);
+  return `<select class="rotor-port" data-motor="${motor}" aria-label="PWM port for ${esc(r.name)}" ${!motor || status.armed || $('#motor-enable').checked ? 'disabled' : ''}><option value="">—</option>${Array.from({length:10},(_,i)=>i+1).map(p=>`<option value="${rotorPortKey(p)}" ${p===port?'selected':''}>${p}</option>`).join('')}</select>`;
+}
+function updateMotorPorts() {
+  const values = motorPortValues();
+  $$('#rotor-table select.rotor-port').forEach(sel => {
+    sel.disabled = !!status.armed || $('#motor-enable').checked || !Number(sel.dataset.motor);
+    if (document.activeElement !== sel) sel.value = Object.keys(values).find(k=>values[k]===100+Number(sel.dataset.motor)) || '';
   });
 }
+function changeMotorPort(sel) {
+  if (status.armed || $('#motor-enable').checked) { updateMotorPorts(); return; }
+  const values = motorPortValues(), fn = 100 + Number(sel.dataset.motor), target = sel.value;
+  const old = Object.keys(values).filter(k => values[k] === fn);
+  if (target && !(target in values)) return;
+  const occupant = target ? values[target] : 0;
+  if (occupant && (occupant < 101 || occupant > 116)) { logLine('[motor ports] This port is assigned to a non-motor output.'); sel.blur(); updateMotorPorts(); return; }
+  if (occupant && occupant !== fn && old.length !== 1) { logLine('[motor ports] Assign this motor to a free port before swapping.'); sel.blur(); updateMotorPorts(); return; }
+  for (const k of old) values[k] = 0;
+  if (target) values[target] = fn;
+  if (occupant && occupant !== fn) values[old[0]] = occupant;
+  airframe.px4_overrides = {...airframe.px4_overrides, ...values};
+  sel.blur(); updateMotorPorts(); pushAirframe(true);
+}
+function renderMotorSliders() {
+  const el = $('#motor-sliders');
+  const hardware = hardwareMotors();
+  let output = 0;
+  el.innerHTML = airframe.rotors.map((r, i) => {
+    const motor = r.enabled === false ? 0 : ++output;
+    return `<label><b title="${esc(r.name)}">M${motor || '–'} ${esc(r.name)}</b> <input type="range" min="0" max="${hardware ? .15 : 1}" step="0.005" value="0" data-i="${i}" data-motor="${motor}" disabled><span class="mv num">0%</span></label>`;
+  }).join('');
+  updateMotorPorts();
+  el.querySelectorAll('input').forEach(inp => {
+    inp.addEventListener('pointerdown', () => {
+      if (!hardwareMotors() || !$('#motor-enable').checked || status.armed) return;
+      stopMotorTest();
+      scene.highlightMotorTest?.(Number(inp.dataset.i));
+      heldMotor = inp; motorTestStarted = Date.now()/1000;
+      motorTestTimer = setInterval(sendHardwareMotor, 150);
+    });
+    inp.addEventListener('input', () => {
+      if ($('#motor-enable').checked) scene.highlightMotorTest?.(Number(inp.dataset.i));
+      hardwareMotors() ? sendHardwareMotor() : sendOverride();
+    });
+  });
+}
+async function sendHardwareMotor() {
+  if (!heldMotor || motorTestBusy) return;
+  if (!hardwareMotors() || status.armed || !status.ctl_connected || !$('#motor-enable').checked) { stopMotorTest(); return; }
+  motorTestBusy = true;
+  const inp = heldMotor;
+  try {
+    const value = Number(inp.value);
+    const result = await api('/api/px4/motor_test', {motor: Number(inp.dataset.motor), value, confirmed:true});
+    if (!result.ok) throw new Error(result.error || 'Motor test rejected');
+    inp.parentElement.querySelector('.mv').textContent = (value*100).toFixed(1)+'% command';
+  } catch(e) { logLine('[motor test] '+e.message); stopMotorTest(); }
+  finally { motorTestBusy = false; }
+}
+function stopMotorTest() {
+  scene.highlightMotorTest?.(-1);
+  clearInterval(motorTestTimer); motorTestTimer = null;
+  const inp = heldMotor; heldMotor = null;
+  if (inp) {
+    inp.value = 0;
+    inp.parentElement.querySelector('.mv').textContent = '0% command';
+    api('/api/px4/motor_test', {motor:Number(inp.dataset.motor), value:0, confirmed:true}).catch(()=>{});
+  }
+}
+window.addEventListener('pointerup', stopMotorTest);
+window.addEventListener('pointercancel', stopMotorTest);
+window.addEventListener('blur', stopMotorTest);
+document.addEventListener('visibilitychange', () => { if (document.hidden) stopMotorTest(); });
+function sendOverride() {
+  const vals = $$('#motor-sliders input').map(i => parseFloat(i.value));
+  if ($('#motor-enable').checked && !hardwareMotors()) api('/api/sim/motor_override', {values:vals});
+}
+function updateMotorSliders(st) {
+  updateMotorPorts();
+  const hardware = hardwareMotors();
+  $('#motor-test-help').textContent = hardware ? 'REAL MOTORS · Disarmed only. Hold one slider to run; release to stop. Maximum 15% command. Yellow vector = requested fan, not measured rotation. Wait one second before another motor.' : 'Simulator motor override';
+  if (hardware && (status.armed || !status.ctl_connected)) { stopMotorTest(); $('#motor-enable').checked = false; }
+  const manual = $('#motor-enable').checked;
+  $$('#motor-sliders input').forEach(inp => {
+    inp.max = hardware ? .15 : 1;
+    inp.disabled = !manual || (hardware && (!Number(inp.dataset.motor) || status.armed || !status.ctl_connected));
+    if (hardware && inp !== heldMotor) inp.value = 0;
+  });
+  if (!hardware) st.rotors.forEach((x, i) => {
+    const inp = document.querySelector(`#motor-sliders input[data-i="${i}"]`);
+    if (inp && !manual) inp.value = x.cmd.toFixed(2);
+    if (inp) inp.parentElement.querySelector('.mv').textContent = (x.cmd*100).toFixed(0)+'%';
+  });
+  if (hardware && status.last_ack?.command === 310 && status.last_ack.result !== 0 && status.last_ack.t >= motorTestStarted && heldMotor) {
+    logLine('[motor test] PX4 rejected the test. Check its safety button and actuator-test permissions.'); stopMotorTest();
+  }
+}
 $('#motor-enable').addEventListener('change', (e) => {
-  $$('#motor-sliders input').forEach(inp => inp.disabled = !e.target.checked);
-  if (e.target.checked) sendOverride(); else api('/api/sim/motor_override', { values: null });
+  stopMotorTest();
+  if (e.target.checked && hardwareMotors()) {
+    if (status.armed || !status.ctl_connected || !confirm('REAL MOTOR TEST: remove propellers/impellers where the manufacturer permits, secure the aircraft, and keep clear of all fans. Hold a slider to run one motor; release to stop. Ready?')) e.target.checked = false;
+  }
+  $$('#motor-sliders input').forEach(inp => {inp.value=0; inp.disabled=!e.target.checked;});
+  if (!hardwareMotors()) { if (e.target.checked) sendOverride(); else api('/api/sim/motor_override', {values:null}); }
 });
 
 // ============================================================ websocket + status
@@ -1210,11 +1341,9 @@ function applyStatus(s) {
   $('#st-mode').textContent = (none ? 'No link' : (s.mode === 'hitl' ? 'Pixhawk' : 'SITL')) + (s.physics === 'jsbsim' ? ' · JSBSim' : '');
   if (s.physics && document.activeElement !== $('#sim-physics')) $('#sim-physics').value = s.physics;
   $('#st-conn').textContent = s.paused ? 'PAUSED — PX4 gets no data, press Resume' : none ? (s.conn_error ? 'failed — open Connect' : 'open Connect')
-    : s.connected ? (s.mode === 'hitl' ? s.address.replace('/dev/', '') + (s.hil_enabled ? '' : ' · HITL off') : 'PX4 connected')
+    : s.connected ? (s.mode === 'hitl' ? s.address.replace('/dev/', '') + (s.hil_enabled ? ' · HITL' : ' · real sensors') : 'PX4 connected')
     : (s.mode === 'sitl' ? (s.px4_running ? 'PX4 starting…' : 'waiting for PX4') : 'no data from ' + s.address.replace('/dev/', ''));
   $('#st-link .dot').classList.toggle('on', s.connected);
-  const joyCard = $('#joy-card');
-  if (joyCard) joyCard.classList.toggle('hidden', s.conn_mode !== 'sitl');
   const det = $('#st-detected');
   const showDet = !s.flashing && s.mode !== 'hitl' && s.px4_ports && s.px4_ports.length > 0;
   if (s.flashing) { $('#st-mode').textContent = 'Pixhawk'; $('#st-conn').textContent = 'flashing firmware…'; }
@@ -1227,7 +1356,7 @@ function applyStatus(s) {
   if (s.params_session !== undefined && s.params_session !== paramsSession) {   // board (re)connected or reflashed: forget the old list
     paramsSession = s.params_session; paramsLoaded = false; params = {};
   }
-  if (s.params_loaded && s.param_count && s.params_loaded >= s.param_count && !paramsLoaded && $('#tab-px4').classList.contains('active')) ensureParams();
+  if (s.params_loaded && s.param_count && s.params_loaded >= s.param_count && !paramsLoaded && (hardwareMotors() || $('#tab-px4').classList.contains('active'))) ensureParams();
   updateFooter();
 }
 const effectiveMax = (r) => {
@@ -1279,7 +1408,7 @@ function applyState(st) {
   if (f.power != null) parts.push(`power ${(+f.power).toFixed(0)} W`);
   if (st.rotor_health && st.rotor_health.some(h => h < 0.999)) parts.push('rotor health ' + st.rotor_health.map(h => (h * 100).toFixed(0) + '%').join(' '));
   $('#st-aero').textContent = parts.join(' · ');
-  if ($('#tab-sim').classList.contains('active') && airframe) updateMotorSliders(st);
+  if (airframe) updateMotorSliders(st);
 }
 const logPre = $('#log-pre');
 function logLine(s) { logPre.textContent += s + '\n'; if (logPre.textContent.length > 40000) logPre.textContent = logPre.textContent.slice(-30000); const b = $('#log-body'); b.scrollTop = b.scrollHeight; }
@@ -1534,6 +1663,15 @@ const RC_FUNCS = [
 const MODE_SLOTS = { 0: [1, 2], 50: [3, 4], 100: [5, 6] };   // a 3-position switch lands in slots 1, 4 and 6; keep each third consistent
 const rcFresh = () => lastRc && lastRc.count > 0 && lastRc.t && (Date.now() / 1000 - lastRc.t) < 3;
 const rcAlive = () => rcFresh() && (lastRc.channels || []).some(v => v > 0);      // a bound receiver with the transmitter on
+// The remote's channels, from whichever path is live: the receiver on the flight controller (RC_CHANNELS), or a
+// remote on this computer (USB/serial/gamepad). Both are presented as PWM, so one mapping table serves both and the
+// same transmitter keeps its channel assignments whether it talks to the board or to the app.
+function rcSource() {
+  if (rcAlive()) return { channels: lastRc.channels || [], count: lastRc.count, via: 'board' };
+  const src = joyCurrent();
+  if (src) return { channels: src.axes.map(v => Math.round(1500 + Math.max(-1, Math.min(1, v)) * 500)), count: src.axes.length, via: 'app', name: src.name };
+  return null;
+}
 const pv = (name, d = null) => (params[name] && params[name].value != null) ? +params[name].value : d;
 function rcNorm(ch, v) {   // PWM -> -1..1 with the board's calibration (RCn_MIN/TRIM/MAX), like PX4's rc_update
   const mn = pv(`RC${ch}_MIN`, 1000), mx = pv(`RC${ch}_MAX`, 2000), tr = pv(`RC${ch}_TRIM`, 1500), rev = pv(`RC${ch}_REV`, 1);
@@ -1551,7 +1689,7 @@ function renderRcIndicator() {
   else if (rcFresh()) { text = 'receiver bound · transmitter off'; }
   const key = text + on;
   if (key !== rcIndKey) { rcIndKey = key; const el = $('#rc-ind'); el.classList.toggle('on', on); $('#rc-ind-text').textContent = text; }
-  $('#joy-card').hidden = !viaApp;
+
 }
 // functions this firmware has; with no (or a partial) parameter list, offer them all rather than nothing
 const rcKnownFuncs = () => params.RC_MAP_ROLL ? RC_FUNCS.filter(f => params[f.p]) : RC_FUNCS;
@@ -1571,7 +1709,8 @@ function switchOnAt(f, pos) {          // does this switch function count as ON 
 }
 function renderRcBoard() {
   const el = $('#rc-board');
-  if (!rcFresh()) { if (el.dataset.mode !== 'none') { el.dataset.mode = 'none'; el.hidden = true; } return; }
+  const src = rcSource();
+  if (!src && !rcFresh()) { if (el.dataset.mode !== 'none') { el.dataset.mode = 'none'; el.hidden = true; } return; }
   el.hidden = false;
   const n = 18;   // PX4's RC input carries 18 channels at most; rows beyond what the receiver sends stay empty
   const funcs = rcKnownFuncs();
@@ -1603,7 +1742,7 @@ function renderRcBoard() {
       await rcSet(f.th, pos === 100 ? 0.5 : -0.5); rcBuiltFor = '';
     }));
   }
-  const ch = lastRc.channels || [];
+  const ch = (src && src.channels) || [];
   ch.forEach((v, i) => {
     const bar = el.querySelector(`.rc-bar i[data-ch="${i + 1}"]`), val = el.querySelector(`.rc-val[data-ch="${i + 1}"]`), line = el.querySelector(`.rc-line[data-ch="${i + 1}"]`);
     if (bar) bar.style.width = (Math.max(0, Math.min(1, (v - 1000) / 1000)) * 100).toFixed(0) + '%';
@@ -1634,7 +1773,8 @@ function renderRcBoard() {
   }
   const foot = $('#rc-foot'); if (foot) foot.innerHTML = [
     params.RC_MAP_ROLL ? '' : '<span class="warn">Reading the board\'s parameters…</span>',
-    `${lastRc.count <= 18 ? lastRc.count : '?'} channels from the receiver (PX4 carries at most 18).`,
+    src && src.via === 'app' ? `${esc(src.name || 'remote')}: ${src.count} channels through this computer (the app relays the sticks to PX4).`
+      : `${(src ? src.count : 0) <= 18 ? (src ? src.count : 0) : '?'} channels from the receiver (PX4 carries at most 18).`,
     pv('RC_CHAN_CNT', 0) > 0 ? `Sticks calibrated.` : '<span class="warn">Sticks not calibrated.</span>',
     `<a href="#" id="rc-cal-start">${pv('RC_CHAN_CNT', 0) > 0 ? 'Recalibrate' : 'Calibrate'}</a>`].join(' ');
   const cs = $('#rc-cal-start'); if (cs) cs.onclick = (e) => { e.preventDefault(); rcCal = { step: 1, min: [], max: [] }; };
@@ -1680,19 +1820,9 @@ $('#sync-btn').addEventListener('click', async () => {
 $$('.tabs button').forEach(b => b.addEventListener('click', () => { if (b.dataset.tab === 'px4') refreshSync(); }));
 
 // ============================================================ USB remote (WebHID picker, Gamepad API fallback) -> MANUAL_CONTROL
-const JOY_FUNCS = [
-  { key: 'roll', label: 'Roll', axis: 0, invert: false },
-  { key: 'pitch', label: 'Pitch', axis: 1, invert: true },      // stick forward is negative on most devices
-  { key: 'throttle', label: 'Throttle', axis: 2, invert: false },
-  { key: 'yaw', label: 'Yaw', axis: 3, invert: false },
-];
-let joyMap = JOY_FUNCS.map(f => ({ ...f }));
-try { const saved = JSON.parse(localStorage.getItem('airframe-joystick') || 'null'); if (saved && saved.length === 4) joyMap = saved; } catch { }
-let joyLearn = null, joyLearnBase = null;
 // current input source: { name, axes: [-1..1], buttons: [bool], kind: 'hid' | 'gamepad' }
 let joySrc = null;
 let hidDevice = null;
-function joySave() { try { localStorage.setItem('airframe-joystick', JSON.stringify(joyMap)); } catch { } }
 
 // --- WebHID: parse the device's own report descriptor so any joystick layout works (8-bit, 11-bit, 16-bit axes…)
 const HID_AXIS_USAGES = { 0x30: 'X', 0x31: 'Y', 0x32: 'Z', 0x33: 'Rx', 0x34: 'Ry', 0x35: 'Rz', 0x36: 'Slider', 0x37: 'Dial', 0x38: 'Wheel' };
@@ -1746,7 +1876,6 @@ async function hidUse(device) {
 async function joyConnect() {
   if (!navigator.hid) {
     logLine('[ui] this browser has no device picker (WebHID). Open the app in Chrome or Edge, or move a stick so the gamepad fallback finds the radio.');
-    $('#joy-hint').textContent = 'This browser cannot show a device picker (Safari has no WebHID). Open the page in Chrome/Edge, or move a stick: the gamepad fallback may still find it.';
     return;
   }
   try {
@@ -1775,7 +1904,7 @@ let serialPort = null, serialReader = null, serialWriter = null, serialTimer = n
 const T8L_VID = 0x19F5;
 function crc8(bytes) { let c = 0; for (const b of bytes) { c ^= b; for (let i = 0; i < 8; i++) c = (c & 0x80) ? ((c << 1) ^ 0xD5) & 0xFF : (c << 1) & 0xFF; } return c; }
 async function serialConnect() {
-  if (!navigator.serial) { $('#joy-hint').textContent = 'This browser has no Web Serial (Safari). Open the page in Chrome or Edge.'; return; }
+  if (!navigator.serial) { logLine('[ui] this browser has no Web Serial (Safari). Open the page in Chrome or Edge.'); return; }
   let port;
   try {
     port = await navigator.serial.requestPort({ filters: [{ usbVendorId: T8L_VID }] });
@@ -1790,10 +1919,6 @@ async function serialUse(port) {
   serialPort = port; serialWriter = port.writable.getWriter(); serialReader = port.readable.getReader();
   joySrc = { name: 'RadioMaster T8L (serial)', axes: new Array(10).fill(0), buttons: [], kind: 'serial', frames: 0, t: 0 };
   hidDevice = null;
-  // channel values grow when the stick goes forward/right/up, unlike HID gamepads (forward = negative): unless the
-  // user has customised the mapping, do not invert pitch for a serial radio. Learn fixes any remaining sign.
-  let customised = false; try { customised = !!localStorage.getItem('airframe-joystick'); } catch { }
-  if (!customised) { const pf = joyMap.find(f => f.key === 'pitch'); if (pf) pf.invert = false; }
   const poll = new Uint8Array([0xA5, 0x55, 0x1B, 0x0D, 0x0A]);
   serialTimer = setInterval(() => { if (serialWriter) serialWriter.write(poll).catch(() => { }); }, 20);
   logLine('[ui] radio serial link open at 460800, polling channels');
@@ -1848,61 +1973,80 @@ function joyCurrent() {
   if (joySrc && joySrc.kind === 'serial' && serialPort) return (performance.now() - joySrc.t < 1000 || joySrc.frames === 0) ? joySrc : { ...joySrc, name: joySrc.name + ' · no data' };
   return null;
 }
-function joyRenderMap() {
-  const src = joyCurrent();
-  const n = src && src.axes.length ? src.axes.length : 8;
-  $('#joy-map').innerHTML = joyMap.map((f, i) => `<div class="joy-row"><span class="joy-label">${f.label}</span>
-    <select data-i="${i}" class="joy-axis">${Array.from({ length: n }, (_, a) => `<option value="${a}" ${a === f.axis ? 'selected' : ''}>axis ${a + 1}</option>`).join('')}</select>
-    <label class="row" style="margin:0"><input type="checkbox" data-i="${i}" class="joy-inv" ${f.invert ? 'checked' : ''}> invert</label>
-    <button class="pill small joy-learn" data-i="${i}" title="click, then push this stick fully in its positive direction: forward for pitch, right for roll and yaw, up for throttle; the axis and its sign are learned">${joyLearn === i ? ({ pitch: 'push forward…', roll: 'push right…', throttle: 'push up…', yaw: 'push right…' }[f.key] || 'move it…') : 'Learn'}</button>
-    <span class="rc-bar joy-bar"><i data-i="${i}" style="width:50%"></i></span><span class="rc-val num joy-val" data-i="${i}">—</span></div>`).join('');
-  $$('.joy-axis').forEach(sel => sel.addEventListener('change', () => { joyMap[+sel.dataset.i].axis = +sel.value; joySave(); }));
-  $$('.joy-inv').forEach(cb => cb.addEventListener('change', () => { joyMap[+cb.dataset.i].invert = cb.checked; joySave(); }));
-  $$('.joy-learn').forEach(b => b.addEventListener('click', () => { joyLearn = +b.dataset.i; const s = joyCurrent(); joyLearnBase = s ? s.axes.slice() : null; joyRenderMap(); }));
+function joyRenderMap() { rcBuiltFor = ''; }   // the USB remote shares the channel table below; nothing separate to draw
+// The value of whatever is mapped to this function, from the app-side remote, using the board's own channel
+// assignment and calibration: the transmitter behaves the same here as it does through the receiver.
+function rcFuncValue(pwm, p) {
+  const c = pv(p, 0);
+  if (!c || c < 1 || c > pwm.length || !pwm[c - 1]) return 0;
+  const v = rcNorm(c, pwm[c - 1]);
+  return Math.abs(v) < 0.02 ? 0 : v;              // deadband
 }
-function joyValue(src, f) {
-  if (!src) return 0;
-  let v = src.axes[f.axis] ?? 0;
-  if (Math.abs(v) < 0.02) v = 0;                  // deadband
-  return f.invert ? -v : v;
+// Throttle is not a centred stick: PX4 scales it from the channel's minimum to its maximum, and calibration puts
+// RCn_TRIM at the minimum, so the centred normalisation above would never let it below half.
+function rcThrottleValue(pwm) {
+  const c = pv('RC_MAP_THROTTLE', 0);
+  if (!c || c < 1 || c > pwm.length || !pwm[c - 1]) return 0;
+  const mn = pv(`RC${c}_MIN`, 1000), mx = pv(`RC${c}_MAX`, 2000);
+  let x = (pwm[c - 1] - mn) / Math.max(1, mx - mn);
+  if (pv(`RC${c}_REV`, 1) < 0) x = 1 - x;
+  return Math.max(0, Math.min(1, x));
+}
+// COM_FLTMODEn -> the mode name the server understands
+const RC_MODE_NAMES = { 0: 'manual', 1: 'altitude', 2: 'position', 3: 'mission', 4: 'hold', 5: 'rtl', 6: 'acro', 7: 'offboard', 8: 'stabilized' };
+const rcEdge = {};        // function parameter -> last state, for rising edges and mode changes
+// A remote on this computer arrives with nothing assigned (PX4's RC_MAP_* are 0 until a receiver is set up). Seed the
+// usual transmitter order once, so the sticks work immediately; the table then edits the same parameters a receiver
+// on the flight controller would use, and the assignment survives the switch between SITL and the board.
+let rcSeeded = false;
+async function rcSeedDefaults() {
+  if (rcSeeded || !params.RC_MAP_ROLL) return;
+  rcSeeded = true;
+  if (RC_FUNCS.some(f => pv(f.p, 0) > 0)) return;      // the user (or the board) already assigned something
+  logLine('[ui] remote: assigning the usual channel order (1 roll, 2 pitch, 3 throttle, 4 yaw). Change it in the table.');
+  for (const [p, ch] of [['RC_MAP_ROLL', 1], ['RC_MAP_PITCH', 2], ['RC_MAP_THROTTLE', 3], ['RC_MAP_YAW', 4]]) await rcSet(p, ch);
+  rcBuiltFor = '';
 }
 let joyLastSend = 0;
 function joyTick() {
   const src = joyCurrent();
-  const nameEl = $('#joy-name');
-  if (!src) {
-    nameEl.textContent = 'No radio connected';
-    $('#joy-hint').textContent = (status.radio_vcp_ports && status.radio_vcp_ports.length) ? status.radio_vcp_ports[0].replace('/dev/', '') : '';
-  }
+  if (!src) { rcIndKey = ''; }
   else {
-    nameEl.textContent = src.name + (src.kind === 'gamepad' ? ' (gamepad)' : '');
-    $('#joy-hint').textContent = src.kind === 'serial' ? `${src.axes.length} channels` : `${src.axes.length} axes`;
-    if (joyLearn != null && joyLearnBase) {
-      let best = -1, bestD = 0.3;
-      src.axes.forEach((v, a) => { const d = Math.abs(v - (joyLearnBase[a] ?? 0)); if (d > bestD) { bestD = d; best = a; } });
-      if (best >= 0) {
-        // the user pushed the stick in the positive direction (forward, right, up, right): the sign of the move fixes the inversion
-        joyMap[joyLearn].axis = best;
-        joyMap[joyLearn].invert = (src.axes[best] - (joyLearnBase[best] ?? 0)) < 0;
-        logLine(`[ui] ${joyMap[joyLearn].label}: axis ${best + 1}${joyMap[joyLearn].invert ? ' (inverted)' : ''}`);
-        joyLearn = null; joyLearnBase = null; joySave(); joyRenderMap();
-      }
-    }
-    joyMap.forEach((f, i) => {
-      const v = joyValue(src, f); const bar = document.querySelector(`.joy-bar i[data-i="${i}"]`), val = document.querySelector(`.joy-val[data-i="${i}"]`);
-      if (bar) bar.style.width = ((v + 1) / 2 * 100).toFixed(0) + '%';
-      if (val) val.textContent = v.toFixed(2);
-    });
+    if (!rcSeeded && !rcAlive()) rcSeedDefaults();
+    const pwm = src.axes.map(v => Math.round(1500 + Math.max(-1, Math.min(1, v)) * 500));
     const now = performance.now();
     if ((status.conn_mode === 'sitl' || status.hil_enabled) && joyWs && joyWs.readyState === 1 && now - joyLastSend > 20) {   // 50 Hz: SITL, or a board in HIL
       joyLastSend = now;
-      const g = (k) => joyValue(src, joyMap.find(f => f.key === k));
       const aux = src.axes.slice(4, 10).map(v => +v.toFixed(3));
-      let buttons = 0; src.buttons.forEach((b, i) => { if (b && i < 16) buttons |= (1 << i); });
-      joyWs.send(JSON.stringify({ type: 'manual', roll: g('roll'), pitch: g('pitch'), throttle: (g('throttle') + 1) / 2, yaw: g('yaw'), buttons, aux }));
+      joyWs.send(JSON.stringify({
+        type: 'manual', roll: rcFuncValue(pwm, 'RC_MAP_ROLL'), pitch: rcFuncValue(pwm, 'RC_MAP_PITCH'),
+        throttle: rcThrottleValue(pwm), yaw: rcFuncValue(pwm, 'RC_MAP_YAW'), buttons: 0, aux,
+      }));
+      // Switches: a receiver on the board drives these itself. Through the app the sticks arrive as MANUAL_CONTROL
+      // only, so the app sends the matching command on the switch's edge, once, and never while calibrating.
+      if (!rcAlive() && !rcCal) {
+        const fire = (p, go) => {
+          const on = rcFuncValue(pwm, p) > 0.5, was = rcEdge[p];
+          rcEdge[p] = on;
+          if (on && was === false) go();
+        };
+        fire('NLF_RC_CH', () => { logLine('[ui] remote: nose-lift takeoff'); api('/api/px4/command', { command: 'nose_lift_takeoff' }).catch(e => logLine('[ui] ' + e.message)); });
+        fire('NLF_RC_LAND', () => { logLine('[ui] remote: nose-lift land'); api('/api/px4/command', { command: 'nose_lift_land' }).catch(e => logLine('[ui] ' + e.message)); });
+        fire('RC_MAP_KILL_SW', () => { logLine('[ui] remote: kill'); api('/api/px4/command', { command: 'kill' }).catch(e => logLine('[ui] ' + e.message)); });
+        const fm = pv('RC_MAP_FLTMODE', 0);
+        if (fm) {
+          const third = pwm[fm - 1] ? rcThird(rcNorm(fm, pwm[fm - 1])) : null;
+          if (third != null && third !== rcEdge.fltmode) {
+            const first = rcEdge.fltmode === undefined;
+            rcEdge.fltmode = third;
+            const mode = RC_MODE_NAMES[pv('COM_FLTMODE' + MODE_SLOTS[third][1], -1)];
+            if (mode && !first) { logLine('[ui] remote: ' + mode); api('/api/px4/command', { command: 'mode', mode }).catch(e => logLine('[ui] ' + e.message)); }
+          }
+        }
+      }
     }
   }
-  if (src || $('#tab-px4').classList.contains('active')) requestAnimationFrame(joyTick); else setTimeout(joyTick, 500);
+  if (joyCurrent() || $('#tab-px4').classList.contains('active')) requestAnimationFrame(joyTick); else setTimeout(joyTick, 500);
 }
 if (navigator.hid) navigator.hid.addEventListener('disconnect', (e) => { if (e.device === hidDevice) { hidDevice = null; joySrc = null; logLine('[ui] radio disconnected'); joyRenderMap(); } });
 $('#joy-connect').addEventListener('click', serialConnect);
@@ -2120,3 +2264,58 @@ $('#af-takeoff').addEventListener('change', async () => {
   airframe.design.pixhawk_position ||= [...airframe.mass.cg];
   airframe.design.pixhawk_position[i] = v;
 }));
+
+$('#motor-test-stop').addEventListener('click', () => { stopMotorTest(); $('#motor-enable').checked=false; });
+
+$('#real-flight-setup').addEventListener('click', async e => {
+  const b = e.currentTarget;
+  if (status.armed || !status.ctl_connected || !hardwareMotors()) { $('#real-flight-result').textContent='Connect a disarmed Pixhawk first.'; return; }
+  if (!confirmTwice('real-flight-setup', b, 'prepare REAL flight (motor power disconnected; flash if needed, reboot and enable physical outputs)')) return;
+  stopMotorTest(); $('#motor-enable').checked=false; b.disabled=true;
+  $('#real-flight-result').textContent='Preparing real flight… watch the log. Keep the board connected.';
+  try {
+    const r=await api('/api/firmware/real_flight', {confirmed:true});
+    $('#real-flight-result').textContent=r.ok?r.message:'Setup incomplete: '+r.error;
+    paramsLoaded=false;
+  } catch(err) { $('#real-flight-result').textContent='Setup incomplete: '+err.message; }
+  finally { b.disabled=false; b.textContent='Prepare Pixhawk for real flight'; }
+});
+$('#return-hitl').addEventListener('click', async e => {
+  if (!confirmTwice('return-hitl', e.currentTarget, 'return to HITL and reboot')) return;
+  const r=await api('/api/connection/enable_hitl', {});
+  $('#real-flight-result').textContent=r.ok?'Returning to HITL…':r.error;
+});
+
+$('#handover-mode').addEventListener('change', async e => {
+  if (status.armed) return;
+  const value = Number(e.target.value);
+  try {
+    await api('/api/airframe/override', { name: 'NLF_PILOT', value });
+    airframe.px4_overrides.NLF_PILOT = value;
+    markDirty();
+    logLine('[ui] Handover after nose lift: ' + e.target.selectedOptions[0].textContent + '. Update PX4 while disarmed to apply.');
+  } catch (err) { logLine('[ui] ' + err.message); }
+});
+// Indoor sensor set: no GPS fusion, barometer height. Position modes vanish, exactly as on the real aircraft indoors.
+const NO_GPS = { EKF2_GPS_CTRL: 0, SYS_HAS_GPS: 0, EKF2_HGT_REF: 0 };
+$('#sim-nogps').addEventListener('change', async e => {
+  if (status.armed) return;
+  try {
+    for (const [name, value] of Object.entries(NO_GPS)) {
+      if (e.target.checked) { await api('/api/airframe/override', { name, value }); airframe.px4_overrides[name] = value; }
+      else { await api('/api/airframe/override_remove', { name }); delete airframe.px4_overrides[name]; }
+    }
+    markDirty();
+    logLine('[ui] ' + (e.target.checked ? 'No GPS: PX4 will ignore the GPS and hold height on the barometer.' : 'GPS fusion restored.') + ' Update PX4 while disarmed to apply.');
+  } catch (err) { logLine('[ui] ' + err.message); }
+});
+$('#staged-rc-takeoff').addEventListener('change', async e => {
+  if (status.armed) return;
+  const value=e.target.checked?1:0;
+  try {
+    await api('/api/airframe/override', {name:'NLF_RC_THR',value});
+    airframe.px4_overrides.NLF_RC_THR=value;
+    markDirty();
+    logLine('[ui] Staged RC takeoff '+(value?'selected':'disabled')+'. Update PX4 while disarmed to apply. No board change made yet.');
+  } catch(err) { e.target.checked=!value; logLine('[ui] '+err.message); }
+});

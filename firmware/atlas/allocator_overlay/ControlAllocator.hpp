@@ -72,6 +72,7 @@
 #include <uORB/SubscriptionCallback.hpp>
 #include <uORB/topics/actuator_motors.h>
 #include <uORB/topics/atlas_nose_lift_floor.h>
+#include <uORB/topics/atlas_nose_lift_pilot.h>
 #include <uORB/topics/offboard_control_mode.h>
 #include <uORB/topics/actuator_servos.h>
 #include <uORB/topics/actuator_servos_trim.h>
@@ -223,6 +224,8 @@ private:
 	matrix::Vector3f _thrust_sp;
 	bool _publish_controls{true};
  bool _nose_lift_offboard{false};
+ bool _nose_lift_pilot{false};   // a manual/failsafe mode: the module may keep a floor under the front fans (NLF_PILOT)
+ uORB::Subscription _manual_pilot_sub{ORB_ID(atlas_nose_lift_pilot)};
  uORB::Subscription _nose_lift_mode_sub{ORB_ID(offboard_control_mode)};
  uORB::Publication<atlas_nose_lift_floor_s> _nose_lift_feedback_pub{ORB_ID(atlas_nose_lift_feedback)};
  uORB::Subscription _nose_lift_floor_sub{ORB_ID(atlas_nose_lift_floor)};

@@ -2,6 +2,102 @@ module_name: atlas_nose_lift
 parameters:
 - group: ATLAS Nose Lift
   definitions:
+    NLF_MANUAL:
+      description:
+        short: SITL/HITL-only GPS-free RC development mode
+        long: RC attitude with a 2 m relative altitude target and pilot throttle ceiling. Requires valid vertical estimates. No horizontal position hold or automatic landing. Hardware requires SYS_HITL=1 and active HIL state; real-flight mode is rejected. Stop and restart module to select mode. Normal arming checks remain enabled.
+      type: int32
+      default: 0
+      min: 0
+      max: 1
+    NLF_M_HOV:
+      description:
+        short: Manual HITL altitude hold hover thrust
+        long: Normalized collective feedforward after quadratic motor compensation. The current ATLAS model requires approximately 0.35. Validate again after propulsion or mass changes. Simulation-only mode.
+      type: float
+      default: 0.35
+      min: 0.1
+      max: 0.7
+    NLF_RC_THR:
+      description:
+        short: Two-stage takeoff with physical RC throttle
+        long: Start with calibrated physical RC throttle low. Raise it to permit nose-lift power. Press takeoff again after pitch settles to climb to 1 m. Holding throttle below 5 percent for 0.4 seconds requests controlled lowering or landing. RC loss requests abort. Kill and attitude-stick takeover remain available. Requires bench and flight validation.
+      type: int32
+      default: 0
+      min: 0
+      max: 1
+    NLF_PILOT:
+      description:
+        short: Hand the aircraft to the pilot after the nose lift
+        long: 0 = PX4 position hold climbs and hovers (needs a position estimate). 1 = after the nose is up and a second takeoff press, PX4 goes to Stabilized and the pilot's throttle lifts the aircraft; 2 = the same with Altitude mode. No GPS needed. The front-fan floor stays under the nose while the feet may touch and returns under a throttle cut; a stalled descent at low throttle lowers the nose and disarms. Requires the remote with throttle at minimum, COM_DISARM_LAND and COM_DISARM_PRFLT at 90 s or more.
+      type: enum
+      values:
+        0: Position hold (GPS)
+        1: Pilot, Stabilized
+        2: Pilot, Altitude mode
+      default: 0
+    NLF_LMAX:
+      description:
+        short: Pilot handover lift fraction at full throttle
+        long: Thrust over weight the module commands at full stick while it flies the ground phases of the pilot handover (centre stick = 1, hover).
+      type: float
+      default: 1.4
+      min: 1.05
+      max: 2
+    NLF_UF:
+      description:
+        short: Front fan hover thrust utilisation
+        long: Exported from the model. Thrust fraction of each front fan in the zero-torque hover.
+      type: float
+      default: 0
+    NLF_U1:
+      description:
+        short: Motor 1 hover thrust utilisation
+        long: Exported from the model. Thrust fraction of motor 1 in the zero-torque hover; the pilot handover scales all rear motors with the throttle along this pattern.
+      type: float
+      default: 0
+    NLF_U2:
+      description:
+        short: Motor 2 hover thrust utilisation
+        long: Exported from the model. Thrust fraction of motor 2 in the zero-torque hover; the pilot handover scales all rear motors with the throttle along this pattern.
+      type: float
+      default: 0
+    NLF_U3:
+      description:
+        short: Motor 3 hover thrust utilisation
+        long: Exported from the model. Thrust fraction of motor 3 in the zero-torque hover; the pilot handover scales all rear motors with the throttle along this pattern.
+      type: float
+      default: 0
+    NLF_U4:
+      description:
+        short: Motor 4 hover thrust utilisation
+        long: Exported from the model. Thrust fraction of motor 4 in the zero-torque hover; the pilot handover scales all rear motors with the throttle along this pattern.
+      type: float
+      default: 0
+    NLF_U5:
+      description:
+        short: Motor 5 hover thrust utilisation
+        long: Exported from the model. Thrust fraction of motor 5 in the zero-torque hover; the pilot handover scales all rear motors with the throttle along this pattern.
+      type: float
+      default: 0
+    NLF_U6:
+      description:
+        short: Motor 6 hover thrust utilisation
+        long: Exported from the model. Thrust fraction of motor 6 in the zero-torque hover; the pilot handover scales all rear motors with the throttle along this pattern.
+      type: float
+      default: 0
+    NLF_U7:
+      description:
+        short: Motor 7 hover thrust utilisation
+        long: Exported from the model. Thrust fraction of motor 7 in the zero-torque hover; the pilot handover scales all rear motors with the throttle along this pattern.
+      type: float
+      default: 0
+    NLF_U8:
+      description:
+        short: Motor 8 hover thrust utilisation
+        long: Exported from the model. Thrust fraction of motor 8 in the zero-torque hover; the pilot handover scales all rear motors with the throttle along this pattern.
+      type: float
+      default: 0
     NLF_ENABLE:
       description:
         short: Enable experimental SITL nose lift

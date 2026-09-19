@@ -47,3 +47,25 @@ def test_lift_target_defaults_to_hover_pitch():
     assert af.px4_params_sitl()["NLF_TARGET"] == 5            # 10 deg below hover by default
     af.px4_overrides["NLF_TARGET"] = 22
     assert af.px4_params_sitl()["NLF_TARGET"] == 22
+
+
+def test_pilot_handover_keeps_px4_from_auto_disarming_and_presets_hover_thrust():
+    af=model(); af.px4_overrides.update(NLF_ENABLE=1, NLF_PILOT=1)
+    p=af.px4_params_sitl()
+    assert p["NLF_PILOT"] == 1 and p["COM_DISARM_LAND"] == 120 and p["COM_DISARM_PRFLT"] == 120
+    af.px4_overrides["MC_AIRMODE"] = 1
+    assert af.px4_params_sitl()["MC_AIRMODE"] == 0    # airmode cannot coexist with sitting nose-down under a manual mode
+    assert 0.2 <= p["MPC_THR_HOVER"] <= 0.8
+    af.px4_overrides.update(MPC_THR_HOVER=0.6)
+    assert af.px4_params_sitl()["MPC_THR_HOVER"] == 0.6
+    af.px4_overrides["NLF_PILOT"] = 0; af.px4_overrides.pop("MPC_THR_HOVER")
+    p=af.px4_params_sitl()
+    assert p["COM_DISARM_LAND"] == 60 and "MPC_THR_HOVER" not in p
+
+
+def test_hover_pattern_is_exported_for_the_pilot_handover():
+    af=model(); p=ground_sequence_params(af)
+    assert p["NLF_CFG_OK"] == 1
+    for i in range(1, 9):
+        assert 0 < p[f"NLF_U{i}"] < 1
+    assert 0 < p["NLF_UF"] < 1

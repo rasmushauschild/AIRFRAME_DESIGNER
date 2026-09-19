@@ -169,3 +169,119 @@ Every flash (and every "Snapshot board now") is archived: image, all board param
 exported parameters, the airframe and these module sources go to https://github.com/rasmushauschild/PX4_FIRMWARE
 (clone in `~/.airframe_designer/px4_firmware_archive`, override with `AFD_FIRMWARE_ARCHIVE`). The Versions tab
 lists them and can flash any version back and restore its parameters (`airframe_designer/px4/archive.py`).
+
+
+### Staged physical-RC takeoff (opt-in, awaiting physical validation)
+
+`NLF_RC_THR=1` selects a two-press sequence. The Flight-tab checkbox saves this choice;
+Update PX4 builds/flashes and applies it separately. Start with the calibrated physical
+RC throttle at minimum. The first Takeoff press arms normally and enters nose lift.
+Raising throttle permits more front-fan command (upward cap slew 20%/s); the pitch
+controller still stops at the target angle. After the log reports `nose ready`, a
+fresh second Takeoff press authorizes the automatic climb to 1 m above the original
+takeoff position. Early presses are not queued. The ground stage times out after
+55 seconds and requests controlled lowering without exceeding either fan’s command at abort entry. The exporter sets COM_DISARM_LAND to
+at least 120 seconds so normal ground auto-disarm does not interrupt that lowering.
+
+Holding throttle below 5% for 0.4 seconds after raising it, or losing fresh physical
+RC for 300 ms requests controlled
+nose lowering (ground stage) or landing (after liftoff authorization). Throttle is
+not a direct motor-power control in the airborne stage. A separate kill switch still
+stops the motors. Attitude-stick takeover and PX4 failsafes retain authority. A narrow,
+freshness-limited manual-control overlay prevents throttle motion alone from triggering
+Position-mode takeover while this staged sequence owns throttle.
+
+The target is an estimated relative height, not a guaranteed one-metre physical ceiling.
+This change must be validated on a restrained test setup before free flight. Building
+it does not enable it on the connected board, and no physical validation is implied.
+
+
+### GPS-free RC development prototype (SITL and isolated HITL)
+
+`NLF_MANUAL=1` selects a separate controller when `atlas_nose_lift` starts.
+Default is zero. Hardware runs this mode only with `SYS_HITL=1` and a fresh active HIL state, checked continuously. `NLF_HW_OK` cannot bypass this guard.
+HITL requires all motor power physically disconnected. Real flight is unsupported. No geometry changes are required.
+
+In an isolated SITL instance, stop the module, set `NLF_MANUAL=1`, and restart
+it. Supply calibrated RC_CHANNELS/input_rc with throttle, roll, pitch and yaw
+mapping; the same shell/RC takeoff triggers are used. Do not use the connected
+hardware session for development. Normal PX4 arming checks remain active.
+
+The first request requires disarmed, landed, fresh finite attitude/rates, valid vertical estimates and
+fresh RC with throttle below 5%. The module supplies a zero-power stream,
+requests Offboard and normal arming, and lifts the nose under an RC power cap.
+A fresh second request after one second of settled pitch switches to attitude
+setpoints. Earlier requests are discarded, not queued. Thrust increases are
+slew limited; reductions follow the pilot immediately. Roll/pitch command up
+to 10 degrees in the configured hover frame, yaw up to 30 degrees/second.
+In this simulation-only manual path, allocated thrust fractions are converted
+into speed fractions before publication, matching the quadratic ATLAS motor model.
+Direct nose-lift commands and support floors are already speed fractions and are
+not converted again. `THR_MDL_FAC` remains zero. This does not provide position hold.
+The controller consumes attitude sticks itself in this mode; an explicit RC
+mode switch still releases control. Horizontal position is not read by this path. The vertical estimate uses the configured EKF height sources.
+
+Stage two now uses PX4 PositionControl for a 2 m climb relative to the initial
+resting height, ramped at 0.35 m/s with a 0.4 m/s climb-speed limit. Only estimated
+vertical position, velocity and acceleration are used. The RC throttle remains
+a power ceiling, including immediate reductions; lowering it can prevent the
+climb or override height hold. `NLF_M_HOV` supplies hover-thrust feedforward
+(default 0.35 for the current model). Fresh valid vertical estimates are required;
+invalid estimates release the offboard stream to PX4's configured failsafe.
+Height resets shift the reference, and velocity resets clear the integral.
+Barometer/IMU height is relative and can drift; it is not a floor-range measurement.
+There is no horizontal position hold, automatic contact detection, or
+automatic landing. The Land command reports this limitation rather than
+invoking the GPS-dependent landing controller. Landing and nose lowering
+must be flown manually. RC/attitude loss, kill, disarm, mode change or module
+stop release the stream and leave the configured PX4 failsafe in charge;
+this is not a validated GPS-free recovery procedure. Verify those failsafes
+in simulation before considering a hardware design.
+
+Validation includes state/reference tests, SITL compilation and a focused native PositionControl vertical-model test. The altitude-hold change has not yet had a full aircraft HITL flight test. The
+nose-to-flight allocation transition, landing, RC-loss recovery, estimator
+resets and sustained drift have NOT received flight-simulation or physical
+validation. The prototype is unavailable in real-flight mode. HITL is not physical-flight validation.
+
+Vertical-controller test after `make firmware`: `.venv/bin/python tests/firmware/run_vertical_test.py`.
+
+State tests: `c++ -std=c++17 tests/firmware/test_manual_gate.cpp -o /tmp/test_manual_gate && /tmp/test_manual_gate`
+
+
+### Pilot handover: nose lift, then the pilot lifts off (no GPS)
+
+`NLF_PILOT` (Flight tab, "Handover after nose lift") selects who flies after the nose is up: 0 = PX4 position hold as
+above, 1 = the pilot in Stabilized, 2 = the pilot in Altitude mode. Nothing in the pilot path reads a horizontal
+position, so it works indoors with the GPS switched off (`EKF2_GPS_CTRL 0`, `SYS_HAS_GPS 0`, `EKF2_HGT_REF 0`; the
+Flight tab's "No GPS (indoor)" box sets these). The module reads the pilot's throttle from `manual_control_setpoint`,
+so an RC receiver and a MAVLink joystick (the designer's USB remote in SITL) behave the same.
+
+The rule behind the design: PX4's attitude loop never runs while the aircraft is on its legs. On the legs, 35 deg
+below PX4's level at low collective, the allocator saturates a rear motor to full thrust and the simulated aircraft
+tipped over backwards, both at takeoff and at touchdown. So the module flies every ground phase itself through
+Offboard direct actuators, and PX4 only ever gets the aircraft in the air.
+
+Sequence. Throttle at minimum, Takeoff: PX4 arms in Offboard, the module lifts the nose all the way to PX4's level
+(the hover pitch, not `NLF_TARGET`) with the front fans and reports `nose ready`. Second Takeoff press (throttle still
+at minimum): the pilot now has the throttle. The stick maps to a lift fraction (bottom 0, centre 1 = hover, top
+`NLF_LMAX`, default 1.4), the eight rear motors follow the model's zero-torque hover pattern (`NLF_U1..8`, exported
+from the hover check) scaled by it, and the front fans keep the nose at level with the ground model blended from the
+ground hold to their hover share (`NLF_UF`) as the rear motors take the weight. Raise the throttle slowly and the
+feet unload evenly. Once the aircraft has risen 0.15 m for 0.2 s the module asks PX4 for the pilot's mode and hands
+over; PX4's Stabilized curve also puts hover at the centre of the stick (`MPC_THR_HOVER`, preset by the exporter), so
+the throttle keeps its meaning. From then on PX4 flies and the module only watches.
+
+Landing: hover low and press Land, or simply descend: once the aircraft has been above 0.6 m, being below 0.4 m of
+the takeoff spot while not climbing with the throttle at or below the centre makes the module take the motors back
+(Offboard direct actuators, same throttle mapping, continuous). Lower the throttle further and the rear feet touch; a
+stalled vertical motion (|vz| < 0.15 m/s for 0.4 s) with the throttle below 35 % is the contact, and the usual nose
+lowering, motor ramp-down and disarm follow. Climbing away above 0.6 m during a landing hands the aircraft back to
+PX4. Land before liftoff, a lost remote, leaving Offboard on the ground, or no liftoff within 45 s all lower the nose
+again. A failure while off the ground under the module's commands hands PX4 the aircraft; the module never requests
+an automatic landing here.
+
+The exporter sets `COM_DISARM_LAND` and `COM_DISARM_PRFLT` to at least 120 s (PX4 reads the wait as "landed, not
+taking off"), forces `MC_AIRMODE 0` and presets `MPC_THR_HOVER`. `NLF_RC_THR` is ignored in this mode. While the
+module owns the throttle, throttle motion is excluded from PX4's stick override; keep the attitude sticks still on
+the ground. Unit test: `tests/firmware/test_pilot_handover.cpp`; SITL run with a scripted pilot on a joystick:
+`NLF_PILOT_TEST=1 ... test_sitl.py pilot '{"NLF_PILOT":1,"EKF2_GPS_CTRL":0,"SYS_HAS_GPS":0,"EKF2_HGT_REF":0}'`.

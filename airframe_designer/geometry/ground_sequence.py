@@ -31,5 +31,13 @@ def ground_sequence_params(af):
     if not np.isfinite(values).all() or af.mass.mass <= 0 or authority <= 0:
         return out
     out.update(dict(zip(["NLF_MASS", "NLF_GX", "NLF_GZ", "NLF_MOM", "NLF_W9"], map(float,values))))
+    # Zero-torque hover pattern (thrust fraction per motor): the pilot handover flies the ground phases by scaling the
+    # rear motors along it with the throttle, and blends the front fans from the ground hold to their hover share.
+    hover = af.hover_check()
+    util = hover.get("hover_utilisation") or []
+    if len(util) == 10 and all(u is not None and np.isfinite(u) and 0 < u < 1 for u in util) and not hover.get("negative"):
+        for i in range(8):
+            out[f"NLF_U{i+1}"] = round(float(util[i]), 4)
+        out["NLF_UF"] = round(float((util[8]+util[9])/2), 4)
     out["NLF_CFG_OK"] = 1
     return out

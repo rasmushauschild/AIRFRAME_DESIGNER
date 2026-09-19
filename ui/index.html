@@ -138,7 +138,9 @@
 
       <div class="card">
       <h3>Rotors</h3>
+      <p class="hint"># = PWM port: 1–8 are MAIN 1–8; 9–10 are AUX 1–2. Choosing an occupied motor port swaps assignments. Geometry and nose-lift roles stay unchanged.</p>
       <div id="rotor-table"></div>
+
       <div class="row tight">
         <button id="rotor-add" class="pill small">+ Rotor</button>
         <button id="rotor-mirror-y" class="pill small" title="Duplicate the selected rotor mirrored left/right, with opposite spin">Mirror L/R</button>
@@ -222,11 +224,7 @@
       <div class="rc-head">
         <span class="pill st" id="rc-ind" title="a transmitter reaches PX4: over a receiver bound to the flight controller, or from a radio on this computer over USB / serial"><i class="dot"></i><b>Remote</b>&nbsp;<span id="rc-ind-text">not detected</span></span>
         <span class="panel-spacer"></span>
-        <button id="joy-connect" class="pill small" title="use a RadioMaster or joystick attached to this computer (USB, or a serial link such as Bluetooth)">Connect radio…</button>
-      </div>
-      <div id="joy-card" class="card" hidden>
-        <div class="rc-sub"><b id="joy-name">No radio</b> <span class="hint" id="joy-hint"></span></div>
-        <div id="joy-map"></div>
+        <button id="joy-connect" class="pill small" title="use a RadioMaster or joystick attached to this computer (USB, or a serial link such as Bluetooth). Its channels appear in the same table as a receiver on the flight controller, with the same mapping.">Connect radio…</button>
       </div>
       <div id="rc-board" class="card" hidden></div>
       <div id="sync-card" class="card" hidden><div class="conn-row"><div><b>Board vs SITL</b> <span id="sync-text" class="hint"></span></div><button id="sync-btn" class="pill small primary" title="write every parameter that differs from the last SITL run to the board (calibration, links, safety and RC settings are left alone)">Sync board to SITL</button></div><div id="sync-list" class="hint mono"></div></div>
@@ -332,6 +330,7 @@
         <label title="physics engine for the live simulation: the project's Python rigid body, or JSBSim (the flight dynamics model behind FlightGear/ArduPilot SITL) driven with the same geometry and coefficient tables. Switching restarts the vehicle on the ground.">Physics <select id="sim-physics"><option value="python">Python (built-in)</option><option value="jsbsim">JSBSim</option></select></label>
         <label>Speed <input id="sim-speed" type="number" step="0.5" min="0" value="1" title="0 = as fast as PX4 allows (SITL lockstep)"></label>
         <label class="row" style="align-self:end;padding-bottom:6px"><input id="sim-noise" type="checkbox" checked> Sensor noise</label>
+        <label class="row" style="align-self:end;padding-bottom:6px" title="Indoor sensor set: PX4 ignores the GPS (EKF2_GPS_CTRL 0, SYS_HAS_GPS 0) and holds height on the barometer (EKF2_HGT_REF 0). Position modes become unavailable, exactly as on the real aircraft indoors. Update PX4 to apply."><input id="sim-nogps" type="checkbox"> No GPS (indoor)</label>
       </div>
       <div class="row">
         <label title="velocity of the air, m/s, positive toward north: air moving north is a TAILWIND for a vehicle facing north. Enter a negative N for a headwind.">Air vel N <input id="wind-n" type="number" step="0.5" value="0"></label>
@@ -347,6 +346,15 @@
         <button id="home-apply" class="pill small">Apply</button>
       </div>
 
+      <label class="row" title="What happens after the nose is up. Position hold: PX4 climbs and hovers by itself (needs a position estimate). Pilot: on a second Takeoff press PX4 goes to the chosen manual mode and you lift off by raising the throttle slowly; no GPS needed. Update PX4 to apply.">Handover after nose lift
+        <select id="handover-mode">
+          <option value="0">PX4 position hold (needs GPS)</option>
+          <option value="1">Pilot throttle, Stabilized (no GPS)</option>
+          <option value="2">Pilot throttle, Altitude mode (no GPS)</option>
+        </select></label>
+      <p id="handover-hint" class="hint">Pilot handover: throttle at minimum, press Takeoff. The nose rises to level and settles ("nose ready"). Press Takeoff again: you have the throttle (centre = hover). Raise it slowly until it lifts off; once airborne PX4 takes the sticks. To land, hover low and press Land, or just descend below 0.4 m with the throttle at or below centre: the module takes the motors back, the rear legs touch, the nose is lowered and it disarms. Land before liftoff lowers the nose again. Keep the attitude sticks still while on the ground.</p>
+      <label class="row"><input id="staged-rc-takeoff" type="checkbox"> Two-stage takeoff with RC throttle (1 m)</label>
+      <p id="staged-rc-hint" class="hint">Requires updated firmware. Start with physical throttle fully low. First Takeoff: slowly raise throttle to lift the nose. Wait for “nose ready”, then press Takeoff again to climb to 1 m. Holding throttle fully low for 0.4 seconds requests controlled lowering/landing, not an immediate power cut. RC loss also requests abort; kill remains separate.</p>
       <h3>Nose lift <span class="hint">ground sequence for nose-up hoverers</span></h3>
       <div id="nl-card" class="card">
         <div class="hint">Raises the nose with the chosen motors to the hover pitch while PX4 is disarmed, holds it while PX4 arms and spools up, then hands over. Saved with the airframe.</div>
@@ -364,8 +372,11 @@
         </div>
       </div>
 
-      <h3>Motors</h3>
-      <label class="row"><input id="motor-enable" type="checkbox"> Manual override</label>
+
+      <h3>Motor testing</h3>
+      <label class="row"><input id="motor-enable" type="checkbox"> Enable motor sliders</label>
+      <p id="motor-test-help" class="hint"></p>
+      <button id="motor-test-stop" type="button" class="pill">Stop motor test</button>
       <div id="motor-sliders"></div>
     </section>
 
@@ -374,6 +385,14 @@
       <h3>Flight controller</h3>
       <div id="conn-current" class="card"></div>
       <div id="conn-error" class="problems"></div>
+      <div class="card">
+        <h3>Real flight</h3>
+        <p>Build/flash the ATLAS firmware if needed, turn off HITL, reboot onto the onboard sensors, and save the ten-motor PWM mapping from Geometry. Ports 1–8 are MAIN; 9–10 are AUX 1–2. The existing safety-button configuration is preserved; supply checks are enabled.</p>
+        <p class="hint">Disconnect motor power before setup. This does not arm or certify the aircraft for flight. Sensor calibration, RC/failsafes, PWM protocol, motor direction and output limits still need physical verification.</p>
+        <button id="real-flight-setup" class="pill">Prepare Pixhawk for real flight</button>
+        <button id="return-hitl" class="pill">Return to HITL</button>
+        <p id="real-flight-result" class="hint"></p>
+      </div>
 
       <h3>Connect to</h3>
       <div class="card" id="conn-sitl-card">

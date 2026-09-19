@@ -397,6 +397,22 @@ export function createScene(canvas, handlers) {
     else if (selected < 0) gizmo.detach();
   }
 
+  // A requested motor test, not measured rotation feedback from the aircraft.
+  function highlightMotorTest(index = -1) {
+    rotorNodes.forEach((node, i) => {
+      const color = i === index && node.enabled ? 0xffd60a : 0x0a84ff;
+      node.arrow.traverse(mesh => {
+        if (!mesh.material) return;
+        if (!mesh.userData.ownMat) {
+          mesh.material = mesh.material.clone();
+          mesh.userData.ownMat = true;
+        }
+        mesh.material.color.setHex(color);
+        mesh.material.emissive.setHex(color);
+      });
+    });
+  }
+
   function setRotorEnabled(node, on) {
     node.enabled = on;
     const alpha = on ? 1 : OFF_OPACITY;
@@ -525,7 +541,7 @@ export function createScene(canvas, handlers) {
   setTheme(document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light');
 
   return {
-    setAirframe, updateState, select, updateRotorNode, setTheme,
+    setAirframe, updateState, select, updateRotorNode, setTheme, highlightMotorTest,
     get selectedCadIds() { return [...selectedCadIds]; },
     setCad, selectCad, syncCad: () => airframe && syncCad(airframe),
     get selectedCad() { return selectedCad; },

@@ -43,6 +43,7 @@
 #include "VehicleActuatorEffectiveness/ActuatorEffectivenessMultirotor.hpp"
 
 #include <drivers/drv_hrt.h>
+#include "ManualThrust.hpp"
 #include <circuit_breaker/circuit_breaker.h>
 #include <mathlib/math/Limits.hpp>
 #include <mathlib/math/Functions.hpp>
@@ -334,6 +335,12 @@ ControlAllocator::Run()
 
 			_armed = vehicle_status.arming_state == vehicle_status_s::ARMING_STATE_ARMED;
  _nose_lift_offboard = vehicle_status.nav_state == vehicle_status_s::NAVIGATION_STATE_OFFBOARD;
+ _nose_lift_pilot = vehicle_status.nav_state == vehicle_status_s::NAVIGATION_STATE_MANUAL
+     || vehicle_status.nav_state == vehicle_status_s::NAVIGATION_STATE_STAB
+     || vehicle_status.nav_state == vehicle_status_s::NAVIGATION_STATE_ALTCTL
+     || vehicle_status.nav_state == vehicle_status_s::NAVIGATION_STATE_POSCTL
+     || vehicle_status.nav_state == vehicle_status_s::NAVIGATION_STATE_DESCEND
+     || vehicle_status.nav_state == vehicle_status_s::NAVIGATION_STATE_AUTO_LAND;
 			_is_vtol = vehicle_status.is_vtol;
 
 			ActuatorEffectiveness::FlightPhase flight_phase{ActuatorEffectiveness::FlightPhase::HOVER_FLIGHT};
@@ -768,15 +775,41 @@ ControlAllocator::publish_actuator_controls()
 		actuator_motors.control[i] = NAN;
 	}
 
+ // Correct only the simulation manual-attitude path. Direct nose-lift commands
+ // are already speed fractions and returned above; never convert them twice.
+ atlas_nose_lift_pilot_s owner{}; _manual_pilot_sub.copy(&owner);
+ vehicle_status_s simulation_status{}; _vehicle_status_sub.copy(&simulation_status);
+#if defined(CONFIG_ARCH_BOARD_PX4_SITL)
+ const bool simulation=true;
+#else
+ const bool simulation=simulation_status.hil_state==vehicle_status_s::HIL_STATE_ON
+     && simulation_status.timestamp && publication_time>=simulation_status.timestamp
+     && publication_time-simulation_status.timestamp<2_s;
+#endif
+ float thrust_factor=NAN;
+ param_get(param_find("THR_MDL_FAC"), &thrust_factor);
+ const bool attitude_fresh=direct_mode.attitude && direct_mode.timestamp
+     && publication_time>=direct_mode.timestamp && publication_time-direct_mode.timestamp<100_ms;
+ if (atlas_manual_thrust::enabled(simulation, _armed, _nose_lift_offboard, attitude_fresh,
+       owner.active && owner.manual_attitude, publication_time, owner.timestamp, thrust_factor)
+       && actuator_motors.reversible_flags==0) {
+  for (int i=0; i<motors_idx; ++i) {
+   actuator_motors.control[i]=atlas_manual_thrust::speed(actuator_motors.control[i]);
+  }
+ }
+
  // Experimental SITL-only handover support. Timestamp expiry and mode/arming gates
  // ensure stale publishers or operator mode changes cannot retain a motor floor.
  atlas_nose_lift_floor_s feedback{};
  feedback.timestamp=actuator_motors.timestamp; feedback.timestamp_sample=_timestamp_sample;
- feedback.active=_armed && _nose_lift_offboard;
+ // Floors apply in Offboard (position handover) and, for the pilot handover, in the manual and failsafe modes the
+ // pilot may be flying in. The module publishes a floor only in its own phases and clears it on every failure; a
+ // stale floor (100 ms) is ignored here regardless.
+ feedback.active=_armed && (_nose_lift_offboard || _nose_lift_pilot);
  for(int i=0;i<12;i++) { feedback.control[i]=actuator_motors.control[i]; }
  _nose_lift_feedback_pub.publish(feedback);
  atlas_nose_lift_floor_s floor{};
- if (_armed && _nose_lift_offboard && _nose_lift_floor_sub.copy(&floor) && floor.active
+ if (_armed && (_nose_lift_offboard || _nose_lift_pilot) && _nose_lift_floor_sub.copy(&floor) && floor.active
      && floor.timestamp <= actuator_motors.timestamp && actuator_motors.timestamp - floor.timestamp < 100_ms) {
   for (int i = 0; i < motors_idx; ++i) {
    if (PX4_ISFINITE(floor.control[i]) && floor.control[i] >= 0.f && floor.control[i] <= 1.f

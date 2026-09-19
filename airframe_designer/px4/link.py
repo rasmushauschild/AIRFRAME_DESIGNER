@@ -158,14 +158,20 @@ class PX4Link:
 
     # ------------------------------------------------------------------- write
     def send_hil_sensor(self, s: dict) -> None:
+        if self.mode == "hitl" and (getattr(self, "block_hil", False) or self.params.get("SYS_HITL", {}).get("value") != 1):
+            return  # Never inject simulator sensors into a real-flight board.
         with self._write_lock:
             self.conn.mav.hil_sensor_send(**s)
 
     def send_hil_gps(self, g: dict) -> None:
+        if self.mode == "hitl" and (getattr(self, "block_hil", False) or self.params.get("SYS_HITL", {}).get("value") != 1):
+            return  # Never inject simulator sensors into a real-flight board.
         with self._write_lock:
             self.conn.mav.hil_gps_send(**g)
 
     def send_hil_state_quaternion(self, st: dict) -> None:
+        if self.mode == "hitl" and (getattr(self, "block_hil", False) or self.params.get("SYS_HITL", {}).get("value") != 1):
+            return  # Never inject simulator sensors into a real-flight board.
         with self._write_lock:
             self.conn.mav.hil_state_quaternion_send(**st)
 
