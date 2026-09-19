@@ -139,7 +139,8 @@ def build_app(state: AppState) -> FastAPI:
             s["firmware"] = None
         # arm gating: PX4's last arming-check summary must report no system errors and a usable position
         ready, why = False, "waiting for PX4's arming check report"
-        for x in reversed(list(getattr(state.link, "recent_events", []) or [])):
+        ev = getattr(state.link, "recent_events", None)
+        for x in reversed(list(ev if isinstance(ev, (list, tuple, deque)) else [])):   # no link (e.g. while flashing): nothing
             if x.get("name") == "commander_arming_check_summary":
                 d = dict(zip(x.get("arg_names", []), x.get("args", [])))
                 # PX4 lists the modes it would arm in; the error mask also carries the always-failing
@@ -632,8 +633,11 @@ def build_app(state: AppState) -> FastAPI:
         # While the parameter list is still downloading, keep the NLF_* ones: they belong to the ATLAS SITL build and
         # are simply not listed yet.
         complete = bool(link.params) and link.param_count and link.status().get("params_loaded", 0) >= link.param_count
+        # PX4 lists a module's parameters only once something has used them; the nose-lift model parameters
+        # (NLF_MASS, NLF_MOM, ...) are read by param_find at takeoff, so they are settable but not yet listed.
+        has_module = "NLF_ENABLE" in (link.params or {})
         if link.params:
-            keep = lambda k: k in link.params or (k.startswith("NLF_") and not complete)
+            keep = lambda k: k in link.params or (k.startswith("NLF_") and (has_module or not complete))
             missing = [k for k in params if not keep(k)]
             params = {k: v for k, v in params.items() if keep(k)}
             if complete and any(k.startswith("NLF_") for k in missing):

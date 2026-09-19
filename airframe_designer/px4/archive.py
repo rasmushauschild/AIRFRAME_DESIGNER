@@ -100,6 +100,7 @@ class FirmwareArchive:
                 self.error = f"clone failed: {r.stderr.strip()[:200]}"
                 self.log(f"[archive] {self.error}")
                 return False
+            _git(["config", "http.postBuffer", "524288000"], self.path)   # firmware images are MBs: git's default HTTP buffer 400s
             if not (self.path / "versions").is_dir():
                 (self.path / "versions").mkdir()
                 (self.path / "README.md").write_text(

@@ -433,6 +433,27 @@ class ConnectionManager:
             threading.Thread(target=reconnect, daemon=True).start()
         return r
 
+    def ensure_native_module(self) -> bool:
+        """On a board flashed with the ATLAS firmware, start the nose-lift module (idle until a takeoff is requested,
+        and refusing to run on hardware unless NLF_HW_OK = 1) so PX4 lists its parameters. True when it was started."""
+        link = self.link
+        if link is None or not link.ctl_connected:
+            return False
+        try:
+            out = link.shell("atlas_nose_lift status", timeout=1.5)
+        except Exception:
+            return False
+        if "not running" not in out or "not found" in out:
+            return False
+        try:
+            link.shell("atlas_nose_lift start", timeout=1.5)
+            self.log("[px4] ATLAS firmware on the board: nose-lift module started (idle; takeoff needs NLF_HW_OK = 1)")
+            time.sleep(0.5)
+            return True
+        except Exception as e:
+            self.log(f"[px4] could not start the nose-lift module: {e}")
+            return False
+
     # ------------------------------------------------------------ firmware archive (GitHub)
     def _wait_params(self, timeout: float = 90.0) -> bool:
         deadline = time.time() + timeout
@@ -842,6 +863,8 @@ class ConnectionManager:
                         self.log(f"[params] board rebooted by us: keeping the {len(link.params)} cached parameters")
                     else:
                         link.fetch_all_params()
+                    if link.mode == "hitl" and self.ensure_native_module():
+                        link.fetch_all_params()          # the module's parameters are listed only once it runs
                     if self.on_params:
                         self.on_params()
                 except Exception as e:

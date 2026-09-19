@@ -13,6 +13,8 @@
         "--px4-instance",
         "1",
         "--no-browser",
+        "--mode",
+        "auto",
         "--airframe",
         "airframes/atlas_09.json"
       ],
