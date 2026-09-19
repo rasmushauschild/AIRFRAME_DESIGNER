@@ -21,6 +21,8 @@
 #include <uORB/topics/actuator_motors.h>
 #include <uORB/topics/atlas_nose_lift_floor.h>
 #include <uORB/topics/vehicle_thrust_setpoint.h>
+#include <uORB/topics/mavlink_log.h>
+#include <systemlib/mavlink_log.h>
 using namespace time_literals;
 
 class AtlasNoseLift : public ModuleBase, public ModuleParams, public px4::ScheduledWorkItem {
@@ -67,7 +69,11 @@ private:
  uint8_t _xy_reset{}, _z_reset{}, _heading_reset{};
  float _pitch{}, _yaw{}, _x{}, _y{}, _z{}, _target_z{};
  bool _was_armed{false};
- bool _released{false};   // Aborting phase entered only to keep lockstep alive after an external disarm
+ bool _released{false};
+ orb_advert_t _mavlink_log_pub{nullptr};
+#define NL_INFO(...) do { PX4_INFO(__VA_ARGS__); mavlink_log_info(&_mavlink_log_pub, __VA_ARGS__); } while (0)
+#define NL_WARN(...) do { PX4_WARN(__VA_ARGS__); mavlink_log_warning(&_mavlink_log_pub, __VA_ARGS__); } while (0)
+#define NL_ERR(...) do { PX4_ERR(__VA_ARGS__); mavlink_log_critical(&_mavlink_log_pub, __VA_ARGS__); } while (0)   // Aborting phase entered only to keep lockstep alive after an external disarm
  uORB::Subscription _att_sub{ORB_ID(vehicle_attitude)}, _rates_sub{ORB_ID(vehicle_angular_velocity)},
   _pos_sub{ORB_ID(vehicle_local_position)}, _status_sub{ORB_ID(vehicle_status)}, _land_sub{ORB_ID(vehicle_land_detected)};
  uORB::Subscription _motors_sub{ORB_ID(atlas_nose_lift_feedback)};
@@ -105,7 +111,7 @@ private:
   _floor_pub.publish(floor);
  }
  void fail(const char *reason, const vehicle_status_s &status, bool airborne) {
-  PX4_ERR("abort: %s", reason); clear_floor();
+  NL_ERR("abort: %s", reason); clear_floor();
   if (status.arming_state != vehicle_status_s::ARMING_STATE_ARMED) { _phase=Failed; return; }
   if (!airborne && status.nav_state==vehicle_status_s::NAVIGATION_STATE_OFFBOARD) {
    _phase=Aborting; _phase_start=hrt_absolute_time(); _abort9=_cmd9; _abort10=_cmd10;
@@ -128,8 +134,8 @@ private:
   }
   if (_phase==Aborting || _phase==Shutdown) {
    if (status.nav_state!=vehicle_status_s::NAVIGATION_STATE_OFFBOARD) {
-    if (_phase==Shutdown) { if (!armed) { PX4_INFO("landing complete: all motors off and disarmed"); } else { PX4_WARN("landing interrupted by mode change"); } _phase=Idle; }
-    else { _phase=_released ? Idle : Failed; if (_released) { PX4_INFO("control handed back to PX4"); } _released=false; }
+    if (_phase==Shutdown) { if (!armed) { NL_INFO("landing complete: all motors off and disarmed"); } else { NL_WARN("landing interrupted by mode change"); } _phase=Idle; }
+    else { _phase=_released ? Idle : Failed; if (_released) { NL_INFO("control handed back to PX4"); } _released=false; }
     return;
    }
    // Keep zero actuator samples flowing until the commander leaves direct control.
@@ -153,16 +159,16 @@ private:
   const matrix::Eulerf e(matrix::Quatf(att.q)); _pitch=e.theta();
   if (take(_request)) {
    updateParams();
-   if (_phase!=Idle && _phase!=Failed) { PX4_WARN("sequence already active"); return; }
+   if (_phase!=Idle && _phase!=Failed) { NL_WARN("sequence already active"); return; }
 #if !defined(CONFIG_ARCH_BOARD_PX4_SITL)
    // Hardware interlock: on a flight controller the experimental sequence runs only after NLF_HW_OK was set by hand.
-   if (_hw_ok.get() != 1) { PX4_ERR("experimental module on hardware: set NLF_HW_OK = 1 to allow it"); return; }
+   if (_hw_ok.get() != 1) { NL_ERR("experimental module on hardware: set NLF_HW_OK = 1 to allow it"); return; }
 #endif
    _hover_angle=_hover_param.get();
-   if (!atlas_model_matches(_hover_angle, _ground)) { PX4_ERR("ground model configuration invalid; Update PX4"); return; }
+   if (!atlas_model_matches(_hover_angle, _ground)) { NL_ERR("ground model configuration invalid; Update PX4"); return; }
    if (!_enable.get() || armed || !land.landed || !pos.xy_valid || !pos.z_valid || now-att.timestamp>200_ms
        || !PX4_ISFINITE(_pitch) || !PX4_ISFINITE(e.psi()) || !PX4_ISFINITE(pos.z)) {
-    PX4_ERR("requires enabled, disarmed, landed, fresh valid attitude and position"); return;
+    NL_ERR("requires enabled, disarmed, landed, fresh valid attitude and position"); return;
    }
    if (!PX4_ISFINITE(_land_angle_param.get()) || !PX4_ISFINITE(_hover_angle) || !PX4_ISFINITE(_lift_target.get()) ||
        !PX4_ISFINITE(_rate.get()) || _rate.get()<1.f || _rate.get()>15.f ||
@@ -170,32 +176,32 @@ private:
        !PX4_ISFINITE(_hold.get()) || _hold.get()<0.5f || _hold.get()>5.f ||
        !PX4_ISFINITE(_alt.get()) || _alt.get()<0.5f || _alt.get()>5.f ||
        !PX4_ISFINITE(_timeout.get()) || _timeout.get()<10.f || _timeout.get()>60.f) {
-    PX4_ERR("invalid sequence parameters"); return;
+    NL_ERR("invalid sequence parameters"); return;
    }
    _phase=Prime; _start=now; _phase_start=now; _dwell=0; _fade_start=0; _integral=0.f; _cmd9=0.f; _cmd10=0.f; _last_command=0; _was_armed=false;
    _rest_pitch=math::degrees(matrix::Eulerf(matrix::Dcmf(matrix::Quatf(att.q))*matrix::Dcmf(matrix::Eulerf(0.f,math::radians(_hover_angle),0.f))).theta());
    _landing_angle=_land_angle_param.get();
    if (_landing_angle > _rest_pitch+3.f) {
-    PX4_ERR("landed pitch %.1f is above measured ground posture %.1f; adjust landed pitch to the legs", double(_landing_angle), double(_rest_pitch));
+    NL_ERR("landed pitch %.1f is above measured ground posture %.1f; adjust landed pitch to the legs", double(_landing_angle), double(_rest_pitch));
     _phase=Idle; return;
    }
    _xy_reset=pos.xy_reset_counter; _z_reset=pos.z_reset_counter; _heading_reset=pos.heading_reset_counter;
    _yaw=e.psi(); _x=pos.x; _y=pos.y; _z=pos.z; _target_z=_z;
-   PX4_INFO("priming nose lift at pitch %.1f",double(math::degrees(_pitch)));
+   NL_INFO("priming nose lift at pitch %.1f",double(math::degrees(_pitch)));
   }
   if (take(_land_request)) {
    updateParams();
    if (_phase!=Hover || !armed || !_enable.get() || !atlas_model_matches(_hover_angle, _ground)) {
-    PX4_WARN("landing requires this module's active hover and matching model");
+    NL_WARN("landing requires this module's active hover and matching model");
    } else if (!PX4_ISFINITE(_land_speed.get()) || _land_speed.get()<0.05f || _land_speed.get()>0.3f ||
               !PX4_ISFINITE(_down_rate.get()) || _down_rate.get()<1.f || _down_rate.get()>5.f) {
-    PX4_ERR("invalid landing parameters");
+    NL_ERR("invalid landing parameters");
    } else if (!PX4_ISFINITE(_disarm_delay.get()) || _disarm_delay.get()<40.f/_down_rate.get()+8.f) {
-    PX4_ERR("landing needs COM_DISARM_LAND long enough for controlled nose lowering (use 60 s)");
+    NL_ERR("landing needs COM_DISARM_LAND long enough for controlled nose lowering (use 60 s)");
    } else {
     _phase=Descend; _phase_start=now; _contact_dwell=0; _target_z=pos.z;
     _x=pos.x; _y=pos.y; clear_floor();
-    PX4_INFO("landing: descending onto rear legs");
+    NL_INFO("landing: descending onto rear legs");
    }
   }
   if (_phase==Idle || _phase==Failed) { return; }
@@ -223,10 +229,10 @@ private:
     // Disarmed while still under direct actuator control (typically the land detector's auto-disarm during a slow
     // nose lift): nobody publishes motor samples any more, the output driver goes quiet and lockstep SITL stops
     // advancing. Keep zero samples flowing and hand the commander back to Hold before going idle.
-    PX4_INFO("released control on disarm; handing PX4 back to Hold");
+    NL_INFO("released control on disarm; handing PX4 back to Hold");
     _phase=Aborting; _released=true; _phase_start=now; _abort9=0.f; _abort10=0.f; _last_command=0; return;
    }
-   PX4_INFO("released control on disarm or mode change"); _phase=Idle; return;
+   NL_INFO("released control on disarm or mode change"); _phase=Idle; return;
   }
   if (fabsf(e.phi())>math::radians(20.f) || _pitch>math::radians(15.f) || _pitch<math::radians(-55.f)) {
    fail("attitude envelope",status,_phase!=Prime && _phase!=Lift); return;
@@ -242,7 +248,7 @@ private:
     if (now-_contact_dwell>200_ms) {
      _phase=LowerNose; _phase_start=now; _dwell=0; _integral=0.f; _touch_z=pos.z;
      _lower_target=math::degrees(matrix::Eulerf(matrix::Dcmf(matrix::Quatf(att.q))*matrix::Dcmf(matrix::Eulerf(0.f,math::radians(_hover_angle),0.f))).theta());
-     PX4_INFO("landing: rear support detected; lowering nose");
+     NL_INFO("landing: rear support detected; lowering nose");
     }
    } else { _contact_dwell=0; }
    if (now-_phase_start>60_s) { fail("rear contact timeout",status,true); return; }
@@ -277,12 +283,12 @@ private:
        fabsf(pos.vz)<0.10f && fabsf(pos.z-_touch_z)<0.35f;
    if (now-_diagnostic_time>1_s) {
     _diagnostic_time=now;
-    PX4_INFO("lower: pitch %.2f rest %.2f q %.2f demand %.2f vz %.3f dz %.3f contact %d", double(math::degrees(theta)), double(_rest_pitch), double(math::degrees(omega(1))), double(q_des), double(pos.vz), double(pos.z-_z), int(nose_down));
+    NL_INFO("lower: pitch %.2f rest %.2f q %.2f demand %.2f vz %.3f dz %.3f contact %d", double(math::degrees(theta)), double(_rest_pitch), double(math::degrees(omega(1))), double(q_des), double(pos.vz), double(pos.z-_z), int(nose_down));
    }
    if (nose_down) {
     if (!_dwell) { _dwell=now; }
     if (now-_dwell>1_s) {
-     PX4_INFO("landing: nose settled; ramping motors off");
+     NL_INFO("landing: nose settled; ramping motors off");
      _phase=Shutdown; _phase_start=now; _abort9=_cmd9; _abort10=_cmd10; _last_command=0;
     }
    } else { _dwell=0; }
@@ -298,7 +304,7 @@ private:
     _last_command=now;
    }
    if (armed && status.nav_state==vehicle_status_s::NAVIGATION_STATE_OFFBOARD) {
-    _phase=Lift; _phase_start=now; _was_armed=true; PX4_INFO("lifting nose");
+    _phase=Lift; _phase_start=now; _was_armed=true; NL_INFO("lifting nose");
    }
   }
   if (_phase==Lift || _phase==Spool) {
@@ -327,7 +333,7 @@ private:
     if ((now-_dwell)*1e-6f>=_hold.get()) {
      _phase=Spool; _phase_start=now; _x=pos.x; _y=pos.y; _target_z=pos.z; _support_since=0;
      _yaw=e.psi();
-     PX4_INFO("nose settled and ground confirmed; climbing with heading held");
+     NL_INFO("nose settled and ground confirmed; climbing with heading held");
     }
    } else { _dwell=0; }
   }
@@ -362,7 +368,7 @@ private:
     const bool supported = output.active && now-output.timestamp<100_ms && output.control[8]>=0.95f*_cmd9 && output.control[9]>=0.95f*_cmd10;
     if (!supported) { _support_since=0; } else if (!_support_since) { _support_since=now; }
     if (!_fade_start && supported && now-_support_since>=500_ms && !land.landed) {
-     _fade_start=now; _fade9=_cmd9; _fade10=_cmd10; PX4_INFO("PX4 supports nose and is lifting; fading motor floor");
+     _fade_start=now; _fade9=_cmd9; _fade10=_cmd10; NL_INFO("PX4 supports nose and is lifting; fading motor floor");
     }
     if (now-_phase_start>15_s && !_fade_start) { fail("handover timeout",status,!land.landed); return; }
     atlas_nose_lift_floor_s floor{}; floor.timestamp=now; floor.timestamp_sample=att.timestamp; floor.active=true;
@@ -371,7 +377,7 @@ private:
     floor.control[8]=_fade_start ? math::min(_cmd9,_fade9*fade) : _cmd9;
     floor.control[9]=_fade_start ? math::min(_cmd10,_fade10*fade) : _cmd10;
     _floor_pub.publish(floor);
-    if (_fade_start && now-_fade_start>2_s) { _phase=Climb; _phase_start=now; _target_z=pos.z; PX4_INFO("handover complete"); }
+    if (_fade_start && now-_fade_start>2_s) { _phase=Climb; _phase_start=now; _target_z=pos.z; NL_INFO("handover complete"); }
    }
    mode.position=true; _mode_pub.publish(mode);
    if (_phase==Descend) { _target_z=math::min(_z+0.2f,_target_z+_land_speed.get()*0.004f); }
@@ -381,7 +387,7 @@ private:
    for(int i=0;i<3;i++) { sp.velocity[i]=NAN; sp.acceleration[i]=NAN; sp.jerk[i]=NAN; }
    sp.yaw=_yaw; sp.yawspeed=0.f; _traj_pub.publish(sp);
    if (_phase==Climb && fabsf(pos.z-(_z-_alt.get()))<0.15f && fabsf(pos.vz)<0.15f) {
-    _phase=Hover; PX4_INFO("hover achieved with heading held");
+    _phase=Hover; NL_INFO("hover achieved with heading held");
    }
    if (_phase==Climb && now-_phase_start>30_s) { fail("climb timeout",status,true); }
   }
