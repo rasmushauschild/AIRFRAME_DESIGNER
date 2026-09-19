@@ -155,3 +155,17 @@ The standard app exports `NLF_MASS`, `NLF_GX`, `NLF_GZ`, `NLF_MOM`, and `NLF_W9`
 While disarmed, model edits affecting exported parameters are debounced for one second, then the owned SITL process and simulation reset with freshly seeded parameters. Edits while armed are deferred until disarm. No firmware rebuild is needed for these model parameters.
 
 Validation: the captured current model completed takeoff, hover, and landing with motors off using the three-second ramp; the earlier 0.2-second ramp aborted on the attitude envelope. The successful run still exceeded the strict landing drift threshold (7.1 cm), so it is not a full flight-regression pass. The original model also completed both sequences.
+
+
+## Flashing the same firmware to the Pixhawk
+
+The Connect tab builds this firmware for the plugged-in board (`px4_fmu-v6x`, `multicopter` variant with the HIL
+output driver) from the same PX4 tree and the same module sources as the SITL, and flashes it over USB
+(`ATLAS_MODULES=$PWD/firmware/atlas scripts/build_hitl_firmware.sh px4_fmu-v6x upload` does the same by hand). On a
+flight controller the module refuses to start until `NLF_HW_OK = 1`, a deliberate interlock set from the Connect
+tab ("Allow on hardware"). `std::atomic` is not available on NuttX, so the module uses `px4::atomic`.
+
+Every flash (and every "Snapshot board now") is archived: image, all board parameters (QGC `.params`), the
+exported parameters, the airframe and these module sources go to https://github.com/rasmushauschild/PX4_FIRMWARE
+(clone in `~/.airframe_designer/px4_firmware_archive`, override with `AFD_FIRMWARE_ARCHIVE`). The Versions tab
+lists them and can flash any version back and restore its parameters (`airframe_designer/px4/archive.py`).

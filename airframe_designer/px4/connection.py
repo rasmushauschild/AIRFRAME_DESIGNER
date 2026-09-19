@@ -17,6 +17,7 @@ from typing import Callable
 from .link import PX4Link
 from .sitl import launch_px4, free_px4_instance, stop_px4 as _stop_px4, find_px4_dir, px4_binary
 from . import firmware as fw
+from .archive import FirmwareArchive
 
 PROJECT_DIR = Path(__file__).resolve().parents[2]
 
@@ -78,18 +79,27 @@ class FirmwareJob:
         self.board = None
         self.result: str | None = None
         self.exit_code: int | None = None
+        self.atlas = False
+        self.firmware_file: str | None = None
 
     def running(self) -> bool:
         return self.proc is not None and self.proc.poll() is None
 
-    def start(self, board: str, action: str, px4_dir: str, venv_bin: str, ref: str | None = None) -> dict:
+    def start(self, board: str, action: str, px4_dir: str, venv_bin: str, ref: str | None = None, atlas: bool = False,
+              firmware_file: str | None = None) -> dict:
         if self.running():
             return {"ok": False, "error": f"{self.action} already running"}
         script = PROJECT_DIR / "scripts" / "build_hitl_firmware.sh"
         env = dict(os.environ)
         env["PX4_DIR"] = px4_dir
-        if ref:
+        if firmware_file:
+            env["FIRMWARE_FILE"] = firmware_file
+        self.firmware_file = firmware_file
+        if ref and not atlas:
             env["PX4_REF"] = ref
+        if atlas:
+            env["ATLAS_MODULES"] = str(PROJECT_DIR / "firmware" / "atlas")
+        self.atlas = atlas
         env["PATH"] = venv_bin + ":" + env.get("PATH", "")
         self.action, self.board, self.result, self.exit_code = action, board, None, None
         self.log(f"[firmware] {action} {board} (this takes a few minutes; watch the log)")
@@ -143,7 +153,7 @@ class FirmwareJob:
 
     def status(self) -> dict:
         return {"running": self.running(), "action": self.action, "board": self.board, "result": self.result,
-                "exit_code": self.exit_code}
+                "exit_code": self.exit_code, "atlas": self.atlas}
 
 
 class ConnectionManager:
@@ -164,6 +174,9 @@ class ConnectionManager:
         self._lock = threading.RLock()
         self.firmware_job = FirmwareJob(log)
         self.launched_binary_mtime: float | None = None    # mtime of the SITL binary the running PX4 was started from
+        self.archive = FirmwareArchive(log)                # every flash to a board is versioned and pushed to GitHub
+        self.export_params_fn = None                        # set by the server: () -> exported PX4 parameters
+        self.restore_job: dict = {"running": False}
         self._params_session = 0
         self._stop = threading.Event()
         threading.Thread(target=self._watch, name="link-watch", daemon=True).start()
@@ -353,24 +366,35 @@ class ConnectionManager:
         """Same choice as scripts/build_hitl_firmware.sh: 'multicopter' when the board offers it, else 'default'."""
         if not target:
             return "default"
-        board_dir = Path(self.args.px4_dir) / "boards" / target.replace("_", "/", 1)
+        board_dir = Path(self.board_source_dir()) / "boards" / target.replace("_", "/", 1)
         return "multicopter" if (board_dir / "multicopter.px4board").is_file() else "default"
 
     def firmware_file(self, target: str | None) -> str | None:
         if not target:
             return None
         v = self.firmware_variant(target)
-        f = Path(self.args.px4_dir) / "build" / f"{target}_{v}" / f"{target}_{v}.px4"
+        f = Path(self.board_source_dir()) / "build" / f"{target}_{v}" / f"{target}_{v}.px4"
         return str(f) if f.is_file() else None
 
-    def build_firmware(self, target: str | None = None) -> dict:
+    def firmware_is_atlas(self, target: str | None) -> bool:
+        """Was the built firmware compiled with the ATLAS modules (stamp written by the build script)?"""
+        if not target:
+            return False
+        v = self.firmware_variant(target)
+        return (Path(self.board_source_dir()) / "build" / f"{target}_{v}" / f"{target}_{v}.atlas").is_file()
+
+    def board_source_dir(self) -> str:
+        """The PX4 checkout board firmware is built from: the SITL's source tree (the ATLAS overlay is pinned to it)."""
+        return os.environ.get("PX4_SOURCE_DIR", os.path.expanduser("~/PX4-Autopilot"))
+
+    def build_firmware(self, target: str | None = None, atlas: bool = False) -> dict:
         target = target or self.detected_board()["target"]
         if not target:
             return {"ok": False, "error": "could not tell the board type from USB; pass the target, e.g. px4_fmu-v6x"}
         if not self.toolchain_present():
             return {"ok": False, "error": "ARM toolchain missing. Run:  brew tap osx-cross/arm; brew trust osx-cross/arm && brew install osx-cross/arm/arm-gcc-bin@13 && brew link --overwrite --force arm-gcc-bin@13   then try again."}
         venv_bin = str(PROJECT_DIR / ".venv" / "bin")
-        return self.firmware_job.start(target, "build", self.args.px4_dir, venv_bin, ref=self.board_release_tag())
+        return self.firmware_job.start(target, "build", self.board_source_dir(), venv_bin, ref=self.board_release_tag(), atlas=atlas)
 
     def board_release_tag(self) -> str | None:
         """'1.17.0 release' on the board -> 'v1.17.0', so the HITL build matches what is flashed."""
@@ -379,11 +403,14 @@ class ConnectionManager:
         m = re.match(r"(\d+\.\d+\.\d+) release", ver)
         return f"v{m.group(1)}" if m else None
 
-    def upload_firmware(self, target: str | None = None) -> dict:
-        """Flash the built firmware. We must release the serial port first; the link reconnects after."""
+    def upload_firmware(self, target: str | None = None, atlas: bool = False, firmware_file: str | None = None, note: str = "") -> dict:
+        """Flash the built firmware (or an archived image). We must release the serial port first; the link reconnects
+        after, and the result is archived to GitHub."""
         target = target or self.detected_board()["target"]
-        if not target or not self.firmware_file(target):
+        if not target or not (firmware_file or self.firmware_file(target)):
             return {"ok": False, "error": "no built firmware for this board yet; build it first"}
+        if atlas and not firmware_file and not self.firmware_is_atlas(target):
+            return {"ok": False, "error": "the built firmware has no ATLAS modules; build the ATLAS firmware first"}
         with self._lock:
             was_hitl = self.mode == "hitl"
             serial = self.serial
@@ -392,7 +419,8 @@ class ConnectionManager:
                 self._close_link()
                 time.sleep(1.0)   # let the OS release the device
         venv_bin = str(PROJECT_DIR / ".venv" / "bin")
-        r = self.firmware_job.start(target, "upload", self.args.px4_dir, venv_bin, ref=ref)
+        image = firmware_file or self.firmware_file(target)
+        r = self.firmware_job.start(target, "upload", self.board_source_dir(), venv_bin, ref=ref, atlas=atlas, firmware_file=firmware_file)
         if r.get("ok") and was_hitl:
             def reconnect():
                 while self.firmware_job.running():
@@ -400,8 +428,98 @@ class ConnectionManager:
                 time.sleep(4.0)   # let the board reboot into the new firmware and re-enumerate
                 self.log("[firmware] reconnecting to the board")
                 self.connect_hitl(serial, self.baud)
+                if self.firmware_job.exit_code == 0:
+                    self.archive_after_flash(image, atlas=(atlas or (firmware_file is None and self.firmware_is_atlas(target))), note=note)
             threading.Thread(target=reconnect, daemon=True).start()
         return r
+
+    # ------------------------------------------------------------ firmware archive (GitHub)
+    def _wait_params(self, timeout: float = 90.0) -> bool:
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            l = self.link
+            if l is not None and l.ctl_connected and l.param_count and l.status().get("params_loaded", 0) >= l.param_count:
+                return True
+            time.sleep(0.5)
+        return False
+
+    def archive_after_flash(self, image: str | None, atlas: bool, note: str = "") -> dict:
+        """Called once the board is back after a flash: store image + full parameter set + airframe + module sources."""
+        if not self._wait_params():
+            self.log("[archive] board parameters did not come back in time; snapshot skipped (use Snapshot now later)")
+            return {"ok": False, "error": "parameters not downloaded"}
+        return self.archive_snapshot(kind="flash", image=image, atlas=atlas, note=note)
+
+    def archive_snapshot(self, kind: str = "manual", image: str | None = None, atlas: bool | None = None, note: str = "") -> dict:
+        link = self.link
+        if link is None or link.mode != "hitl" or not link.ctl_connected:
+            return {"ok": False, "error": "snapshot needs a connected board (HITL)"}
+        if not (link.param_count and link.status().get("params_loaded", 0) >= link.param_count):
+            return {"ok": False, "error": "board parameters still downloading"}
+        board = self.detected_board()
+        if atlas is None:
+            atlas = "NLF_ENABLE" in link.params
+        export = {}
+        try:
+            export = self.export_params_fn() if self.export_params_fn else {}
+        except Exception as e:
+            self.log(f"[archive] export failed: {e}")
+        af = self.sim.airframe.to_dict() if getattr(self.sim, "airframe", None) else None
+        return self.archive.snapshot(kind=kind, board=board, firmware_file=image, board_firmware=dict(link.firmware or {}),
+                                     params_board=dict(link.params), params_export=export, airframe=af, atlas=atlas, note=note)
+
+    def archive_restore(self, version_id: str, flash: bool = True, params: bool = True, note: str = "") -> dict:
+        """Put the board back to an archived version: flash its image, then write its full parameter set."""
+        v = self.archive.get(version_id)
+        if not v:
+            return {"ok": False, "error": f"unknown version {version_id}"}
+        if self.restore_job.get("running"):
+            return {"ok": False, "error": "a restore is already running"}
+        if self.link is None or self.link.mode != "hitl":
+            return {"ok": False, "error": "restore needs the board connected (HITL)"}
+        if self.link.armed:
+            return {"ok": False, "error": "vehicle is armed"}
+        if flash and not v.get("firmware_file"):
+            return {"ok": False, "error": "this version has no firmware image (parameters-only snapshot)"}
+        self.restore_job = {"running": True, "id": version_id, "steps": [], "error": None, "t0": time.time()}
+
+        def run():
+            job = self.restore_job
+            try:
+                if flash:
+                    self.log(f"[archive] restoring {version_id}: flashing its firmware image")
+                    r = self.upload_firmware(self.detected_board()["target"], atlas=False, firmware_file=v["firmware_file"], note=f"restore of {version_id}")
+                    if not r.get("ok"):
+                        job["error"] = r.get("error"); return
+                    while self.firmware_job.running():
+                        time.sleep(1.0)
+                    if self.firmware_job.exit_code != 0:
+                        job["error"] = f"flash failed: {self.firmware_job.result}"; return
+                    job["steps"].append("firmware flashed")
+                    time.sleep(6.0)
+                if params:
+                    if not self._wait_params():
+                        job["error"] = "board parameters did not come back"; return
+                    link = self.link
+                    wanted = v.get("params_board") or {}
+                    todo = {k: p["value"] for k, p in wanted.items()
+                            if k in link.params and abs(float(link.params[k]["value"]) - float(p["value"])) > 1e-9
+                            and not k.startswith(("SYS_AUTOSTART",)) }
+                    self.log(f"[archive] restoring {len(todo)} parameters that differ from {version_id}")
+                    results = link.set_params(todo, lambda name, res: None) if todo else []
+                    failed = [r["name"] for r in results if not r["ok"]]
+                    link.preflight_storage(True)
+                    job["steps"].append(f"{len(todo) - len(failed)}/{len(todo)} parameters restored" + (f", failed: {failed[:6]}" if failed else ""))
+                self.log(f"[archive] restore of {version_id} done: " + "; ".join(job["steps"]))
+            except Exception as e:
+                job["error"] = f"{type(e).__name__}: {e}"
+                self.log(f"[archive] restore failed: {job['error']}")
+            finally:
+                job["running"] = False
+                job["t1"] = time.time()
+
+        threading.Thread(target=run, name="archive-restore", daemon=True).start()
+        return {"ok": True}
 
     # ------------------------------------------------------------ HITL helpers
     def recover(self) -> dict:
@@ -585,6 +703,34 @@ class ConnectionManager:
         steps.append({"id": "hil", "label": "Board is in HIL mode and streaming actuator outputs", "ok": streaming,
                       "detail": (f"{link.actuator_seq} actuator messages" if streaming else
                                  ("heartbeat has no HIL flag — reboot after enabling HITL" if hitl and up else ""))})
+        has_module = hitl and params_ok and "NLF_ENABLE" in link.params
+        want_module = bool(export_params) and export_params.get("NLF_ENABLE") == 1
+        if hitl and want_module:
+            atlas_built = built and self.firmware_is_atlas(board["target"])
+            a_detail, a_action = "", None
+            if has_module:
+                a_detail = "the board runs the nose-lift module and allocator overlay, like the SITL"
+            elif job["running"]:
+                a_detail = f"{job['action'].capitalize()}ing {job['board']} {'with' if job.get('atlas') else 'without'} the ATLAS modules… see the log."
+            elif atlas_built:
+                a_detail = f"ATLAS firmware for {board['target']} is built: flash it (about a minute, the board reboots; parameters are kept)."
+                a_action = "upload_atlas"
+            elif not self.toolchain_present():
+                a_detail = "Install the ARM toolchain once (see the README), then build the ATLAS firmware here."
+            elif board["target"]:
+                a_detail = (f"Build PX4 {board['target']} from the SITL's source tree with the ATLAS modules (10 minutes the "
+                            f"first time), then flash it. This replaces the release firmware on the board.")
+                a_action = "build_atlas"
+            if job["result"] and job["result"] != "ok" and job.get("atlas"):
+                a_detail += f" Last {job['action']} {job['result']}"
+            steps.append({"id": "atlas", "label": "Board runs the ATLAS firmware (same modules as the SITL)",
+                          "ok": has_module, "detail": a_detail, "action": a_action, "busy": job["running"]})
+            hw_ok = link.params.get("NLF_HW_OK", {}).get("value") if has_module else None
+            steps.append({"id": "hw_ok", "label": "Experimental ground sequence allowed on hardware (NLF_HW_OK = 1)",
+                          "ok": hw_ok == 1,
+                          "detail": ("set it once you accept flying the experimental nose-lift on the real aircraft" if has_module and hw_ok != 1
+                                     else ("" if has_module else "needs the ATLAS firmware first")),
+                          "action": "enable_hw" if (has_module and up and hw_ok != 1) else None})
         summary = None
         if hitl:
             for x in reversed(list(link.recent_events)):

@@ -13,6 +13,8 @@ A PX4-in-the-loop aircraft design simulator. Python 3.12, venv at `.venv` (`.ven
 * Static analysis: `.venv/bin/python -m airframe_designer analyse --airframe X`.
 * Native PX4 firmware (ATLAS nose lift) builds into `firmware/atlas/build`: `make firmware`, or the app's Update PX4
   rebuilds + relaunches when sources changed (`px4/firmware.py`, `ConnectionManager.update_firmware`).
+* Board firmware: Connect tab builds/flashes the ATLAS firmware for the Pixhawk; every flash is archived to the
+  PX4_FIRMWARE GitHub repo (px4/archive.py) and the Versions tab restores any of them.
 * MCP server for other assistants: `.venv/bin/python -m airframe_designer mcp` (stdio) / `mcp --http 8765`; tools in
   `airframe_designer/mcp_server.py`, setup in docs/AI_GUIDE.md.
 

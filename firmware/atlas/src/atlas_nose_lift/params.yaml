@@ -72,6 +72,12 @@ parameters:
       default: 3
       min: 1
       max: 5
+    NLF_HW_OK:
+      description:
+        short: Allow the experimental ground sequence on real hardware
+        long: SITL ignores this. On a flight controller the module refuses to start unless it is 1. Set it by hand once you accept flying the experimental sequence.
+      type: int32
+      default: 0
     NLF_CFG_OK:
       description:
         short: Ground geometry supported by exporter

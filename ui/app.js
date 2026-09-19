@@ -52,6 +52,7 @@ $$('.tabs button').forEach(b => b.addEventListener('click', () => {
   if (b.dataset.tab === 'connect') refreshConnection();
   if (b.dataset.tab === 'design') refreshDesign();
   if (b.dataset.tab === 'batch') refreshBatch();
+  if (b.dataset.tab === 'versions') refreshArchive();
 }));
 function openTab(name) { $$('.tabs button').find(b => b.dataset.tab === name)?.click(); }
 
@@ -954,7 +955,8 @@ async function waitNoseLift(timeoutMs = 40000) {
 }
 $('#btn-takeoff').addEventListener('click', async () => {
   try {
-    if (status.mode === 'sitl' && +((params.NLF_ENABLE || {}).value ?? (airframe.px4_overrides || {}).NLF_ENABLE) === 1) {
+    const firmwareHasModule = status.mode === 'sitl' || !!params.NLF_ENABLE;   // the ATLAS SITL always has it; a board only when flashed with it
+    if (firmwareHasModule && +((params.NLF_ENABLE || {}).value ?? (airframe.px4_overrides || {}).NLF_ENABLE) === 1) {
       if (status.armed) return;
       const landing = await api('/api/params/set', { name: 'NLF_LAND_ANG', value: Number(airframe.landed_pitch_deg) });
       if (!landing.ok) throw new Error(landing.error || 'Could not apply landed pitch');
@@ -1403,6 +1405,9 @@ async function refreshConnection() {
     ${s.action === 'enable_hitl' ? '<button class="pill small primary" data-act="enable_hitl">Enable HITL</button>' : ''}
     ${s.action === 'build_firmware' ? '<button class="pill small primary" data-act="build_firmware">Build firmware</button>' : ''}
     ${s.action === 'upload_firmware' ? '<button class="pill small primary" data-act="upload_firmware">Flash firmware</button>' : ''}
+    ${s.action === 'build_atlas' ? '<button class="pill small primary" data-act="build_atlas">Build ATLAS firmware</button>' : ''}
+    ${s.action === 'upload_atlas' ? '<button class="pill small primary" data-act="upload_atlas">Flash ATLAS firmware</button>' : ''}
+    ${s.action === 'enable_hw' ? '<button class="pill small" data-act="enable_hw">Allow on hardware</button>' : ''}
     ${s.action === 'push' ? '<button class="pill small primary" data-act="push">Push geometry</button>' : ''}
     ${s.action === 'reboot' ? '<button class="pill small" data-act="reboot">Reboot board</button>' : ''}
     ${s.action === 'ekf' ? '<button class="pill small" data-act="ekf">Restart estimator</button>' : ''}</div>`).join('');
@@ -1412,6 +1417,15 @@ async function refreshConnection() {
     if (b.dataset.act === 'build_firmware') { b.textContent = 'Building…'; await connCall('/api/firmware/build', {}); }
     if (b.dataset.act === 'ekf') { b.textContent = 'Restarting…'; await api('/api/connection/restart_estimator', {}); setTimeout(refreshConnection, 3000); }
     if (b.dataset.act === 'reboot') { b.textContent = 'Rebooting…'; await api('/api/px4/command', { command: 'reboot' }); setTimeout(refreshConnection, 3000); }
+    if (b.dataset.act === 'build_atlas') { b.textContent = 'Building…'; await connCall('/api/firmware/build', { atlas: true }); }
+    if (b.dataset.act === 'upload_atlas') {
+      if (!confirm('Replace the firmware on the board with the ATLAS build (PX4 from the SITL source tree + nose-lift module + allocator overlay)? The board reboots and reconnects; parameters are kept and the result is archived to GitHub (Versions tab). Afterwards run Update PX4 and, if you accept flying the experimental sequence, allow it on hardware.')) return;
+      b.textContent = 'Flashing…'; await connCall('/api/firmware/upload', { atlas: true });
+    }
+    if (b.dataset.act === 'enable_hw') {
+      if (!confirm('Allow the experimental nose-lift sequence to arm and run the motors on the real aircraft (NLF_HW_OK = 1)?')) return;
+      b.textContent = 'Setting…'; await api('/api/params/set', { name: 'NLF_HW_OK', value: 1 }); setTimeout(refreshConnection, 1500);
+    }
     if (b.dataset.act === 'upload_firmware') {
       if (!confirm('Flash the HITL-capable firmware to the board now? It reboots and reconnects when done. Parameters are kept.')) return;
       b.textContent = 'Flashing…'; await connCall('/api/firmware/upload', {});
@@ -1420,6 +1434,54 @@ async function refreshConnection() {
   connTimer = setTimeout(refreshConnection, 2000);
 }
 
+
+// ============================================================ Versions: firmware archive on GitHub
+let archTimer = null;
+const fmtDate = (iso) => { try { const d = new Date(iso); return d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }); } catch { return iso; } };
+async function refreshArchive() {
+  clearTimeout(archTimer);
+  if (!$('#tab-versions').classList.contains('active')) return;
+  let a;
+  try { a = await api('/api/archive'); } catch (e) { $('#arch-status').innerHTML = `<div class="err">${esc(e.message)}</div>`; return; }
+  const st = a.status || {};
+  const push = st.last_push ? `last push ${st.last_push_ok ? '✓' : '✗'} ${fmtDate(new Date(st.last_push * 1000).toISOString())}` : 'not pushed yet in this session';
+  $('#arch-status').innerHTML = `<div class="conn-row"><div><b>${st.count} version${st.count === 1 ? '' : 's'}</b> · <a href="${esc(st.web)}" target="_blank" rel="noopener">${esc(st.web)}</a>
+    <div class="hint">${st.cloned ? 'local copy ' + esc(st.path) : 'not cloned yet'} · ${push}${st.busy ? ' · pushing…' : ''}</div>
+    ${st.error ? `<div class="err">${esc(st.error)}</div>` : ''}
+    ${a.board_connected ? '' : '<div class="hint">Connect the Pixhawk (Connect tab) to snapshot or restore.</div>'}</div></div>`;
+  const r = a.restore || {};
+  $('#arch-restore').innerHTML = r.running ? `<span class="warn">Restoring ${esc(r.id)}… ${(r.steps || []).join('; ')} (watch the log)</span>`
+    : (r.id ? (r.error ? `<span class="err">Restore of ${esc(r.id)} failed: ${esc(r.error)}</span>` : `<span class="ok">Restored ${esc(r.id)}: ${(r.steps || []).join('; ')}</span>`) : '');
+  const vs = a.versions || [];
+  $('#arch-list').innerHTML = vs.length ? `<table class="grid"><thead><tr><th>When</th><th>Kind</th><th>Board</th><th>PX4 on board</th><th>ATLAS</th><th>Airframe</th><th>Params</th><th>Note</th><th></th></tr></thead><tbody>${vs.map(v => `
+    <tr data-id="${esc(v.id)}"><td class="nowrap">${fmtDate(v.time)}</td><td>${esc(v.kind)}</td><td class="mono">${esc((v.board || {}).target || '')}</td>
+    <td>${esc((v.board_firmware || {}).version || '')}</td><td>${v.atlas ? '<span class="ok">yes</span>' : 'no'}</td><td>${esc(v.airframe || '')}</td>
+    <td class="num" title="${v.firmware_bytes ? 'image ' + (v.firmware_bytes / 1e6).toFixed(2) + ' MB · sha256 ' + (v.firmware_sha256 || '').slice(0, 12) : 'no image'}">${v.params_count}</td>
+    <td>${esc(v.note || '')}</td>
+    <td class="nowrap">${v.firmware_bytes ? `<button class="pill small primary" data-restore="${esc(v.id)}" title="flash this image and write back every parameter of this version">Flash &amp; restore</button>` : ''}
+      <button class="pill small" data-params="${esc(v.id)}" title="write back this version's parameters without flashing">Params only</button>
+      <button class="pill small" data-airframe="${esc(v.id)}" title="load this version's airframe into the app">Airframe</button>
+      <a class="pill small" href="${esc(st.web)}/tree/main/versions/${encodeURIComponent(v.id)}" target="_blank" rel="noopener">GitHub</a></td></tr>`).join('')}</tbody></table>`
+    : '<div class="hint">No versions yet. Flash a board from the Connect tab, or click "Snapshot board now".</div>';
+  $$('#arch-list button[data-restore]').forEach(b => b.addEventListener('click', async () => {
+    if (!confirm(`Flash the firmware image of ${b.dataset.restore} to the board and restore all of its parameters? The board reboots; this replaces what is on it now (which gets archived first only if you snapshot it).`)) return;
+    b.disabled = true; try { const r = await api('/api/archive/restore', { id: b.dataset.restore, flash: true, params: true }); if (!r.ok) alert(r.error); } catch (e) { alert(e.message); } refreshArchive();
+  }));
+  $$('#arch-list button[data-params]').forEach(b => b.addEventListener('click', async () => {
+    if (!confirm(`Write the parameters of ${b.dataset.params} to the connected board?`)) return;
+    b.disabled = true; try { const r = await api('/api/archive/restore', { id: b.dataset.params, flash: false, params: true }); if (!r.ok) alert(r.error); } catch (e) { alert(e.message); } refreshArchive();
+  }));
+  $$('#arch-list button[data-airframe]').forEach(b => b.addEventListener('click', async () => {
+    try { const r = await api('/api/archive/load_airframe', { id: b.dataset.airframe }); selected = -1; setAirframe(r.airframe); markDirty(); openTab('airframe'); logLine('[archive] loaded airframe from ' + b.dataset.airframe); } catch (e) { alert(e.message); }
+  }));
+  archTimer = setTimeout(refreshArchive, r.running || st.busy ? 2000 : 10000);
+}
+$('#arch-snapshot').addEventListener('click', async () => {
+  const b = $('#arch-snapshot'); b.disabled = true; b.textContent = 'Saving…';
+  try { const r = await api('/api/archive/snapshot', { note: $('#arch-note').value }); if (!r.ok) alert(r.error); else { $('#arch-note').value = ''; logLine('[archive] snapshot ' + r.id); } } catch (e) { alert(e.message); }
+  b.disabled = false; b.textContent = 'Snapshot board now'; refreshArchive();
+});
+$('#arch-pull').addEventListener('click', async () => { try { const r = await api('/api/archive/pull', {}); if (!r.ok) alert(r.error); } catch (e) { alert(e.message); } refreshArchive(); });
 
 // ============================================================ USB remote (WebHID picker, Gamepad API fallback) -> MANUAL_CONTROL
 const JOY_FUNCS = [

@@ -65,6 +65,7 @@
       <button data-tab="batch">Batch</button>
       <button data-tab="sim">Flight</button>
       <button data-tab="connect">Connect</button>
+      <button data-tab="versions" title="every flash to a board is archived on GitHub: firmware image, all parameters, airframe, module sources">Versions</button>
     </nav>
     <div class="panel-body">
 
@@ -266,6 +267,20 @@
       <h3>Studies</h3>
       <div id="study-list"></div>
       <div id="study-status"></div>
+    </section>
+
+    <!-- ============================ VERSIONS (firmware archive) ============================ -->
+    <section id="tab-versions" class="tab">
+      <h3>Firmware archive <small>· every flash to a physical board is saved here and pushed to GitHub: the image, every board parameter, the exported parameters, the airframe and the module sources</small></h3>
+      <div id="arch-status" class="card"><div class="hint">Loading…</div></div>
+      <div class="row tight">
+        <input id="arch-note" type="text" placeholder="note for the snapshot (optional)" style="flex:1">
+        <button id="arch-snapshot" class="pill small primary" title="save the connected board's current parameters (and the airframe) as a version without flashing">Snapshot board now</button>
+        <button id="arch-pull" class="pill small" title="fetch versions saved from another machine">Pull</button>
+      </div>
+      <div id="arch-restore" class="hint"></div>
+      <h3>Versions</h3>
+      <div id="arch-list"><div class="hint">No versions yet.</div></div>
     </section>
 
     <!-- ============================ FLIGHT / SIM ============================ -->

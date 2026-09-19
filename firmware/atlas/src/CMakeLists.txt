@@ -1,5 +1,5 @@
 if(NOT CONFIG STREQUAL "px4_sitl_default")
- message(FATAL_ERROR "Experimental ATLAS nose-lift is restricted to SITL builds")
+ message(STATUS "ATLAS nose-lift in a board build (${CONFIG}): the module only runs when NLF_HW_OK = 1 (user opt-in)")
 endif()
 set(config_module_list_external atlas_nose_lift PARENT_SCOPE)
 function(atlas_install_allocator_overlay)

@@ -1,4 +1,4 @@
-// Experimental ATLAS_07D ground-attitude sequencer. SITL-only by construction.
+// Experimental ATLAS ground-attitude sequencer. Free on SITL; on a flight controller only with NLF_HW_OK = 1.
 #include <px4_platform_common/module.h>
 #include <px4_platform_common/module_params.h>
 #include <px4_platform_common/px4_work_queue/ScheduledWorkItem.hpp>
@@ -16,7 +16,7 @@
 #include <uORB/topics/vehicle_land_detected.h>
 #include <uORB/topics/vehicle_command.h>
 #include <uORB/topics/trajectory_setpoint.h>
-#include <atomic>
+#include <px4_platform_common/atomic.h>   // NuttX has no std::atomic; px4::atomic works on SITL and boards
 #include "Model.hpp"
 #include <uORB/topics/actuator_motors.h>
 #include <uORB/topics/atlas_nose_lift_floor.h>
@@ -52,7 +52,8 @@ public:
 private:
  enum Phase { Idle, Prime, Lift, Spool, Climb, Hover, Descend, LowerNose, Shutdown, Aborting, Failed };
  Phase _phase{Idle};
- std::atomic<bool> _request{false}, _land_request{false};
+ px4::atomic<bool> _request{false}, _land_request{false};
+ static bool take(px4::atomic<bool> &flag) { bool expected = true; return flag.compare_exchange(&expected, false); }
  AtlasGroundModel _ground{};
  float _rest_pitch{}, _lower_target{}, _hover_angle{}, _landing_angle{};
  hrt_abstime _contact_dwell{};
@@ -81,6 +82,7 @@ private:
   (ParamInt<px4::params::NLF_ENABLE>) _enable,
   (ParamFloat<px4::params::NLF_RATE>) _rate,
   (ParamFloat<px4::params::NLF_TARGET>) _lift_target,
+ (ParamInt<px4::params::NLF_HW_OK>) _hw_ok,
   (ParamFloat<px4::params::SENS_BOARD_Y_OFF>) _hover_param,
   (ParamFloat<px4::params::NLF_LAND_ANG>) _land_angle_param,
 
@@ -149,11 +151,12 @@ private:
    return;
   }
   const matrix::Eulerf e(matrix::Quatf(att.q)); _pitch=e.theta();
-  if (_request.exchange(false)) {
+  if (take(_request)) {
    updateParams();
    if (_phase!=Idle && _phase!=Failed) { PX4_WARN("sequence already active"); return; }
 #if !defined(CONFIG_ARCH_BOARD_PX4_SITL)
-   PX4_ERR("SITL-only experimental module"); return;
+   // Hardware interlock: on a flight controller the experimental sequence runs only after NLF_HW_OK was set by hand.
+   if (_hw_ok.get() != 1) { PX4_ERR("experimental module on hardware: set NLF_HW_OK = 1 to allow it"); return; }
 #endif
    _hover_angle=_hover_param.get();
    if (!atlas_model_matches(_hover_angle, _ground)) { PX4_ERR("ground model configuration invalid; Update PX4"); return; }
@@ -180,7 +183,7 @@ private:
    _yaw=e.psi(); _x=pos.x; _y=pos.y; _z=pos.z; _target_z=_z;
    PX4_INFO("priming nose lift at pitch %.1f",double(math::degrees(_pitch)));
   }
-  if (_land_request.exchange(false)) {
+  if (take(_land_request)) {
    updateParams();
    if (_phase!=Hover || !armed || !_enable.get() || !atlas_model_matches(_hover_angle, _ground)) {
     PX4_WARN("landing requires this module's active hover and matching model");

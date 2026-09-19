@@ -484,11 +484,48 @@ def build_app(state: AppState) -> FastAPI:
 
     @app.post("/api/firmware/build")
     async def firmware_build(body: dict | None = None):
-        return await run_in_threadpool(state.conn.build_firmware, (body or {}).get("target"))
+        """Build board firmware; atlas=true builds it with the ATLAS modules the SITL uses (from the SITL's PX4 tree)."""
+        body = body or {}
+        return await run_in_threadpool(state.conn.build_firmware, body.get("target"), bool(body.get("atlas", False)))
 
     @app.post("/api/firmware/upload")
     async def firmware_upload(body: dict | None = None):
-        return await run_in_threadpool(state.conn.upload_firmware, (body or {}).get("target"))
+        body = body or {}
+        return await run_in_threadpool(state.conn.upload_firmware, body.get("target"), bool(body.get("atlas", False)), None, str(body.get("note", "")))
+
+    # ---------------------------------------------------------- firmware archive (GitHub)
+    state.conn.export_params_fn = lambda: export_params()   # resolved at call time (defined further down)
+
+    @app.get("/api/archive")
+    async def archive_list():
+        a = state.conn.archive
+        await run_in_threadpool(a.ensure)
+        return {"status": a.status(), "versions": a.versions(), "restore": state.conn.restore_job,
+                "board_connected": state.conn.mode == "hitl" and bool(link.ctl_connected)}
+
+    @app.post("/api/archive/pull")
+    async def archive_pull():
+        return await run_in_threadpool(state.conn.archive.pull)
+
+    @app.post("/api/archive/snapshot")
+    async def archive_snapshot(body: dict | None = None):
+        body = body or {}
+        return await run_in_threadpool(state.conn.archive_snapshot, "manual", None, None, str(body.get("note", "")))
+
+    @app.post("/api/archive/restore")
+    async def archive_restore(body: dict):
+        return await run_in_threadpool(state.conn.archive_restore, str(body.get("id", "")), bool(body.get("flash", True)),
+                                       bool(body.get("params", True)))
+
+    @app.post("/api/archive/load_airframe")
+    async def archive_load_airframe(body: dict):
+        v = state.conn.archive.get(str(body.get("id", "")))
+        if not v or not v.get("airframe"):
+            return JSONResponse({"ok": False, "error": "no airframe in this version"}, status_code=404)
+        af = Airframe.from_dict(v["airframe"])
+        sim.set_airframe(af, keep_state=True)
+        autosave(af)
+        return {"ok": True, "airframe": json_safe(af.to_dict())}
 
     @app.post("/api/px4/shell")
     async def px4_shell(body: dict):
@@ -542,7 +579,7 @@ def build_app(state: AppState) -> FastAPI:
     async def firmware_status():
         b = state.conn.detected_board()
         return {"job": state.conn.firmware_job.status(), "board": b, "toolchain": state.conn.toolchain_present(),
-                "built": state.conn.firmware_file(b["target"])}
+                "built": state.conn.firmware_file(b["target"]), "built_atlas": state.conn.firmware_is_atlas(b["target"])}
 
     # ------------------------------------------------------------ PX4 export
     def export_params() -> dict[str, float | int]:

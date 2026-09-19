@@ -10,6 +10,9 @@
 #               drops fixed-wing/VTOL/airspeed code and fits.)
 #   PX4_REF=v1.17.0 scripts/build_hitl_firmware.sh ...   build from that tag (submodules included) so the
 #              firmware matches the release already on the board; the checkout is restored afterwards.
+#   ATLAS_MODULES=$PWD/firmware/atlas scripts/build_hitl_firmware.sh ...   build the ATLAS nose-lift module and
+#              allocator overlay in (the same modules as the SITL); do not combine with PX4_REF, the overlay is
+#              pinned to the checked-out PX4 source.
 #
 # Needs the ARM toolchain PX4 uses:  brew tap osx-cross/arm; brew trust osx-cross/arm && brew install osx-cross/arm/arm-gcc-bin@13 && brew link --overwrite --force arm-gcc-bin@13
 set -euo pipefail
@@ -58,9 +61,29 @@ fi
 cleanup() { git checkout -q -- "$CFG" 2>/dev/null || true; restore_ref; }
 trap cleanup EXIT          # leave the checkout clean; the built .px4 keeps the module regardless
 
-OUT="build/$TARGET/$TARGET.px4"
-if [ "$ACTION" != "upload" ] || [ ! -f "$OUT" ]; then
-  make "$TARGET"
+OUT="${FIRMWARE_FILE:-build/$TARGET/$TARGET.px4}"     # FIRMWARE_FILE=<image.px4>: flash that image (archive restore)
+if [ -n "${FIRMWARE_FILE:-}" ] && [ "$ACTION" = "upload" ]; then
+  [ -f "$FIRMWARE_FILE" ] || { echo "no such firmware image: $FIRMWARE_FILE"; exit 1; }
+  echo "flashing archived image $FIRMWARE_FILE (no build)"
+fi
+# ATLAS_MODULES=<dir> builds the same external modules the SITL uses (firmware/atlas: nose-lift module + allocator
+# overlay) into the board firmware. The build directory is tied to that choice, so switching wipes it.
+CACHE="build/$TARGET/CMakeCache.txt"
+WANT="${ATLAS_MODULES:-}"
+HAVE="$( [ -f "$CACHE" ] && sed -n 's/^EXTERNAL_MODULES_LOCATION:STRING=//p' "$CACHE" || true )"
+if [ -z "${FIRMWARE_FILE:-}" ] && { [ "$ACTION" != "upload" ] || [ ! -f "$OUT" ]; }; then
+  if [ "$WANT" != "$HAVE" ] && [ -d "build/$TARGET" ]; then
+    echo "external modules changed ('$HAVE' -> '$WANT'): reconfiguring build/$TARGET from scratch"
+    rm -rf "build/$TARGET"
+  fi
+  if [ -n "$WANT" ]; then
+    echo "with ATLAS external modules from $WANT"
+    EXTERNAL_MODULES_LOCATION="$WANT" make "$TARGET"
+    date > "build/$TARGET/$TARGET.atlas"
+  else
+    make "$TARGET"
+    rm -f "build/$TARGET/$TARGET.atlas"
+  fi
 fi
 echo
 echo "Firmware: $PX4_DIR/$OUT"
