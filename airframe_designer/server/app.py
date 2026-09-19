@@ -724,6 +724,20 @@ def build_app(state: AppState) -> FastAPI:
         sim.airframe.px4_overrides.pop(body.get("name", ""), None)
         return {"ok": True, "overrides": sim.airframe.px4_overrides}
 
+    @app.post("/api/params/set_many")
+    async def set_params_many(body: dict):
+        """Write several parameters at once ({"params": {name: value}}), e.g. an RC calibration; saves them."""
+        if not link.ctl_connected:
+            return JSONResponse({"ok": False, "error": "PX4 control link not connected"}, status_code=409)
+        if link.armed:
+            return JSONResponse({"ok": False, "error": "vehicle is armed"}, status_code=409)
+        wanted = {str(k): v for k, v in (body.get("params") or {}).items()}
+        results = await run_in_threadpool(link.set_params, wanted, lambda name, res: None)
+        ok = all(r["ok"] for r in results)
+        if ok and body.get("save", True):
+            link.preflight_storage(True)
+        return {"ok": ok, "results": results}
+
     @app.post("/api/params/save")
     async def save_params():
         link.preflight_storage(True)

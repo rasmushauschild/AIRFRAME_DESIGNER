@@ -415,3 +415,11 @@ table.grid.rc-map select { width: 60px; }
 #tab-airframe .card h3 { margin-top: 0; }
 #tab-airframe .card { margin: 10px 0; }
 #tab-airframe .card details summary { margin-top: 0; }
+
+table.grid.rc-map tr.rc-group td { padding-top: 12px; color: var(--text-3); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; border-bottom: 0; }
+table.grid.rc-map tr.rc-slot.active td { background: var(--sel-blk); }
+table.grid.rc-map select.rc-mode { width: 170px; }
+table.grid.rc-map input.rc-thin { width: 62px; }
+table.grid.rc-map td.rc-state { color: var(--text-3); min-width: 56px; }
+.rc-cal { margin: 4px 0 8px; font-size: 13px; }
+.rc-cal:empty { display: none; }
