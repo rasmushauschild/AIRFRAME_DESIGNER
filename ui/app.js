@@ -901,7 +901,7 @@ function updateFooter() {
     targetInput.disabled = !!status.armed || !status.ctl_connected;
     targetInput.step = 'any';
     targetInput.title = 'PX4 NLF_TARGET: ground nose lift angle. Hover pitch is configured separately.';
-    if (document.activeElement !== targetInput) targetInput.value = (params.NLF_TARGET || {}).value ?? (airframe.px4_overrides || {}).NLF_TARGET ?? airframe.hover_pitch_deg ?? 25;
+    if (document.activeElement !== targetInput) targetInput.value = (params.NLF_TARGET || {}).value ?? (airframe.px4_overrides || {}).NLF_TARGET ?? ((airframe.hover_pitch_deg ?? 25) - 7);
   }
   const nlHint = $('#nl-card .hint');
   if (nlHint && nativeNoseLift) nlHint.textContent = 'Native PX4 module ready. Use Takeoff below. Set Takeoff pitch° in the Geometry tab before takeoff. Hover pitch and Landed pitch are configured in Geometry. Then use Land below. Other controls in this card are simulator-only and inactive.';

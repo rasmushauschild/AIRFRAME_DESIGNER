@@ -225,9 +225,11 @@ class Airframe:
         from .ground_sequence import ground_sequence_params
         p.update(ground_sequence_params(self))
         if p.get("NLF_ENABLE") == 1:
-            # The ground sequence lifts the nose to the attitude PX4 will hold as "level" unless a takeoff pitch was
-            # set explicitly; a target away from the hover pitch makes PX4 rotate the nose at the moment it takes over.
-            p.setdefault("NLF_TARGET", round(float(self.hover_pitch_deg), 2))
+            # Lift target: 7 deg below the hover pitch unless a takeoff pitch was set. PX4's hover allocation wants more
+            # front-fan thrust than the ground floor, so its takeover step pitches the nose up by several degrees
+            # while the rear feet still touch; starting below level lands that step on level instead of past it
+            # (measured on ATLAS_09: ground slide 0.36 m -> 0.10 m, overshoot 31.6 -> 27 deg).
+            p.setdefault("NLF_TARGET", round(float(self.hover_pitch_deg) - float(self.design.get("nose_lift_below_hover_deg", 7.0)), 2))
             # A short stock takeoff ramp can pitch the grounded aircraft past its envelope at handoff.
             p["MPC_TKO_RAMP_T"] = max(3.0, float(p.get("MPC_TKO_RAMP_T", 3.0)))
             # PX4's land detector reads a slow nose lift as "landed" (no thrust setpoint, near-zero velocities), so

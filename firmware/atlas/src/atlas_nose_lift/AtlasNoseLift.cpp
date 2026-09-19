@@ -71,7 +71,6 @@ private:
  hrt_abstime _diagnostic_time{};
  uint8_t _xy_reset{}, _z_reset{}, _heading_reset{};
  float _pitch{}, _yaw{}, _x{}, _y{}, _z{}, _target_z{};
- float _spool_z{}; bool _spool_free{false};   // handover: height at spool start, and whether the aircraft has left the ground
  bool _ground_ref{false};   // _z (ground height at the module's takeoff) is valid for this flight
  bool _was_armed{false};
  bool _released{false};
@@ -404,7 +403,7 @@ private:
        && fabsf(e.phi())<math::radians(3.f) && fabsf(rates.xyz[2])<math::radians(3.f)) {
     if (!_dwell) { _dwell=now; }
     if ((now-_dwell)*1e-6f>=_hold.get()) {
-     _phase=Spool; _phase_start=now; _x=pos.x; _y=pos.y; _target_z=pos.z; _support_since=0; _spool_z=pos.z; _spool_free=false;
+     _phase=Spool; _phase_start=now; _x=pos.x; _y=pos.y; _target_z=pos.z; _support_since=0;
      _yaw=e.psi();
      NL_INFO("nose settled and ground confirmed; climbing with heading held");
     }
@@ -424,11 +423,6 @@ private:
    _thrust_pub.publish(thrust);
   } else {
    if (_phase==Spool) {
-    // While the rear feet are still on the ground the aircraft pivots and shifts as the thrust builds; holding a
-    // frozen position/heading setpoint then makes PX4 push it sideways against the ground (it slides or sticks).
-    // Follow the actual position and heading until it has climbed 12 cm, then hold that spot for the climb.
-    if (!_spool_free && _spool_z-pos.z>0.12f) { _spool_free=true; }
-    if (!_spool_free) { _x=pos.x; _y=pos.y; _yaw=e.psi(); }
     atlas_nose_lift_floor_s output{}; _motors_sub.copy(&output);
     // Keep the output stream alive until the position-control allocator has published.
     // Without this bridge lockstep waits for motors while commander waits for time
