@@ -227,6 +227,10 @@ class Airframe:
         if p.get("NLF_ENABLE") == 1:
             # A short stock takeoff ramp can pitch the grounded aircraft past its envelope at handoff.
             p["MPC_TKO_RAMP_T"] = max(3.0, float(p.get("MPC_TKO_RAMP_T", 3.0)))
+            # PX4's land detector reads a slow nose lift as "landed" (no thrust setpoint, near-zero velocities), so
+            # the stock 2 s auto-disarm fires mid-lift; the module disarms itself after nose contact, these are backups.
+            p["COM_DISARM_LAND"] = max(60.0, float(p.get("COM_DISARM_LAND", 0.0)))
+            p["COM_DISARM_PRFLT"] = max(40.0, float(p.get("COM_DISARM_PRFLT", 0.0)))
         p["SENS_BOARD_Y_OFF"] = round(float(self.hover_pitch_deg), 2)
         imu_pos = np.asarray(self.design.get("pixhawk_position", self.cg), float)
         imu_offset = self.hover_rotation() @ (imu_pos - self.cg)

@@ -65,6 +65,7 @@ private:
  uint8_t _xy_reset{}, _z_reset{}, _heading_reset{};
  float _pitch{}, _yaw{}, _x{}, _y{}, _z{}, _target_z{};
  bool _was_armed{false};
+ bool _released{false};   // Aborting phase entered only to keep lockstep alive after an external disarm
  uORB::Subscription _att_sub{ORB_ID(vehicle_attitude)}, _rates_sub{ORB_ID(vehicle_angular_velocity)},
   _pos_sub{ORB_ID(vehicle_local_position)}, _status_sub{ORB_ID(vehicle_status)}, _land_sub{ORB_ID(vehicle_land_detected)};
  uORB::Subscription _motors_sub{ORB_ID(atlas_nose_lift_feedback)};
@@ -125,7 +126,7 @@ private:
   if (_phase==Aborting || _phase==Shutdown) {
    if (status.nav_state!=vehicle_status_s::NAVIGATION_STATE_OFFBOARD) {
     if (_phase==Shutdown) { if (!armed) { PX4_INFO("landing complete: all motors off and disarmed"); } else { PX4_WARN("landing interrupted by mode change"); } _phase=Idle; }
-    else { _phase=Failed; }
+    else { _phase=_released ? Idle : Failed; if (_released) { PX4_INFO("control handed back to PX4"); } _released=false; }
     return;
    }
    // Keep zero actuator samples flowing until the commander leaves direct control.
@@ -213,7 +214,15 @@ private:
    _yaw=matrix::wrap_pi(_yaw+pos.delta_heading); _heading_reset=pos.heading_reset_counter;
   }
   if (_was_armed && (!armed || status.nav_state!=vehicle_status_s::NAVIGATION_STATE_OFFBOARD)) {
-   PX4_INFO("released control on disarm or mode change"); clear_floor(); _phase=Idle; return;
+   clear_floor(); _was_armed=false;
+   if (!armed && status.nav_state==vehicle_status_s::NAVIGATION_STATE_OFFBOARD) {
+    // Disarmed while still under direct actuator control (typically the land detector's auto-disarm during a slow
+    // nose lift): nobody publishes motor samples any more, the output driver goes quiet and lockstep SITL stops
+    // advancing. Keep zero samples flowing and hand the commander back to Hold before going idle.
+    PX4_INFO("released control on disarm; handing PX4 back to Hold");
+    _phase=Aborting; _released=true; _phase_start=now; _abort9=0.f; _abort10=0.f; _last_command=0; return;
+   }
+   PX4_INFO("released control on disarm or mode change"); _phase=Idle; return;
   }
   if (fabsf(e.phi())>math::radians(20.f) || _pitch>math::radians(15.f) || _pitch<math::radians(-55.f)) {
    fail("attitude envelope",status,_phase!=Prime && _phase!=Lift); return;

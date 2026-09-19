@@ -30,3 +30,13 @@ def test_native_takeoff_uses_gentle_thrust_ramp():
     assert af.px4_params_sitl()["MPC_TKO_RAMP_T"] == 3
     af.px4_overrides["MPC_TKO_RAMP_T"] = 5
     assert af.px4_params_sitl()["MPC_TKO_RAMP_T"] == 5
+
+
+def test_native_sequence_backs_off_auto_disarm_timers():
+    af=model(); af.px4_overrides.update(NLF_ENABLE=1)
+    p=af.px4_params_sitl()
+    assert p["COM_DISARM_LAND"] == 60 and p["COM_DISARM_PRFLT"] == 40
+    af.px4_overrides.update(COM_DISARM_LAND=90)
+    assert af.px4_params_sitl()["COM_DISARM_LAND"] == 90
+    af.px4_overrides["NLF_ENABLE"] = 0
+    assert "COM_DISARM_LAND" not in af.px4_params_sitl() or af.px4_params_sitl()["COM_DISARM_LAND"] != 60

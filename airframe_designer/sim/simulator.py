@@ -45,6 +45,8 @@ class Simulator:
         self.running = False
         self.step_count = 0
         self.lockstep_timeouts = 0
+        self._silent_steps = 0          # consecutive lockstep waits without a HIL_ACTUATOR_CONTROLS reply
+        self._last_revive = 0.0
         self.real_time_factor = 0.0
         self.diverged = 0
         self._last_diverge_log = 0.0
@@ -238,6 +240,22 @@ class Simulator:
         if self.lockstep:
             if not link.wait_for_actuators(seq_before, timeout=0.1):
                 self.lockstep_timeouts += 1
+                self._silent_steps += 1
+                # PX4 left in Offboard direct-actuator mode after a disarm has no motor-command publisher, so its output
+                # driver goes quiet and it never answers our sensors again ("simulator link lost" after 5 s, PX4 alive).
+                # A mode change to Hold restarts the allocator and the stream; the firmware does this itself, this is
+                # the simulator-side backstop.
+                if (self._silent_steps * dt >= 1.0 and getattr(link, "mode", "") == "sitl" and link.ctl_connected
+                        and not link.armed and link.main_mode == 6 and time.time() - self._last_revive > 3.0):
+                    self._last_revive = time.time()
+                    self.log("[sim] PX4 stopped answering while disarmed in Offboard (no motor-command publisher); "
+                             "requesting Hold to keep the lockstep link alive")
+                    try:
+                        link.set_mode("hold")
+                    except Exception as e:
+                        self.log(f"[sim] could not request Hold: {e}")
+            else:
+                self._silent_steps = 0
         if self.speed > 0:
             target = self._wall_start + (self.time_usec - self._sim_start) / 1e6 / self.speed
             remaining = target - time.perf_counter()
