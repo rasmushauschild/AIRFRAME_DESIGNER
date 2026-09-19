@@ -24,6 +24,7 @@
 #include <uORB/topics/mavlink_log.h>
 #include <uORB/topics/vehicle_command_ack.h>
 #include <uORB/topics/rc_channels.h>
+#include <uORB/topics/actuator_armed.h>
 #include <systemlib/mavlink_log.h>
 using namespace time_literals;
 
@@ -70,6 +71,7 @@ private:
  hrt_abstime _diagnostic_time{};
  uint8_t _xy_reset{}, _z_reset{}, _heading_reset{};
  float _pitch{}, _yaw{}, _x{}, _y{}, _z{}, _target_z{};
+ float _spool_z{}; bool _spool_free{false};   // handover: height at spool start, and whether the aircraft has left the ground
  bool _ground_ref{false};   // _z (ground height at the module's takeoff) is valid for this flight
  bool _was_armed{false};
  bool _released{false};
@@ -93,6 +95,19 @@ private:
  // Remote-control triggers: two momentary buttons. NLF_RC_CH requests takeoff on its rising edge, NLF_RC_LAND
  // requests landing on its rising edge; nothing happens for buttons already pressed at boot.
  uORB::Subscription _rc_sub{ORB_ID(rc_channels)};
+ // Kill switch: PX4 keeps the vehicle armed for 5 s after a kill and re-enables the motors if the switch comes back
+ // within that time. Disarm at once instead, so releasing the switch can never restart anything.
+ uORB::Subscription _armed_sub{ORB_ID(actuator_armed)};
+ bool _kill_seen{false};
+ void poll_kill(const vehicle_status_s &status) {
+  actuator_armed_s aa{};
+  if (!_armed_sub.update(&aa)) { return; }
+  if (aa.kill && aa.armed && !_kill_seen) {
+   command(vehicle_command_s::VEHICLE_CMD_COMPONENT_ARM_DISARM,0.f,21196.f,status);
+   NL_WARN("kill switch: disarmed");
+  }
+  _kill_seen = aa.kill;
+ }
  bool _btn_to{false}, _btn_land{false}, _rc_seen{false};
  void poll_rc_switch() {
   const int ct = _rc_ch.get(), cl = _rc_land.get();
@@ -163,6 +178,7 @@ private:
   poll_commands();
   poll_rc_switch();
   vehicle_status_s status{}; _status_sub.copy(&status);
+  poll_kill(status);
   vehicle_attitude_s att{}; _att_sub.copy(&att);
   vehicle_angular_velocity_s rates{}; _rates_sub.copy(&rates);
   vehicle_local_position_s pos{}; _pos_sub.copy(&pos);
@@ -179,10 +195,10 @@ private:
     else { _phase=_released ? Idle : Failed; if (_released) { NL_INFO("control handed back to PX4"); } _released=false; }
     return;
    }
-   // Keep zero actuator samples flowing until the commander leaves direct control.
+   // Keep zero actuator samples flowing until the commander leaves direct control (into Manual).
    // Otherwise lockstep SITL can stop advancing after normal ground disarm.
    if (!armed && now-_last_command>1_s) {
-    command(vehicle_command_s::VEHICLE_CMD_DO_SET_MODE,1.f,4.f,status,3.f); _last_command=now;
+    command(vehicle_command_s::VEHICLE_CMD_DO_SET_MODE,1.f,1.f,status); _last_command=now;   // Manual: safe to re-arm on the ground
    }
    const float scale=math::constrain(1.f-(now-_phase_start)*1e-6f/2.f,0.f,1.f);
    offboard_control_mode_s mode{}; mode.timestamp=now; mode.direct_actuator=true; _mode_pub.publish(mode);
@@ -388,7 +404,7 @@ private:
        && fabsf(e.phi())<math::radians(3.f) && fabsf(rates.xyz[2])<math::radians(3.f)) {
     if (!_dwell) { _dwell=now; }
     if ((now-_dwell)*1e-6f>=_hold.get()) {
-     _phase=Spool; _phase_start=now; _x=pos.x; _y=pos.y; _target_z=pos.z; _support_since=0;
+     _phase=Spool; _phase_start=now; _x=pos.x; _y=pos.y; _target_z=pos.z; _support_since=0; _spool_z=pos.z; _spool_free=false;
      _yaw=e.psi();
      NL_INFO("nose settled and ground confirmed; climbing with heading held");
     }
@@ -408,6 +424,11 @@ private:
    _thrust_pub.publish(thrust);
   } else {
    if (_phase==Spool) {
+    // While the rear feet are still on the ground the aircraft pivots and shifts as the thrust builds; holding a
+    // frozen position/heading setpoint then makes PX4 push it sideways against the ground (it slides or sticks).
+    // Follow the actual position and heading until it has climbed 12 cm, then hold that spot for the climb.
+    if (!_spool_free && _spool_z-pos.z>0.12f) { _spool_free=true; }
+    if (!_spool_free) { _x=pos.x; _y=pos.y; _yaw=e.psi(); }
     atlas_nose_lift_floor_s output{}; _motors_sub.copy(&output);
     // Keep the output stream alive until the position-control allocator has published.
     // Without this bridge lockstep waits for motors while commander waits for time
