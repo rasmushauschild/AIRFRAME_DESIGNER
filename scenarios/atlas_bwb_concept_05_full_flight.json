@@ -1,0 +1,97 @@
+{
+  "name": "BWB Concept 05 full flight: nose takeoff \u2192 hover \u2192 50 \u2192 100 km/h \u2192 hover \u2192 nose land",
+  "description": "SITL evaluation for ATLAS_BWB_CONCEPT_05. Uses all four nose fans (5\u20138), 10 m takeoff and 50/100 km/h targets. Cruise and landing are not validated; retain abort limits. The 30 m/s speed setting exceeds PX4 metadata\u2019s nominal range.",
+  "max_time": 460,
+  "abort": {
+    "max_tilt_deg": 65,
+    "max_alt": 30,
+    "crash_speed": 3
+  },
+  "phases": [
+    {
+      "type": "wait_ready",
+      "timeout": 40
+    },
+    {
+      "type": "nose_lift",
+      "motors": [
+        4,
+        5,
+        6,
+        7
+      ],
+      "rate_deg_s": 4,
+      "timeout": 40
+    },
+    {
+      "type": "takeoff",
+      "alt": 10,
+      "timeout": 40
+    },
+    {
+      "type": "hold",
+      "duration": 15,
+      "name": "hover_initial"
+    },
+    {
+      "type": "cruise_velocity",
+      "name": "accelerate_50",
+      "speed": 13.88888888888889,
+      "duration": 35,
+      "ramp": 0.6
+    },
+    {
+      "type": "cruise_velocity",
+      "name": "cruise_50",
+      "speed": 13.88888888888889,
+      "duration": 20,
+      "ramp": 0.6
+    },
+    {
+      "type": "cruise_velocity",
+      "name": "accelerate_100",
+      "speed": 27.77777777777778,
+      "duration": 35,
+      "ramp": 0.6
+    },
+    {
+      "type": "cruise_velocity",
+      "name": "cruise_100",
+      "speed": 27.77777777777778,
+      "duration": 20,
+      "ramp": 0.6
+    },
+    {
+      "type": "cruise_velocity",
+      "name": "decelerate",
+      "speed": 0,
+      "duration": 55,
+      "ramp": 0.6
+    },
+    {
+      "type": "cruise_velocity",
+      "name": "hover_final",
+      "speed": 0,
+      "duration": 15,
+      "ramp": 0.6
+    },
+    {
+      "type": "nose_land",
+      "motors": [
+        4,
+        5,
+        6,
+        7
+      ],
+      "descent_speed": 0.4,
+      "rate_deg_s": 3,
+      "timeout": 100,
+      "name": "rear_leg_touchdown_and_nose_lower"
+    }
+  ],
+  "params": {
+    "MIS_TAKEOFF_ALT": 10.0,
+    "MPC_XY_VEL_MAX": 30.0
+  },
+  "airframe": "ATLAS_BWB_CONCEPT_05"
+}

@@ -28,6 +28,7 @@ class Rotor:
     axis: list[float] = field(default_factory=lambda: [0.0, 0.0, -1.0])    # unit thrust direction
     km: float = 0.05             # moment coefficient, signed (spin direction)
     max_thrust: float = 8.0      # N at full command (before jetfoil turning loss)
+    max_power_w: float = 0.0    # electrical watts at full thrust; 0 retains ideal-power estimate
     tau: float = 0.04            # spool-up time constant, s
     diameter: float = 0.25       # prop / fan diameter, m (disc area for ram drag and momentum-theory power)
     thrust_exponent: float = 2.0  # thrust = max_thrust * omega_norm ** exponent
@@ -36,6 +37,10 @@ class Rotor:
     duct_axis: list[float] | None = None   # physical fan axis when a jetfoil bends the jet to ``axis`` (None: fan along the jet)
     turn_loss: float = 0.1       # fraction of thrust lost when the jetfoil bends the jet by 90 degrees
     enabled: bool = True
+    intake_pos: list[float] | None = None  # structural frame; None follows thrust origin (legacy)
+
+    def intake_position(self) -> list[float]:
+        return self.intake_pos if self.kind == "ducted" and self.intake_pos is not None else self.pos
 
     # ------------------------------------------------------------ derived
     def deflection_deg(self) -> float:

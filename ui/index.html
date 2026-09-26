@@ -32,6 +32,7 @@
         <span class="pill st num" id="st-thrust" title="collective thrust: sum of all motor thrusts as a share of the sum of their (jetfoil-corrected) maximum thrusts">Thrust —</span>
         <span class="pill st num" id="st-lift" title="wing lift as a share of the weight, and in newtons (red = a wing is stalled)">Lift —</span>
         <button class="pill st num" id="st-battery" title="battery: charge left and minutes at the current power (5 s average). Resets with the simulation. Click to set the capacity">Battery —</button>
+        <span id="pitch-indicator" class="pill st num" title="Aircraft body pitch relative to the horizon. Positive is nose up; negative is nose down.">Pitch <span id="pitch-value">—</span><span id="pitch-direction" hidden>Waiting for attitude</span></span>
         <span class="pill st num" id="st-time">0.0 s</span>
         <span class="pill st num" id="st-rtf">RTF —</span>
       </div>
@@ -93,7 +94,7 @@
         <button id="af-estimate" class="pill small" title="Estimate inertia from mass, rotor layout, wings and legs">Estimate</button>
       </div>
       <div class="row">
-        <label title="Nose-up angle reached on the ground before takeoff. Editable while connected and disarmed; does not change hover pitch.">Takeoff pitch° <input id="af-takeoff" type="number" step="any" value="25" disabled></label>
+        <label title="Nose-up angle before takeoff. Edits the simulator target in SITL or the PX4 firmware target in HITL. Editable while connected and disarmed; does not change hover pitch.">Takeoff pitch° <input id="af-takeoff" type="number" step="any" value="25" disabled></label>
         <label title="Nose-up pitch of the airframe in hover. PX4 treats this attitude as level: the geometry is exported rotated into that frame and SENS_BOARD_Y_OFF is set to match.">Hover pitch° <input id="af-hover" type="number" step="1" min="-90" max="90"></label>
         <label title="Calculated automatically from the enabled landing feet. Actual resting pitch can differ slightly as the legs compress.">Landed pitch° (auto) <input id="af-landed" type="number" step="1" min="-90" max="90"></label>
         <span class="hint">Model changes apply to PX4 automatically while disarmed. Landed pitch is calculated from the landing legs.</span>
@@ -153,6 +154,7 @@
       <h3>Motors</h3>
       <div class="row">
         <label>Type <select id="m-kind" style="width:130px"><option value="prop">Propeller</option><option value="ducted">Ducted fan</option></select></label>
+        <label title="Electrical watts per motor at maximum thrust. Applies to all motors. Partial power scales with thrust to the power 1.5; 0 uses the ideal estimate.">Max power W <input id="m-power" type="number" step="100" min="0"></label>
         <label title="max thrust per rotor, N">Tmax N <input id="m-tmax" type="number" step="0.5" min="0"></label>
         <label title="spool-up time constant, s">τ s <input id="m-tau" type="number" step="0.01" min="0.005"></label>
         <label title="reaction torque per unit thrust (CA_ROTORn_KM magnitude; spin sign is set per rotor)">|KM| <input id="m-km" type="number" step="0.005" min="0"></label>

@@ -4,6 +4,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { TransformControls } from 'three/addons/controls/TransformControls.js';
+import { frameOffsetForCg } from './scene_math.js';
 
 export const frdToThree = (v) => new THREE.Vector3(v[0], -v[2], v[1]);
 export const threeToFrd = (v) => [v.x, v.z, -v.y];
@@ -177,6 +178,7 @@ export function createScene(canvas, handlers) {
     r.pos = threeToFrd(n.group.position).map(v => +v.toFixed(4));
     const ax = UP.clone().applyQuaternion(n.group.quaternion);
     r.axis = threeToFrd(ax).map(v => +v.toFixed(4));
+    orientDuct(n.ductHolder, n.group, r, n.rad);
     updateArm(n, r);
     handlers.onRotorChanged && handlers.onRotorChanged(selected, r, false);
   }
@@ -193,6 +195,8 @@ export function createScene(canvas, handlers) {
   // ------------------------------------------------------------ build
   function setAirframe(af) {
     airframe = af;
+    const cg = (af.mass && af.mass.cg) || [0, 0, 0];
+    frame.position.fromArray(frameOffsetForCg(cg));
     const keepSel = selected;
     gizmo.detach();
     for (const n of rotorNodes) frame.remove(n.group), frame.remove(n.arm);
@@ -231,9 +235,10 @@ export function createScene(canvas, handlers) {
       const arrow = makeThrustArrow();
       const spinArrow = makeSpinArrow(rad * 0.75, r.km >= 0);
       spinArrow.position.y = 0.024;
+      ductHolder.add(disc, motor, spinArrow);
       const label = makeSprite(String(i + 1), document.documentElement.dataset.theme === 'dark' ? '#fafafa' : '#171717');
       label.position.set(0, 0.09, 0);
-      group.add(disc, motor, ductHolder, arrow, spinArrow, label);
+      group.add(ductHolder, arrow, label);
       const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 1, 8), armMat);
       const node = { group, disc, motor, arrow, ring, label, arm, spinArrow, ductHolder, rad, rotorIndex: i, enabled: r.enabled !== false };
       updateArm(node, r);
@@ -296,7 +301,6 @@ export function createScene(canvas, handlers) {
     }
 
     // centre of gravity (structural frame) and the reference point (bodyAxes at the frame origin)
-    const cg = (af.mass && af.mass.cg) || [0, 0, 0];
     const cgMark = new THREE.Mesh(new THREE.SphereGeometry(0.014, 16, 16), cgMat);
     cgMark.position.copy(frdToThree(cg));
     cgMark.renderOrder = 3;
@@ -364,7 +368,6 @@ export function createScene(canvas, handlers) {
   function syncCad(af) {
     const cad = af && af.cad;
     const showCad = !!(cad && cad.file && cad.visible !== false);
-    rotorNodes.forEach(n => { n.arm.visible = !showCad; });
     if (!cad || !cad.file) { if (cadNodes.size) clearCad(); return; }
     cadGroup.visible = showCad;
     const maxMass = Math.max(0, ...(cad.bodies || []).filter(b => !b.removed).map(b => Math.max(0, +b.mass || 0)));
@@ -428,20 +431,27 @@ export function createScene(canvas, handlers) {
   // a jetfoil duct is physically along duct_axis (the fan sits upstream of the bend); the jet leaves along the thrust axis
   function orientDuct(holder, group, r, rad) {
     holder.quaternion.identity();
+    holder.position.set(0, 0, 0);
+    if (r.kind === 'ducted' && r.intake_pos) {
+      holder.position.copy(frdToThree(r.intake_pos).sub(frdToThree(r.pos)).applyQuaternion(group.quaternion.clone().invert()));
+    }
     holder.children[0].position.y = 0.02;
     if (r.kind === 'ducted' && r.duct_axis) {
       holder.quaternion.copy(group.quaternion).invert().multiply(new THREE.Quaternion().setFromUnitVectors(UP, frdToThree(r.duct_axis).normalize()));
-      holder.children[0].position.y = rad * 0.7;
+      holder.children[0].position.y = r.intake_pos ? 0.02 : rad * 0.7;
     }
   }
 
   function updateArm(node, r) {
-    const p = node.group.position;
-    const len = p.length();
-    node.arm.visible = len > 0.02;
+    const end = node.group.position;
+    const start = frdToThree(r.intake_pos || r.pos);
+    const delta = end.clone().sub(start);
+    const len = delta.length();
+    // Connect explicit jet intakes to their thrust origins, never to the center.
+    node.arm.visible = r.kind === 'ducted' && !!r.intake_pos && len > 0.001;
     node.arm.scale.y = Math.max(len, 0.001);
-    node.arm.position.copy(p.clone().multiplyScalar(0.5));
-    node.arm.quaternion.setFromUnitVectors(UP, p.clone().normalize());
+    node.arm.position.copy(start).add(end).multiplyScalar(0.5);
+    if (len > 0.001) node.arm.quaternion.setFromUnitVectors(UP, delta.divideScalar(len));
   }
 
   function updateRotorNode(i, r) {   // called when the table edits a rotor

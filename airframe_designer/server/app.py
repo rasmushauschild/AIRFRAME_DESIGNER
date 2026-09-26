@@ -250,6 +250,7 @@ def build_app(state: AppState) -> FastAPI:
             await run_in_threadpool(airfoils.ensure_polars, af, state.log)
         except Exception as e:
             return JSONResponse({"ok": False, "error": f"airfoil polar: {e}"}, status_code=400)
+        cancel_live("airframe changed")
         sim.set_airframe(af, keep_state=False)
         hc = af.hover_check()
         return json_safe({"ok": True, "airframe": af.to_dict(), "problems": af.validate() + hc["problems"], "hover": hc})
@@ -476,6 +477,7 @@ def build_app(state: AppState) -> FastAPI:
 
     @app.post("/api/px4/reset_all")
     async def px4_reset_all():
+        cancel_live("reset")
         sim.paused = False
         r = await run_in_threadpool(state.conn.reset_all)
         state.log("[px4] reset: " + ", ".join(r.get("steps", [])))
@@ -790,6 +792,8 @@ def build_app(state: AppState) -> FastAPI:
     @app.post("/api/px4/command")
     async def px4_command(body: dict):
         cmd = body.get("command", "")
+        if body.get("expected_mode") and state.conn.mode != body["expected_mode"]:
+            return JSONResponse({"ok": False, "error": "Connection mode changed; command cancelled"}, status_code=409)
         if cmd in ("arm", "takeoff") and sim.paused:
             return JSONResponse({"ok": False, "error": "the simulation is paused; resume it first (Pause button)"}, status_code=409)
         if cmd in ("nose_lift_takeoff", "nose_lift_land"):
@@ -824,6 +828,7 @@ def build_app(state: AppState) -> FastAPI:
     @app.post("/api/sim/reset")
     async def sim_reset(body: dict | None = None):
         body = body or {}
+        cancel_live("reset")
         sim.reset(yaw=float(body.get("yaw", 0.0)))
         return {"ok": True}
 
@@ -877,6 +882,8 @@ def build_app(state: AppState) -> FastAPI:
     async def sim_nose_lift(body: dict):
         """Start ({"motors": [8, 9], "target_pitch_deg": 25, "rate_deg_s": 8}) or stop ({"stop": true}) the nose-lift
         ground sequence. The snapshot's "nose_lift" field reports its state; arm PX4 once it is "holding"."""
+        if state.conn.mode != "sitl":
+            return JSONResponse({"ok": False, "error": "Nose-lift motor selection is SITL only"}, status_code=409)
         if body.get("stop"):
             sim.stop_nose_lift()
             return {"ok": True}
@@ -886,12 +893,17 @@ def build_app(state: AppState) -> FastAPI:
             return JSONResponse({"ok": False, "error": "disarm first: the nose lift runs before arming"}, status_code=409)
         if not sim.sim.on_ground:
             return JSONResponse({"ok": False, "error": "the vehicle is not on the ground"}, status_code=409)
-        motors = [int(m) for m in body.get("motors") or []]
-        if not motors:
-            return JSONResponse({"ok": False, "error": "choose the motors that lift the nose"}, status_code=400)
+        from ..sim.motor_selection import packed_selection
+        try:
+            editor = body.get("index_space") == "editor"
+            motors = packed_selection(sim.airframe.rotors, body.get("motors", []), editor)
+            assist = packed_selection(sim.airframe.rotors, body.get("assist_motors", []), editor, required=False)
+            if set(motors) & set(assist):
+                raise ValueError("Nose motors and assist motors must be separate")
+        except ValueError as exc:
+            return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
         kw = {k: float(body[k]) for k in ("rate_deg_s", "kp", "ki", "kd", "max_cmd", "tolerance_deg", "hold_s", "fade_s", "k_ang", "kq", "kqi", "assist_cmd") if k in body}
-        if body.get("assist_motors"):
-            kw["assist_motors"] = [int(m) for m in body["assist_motors"]]
+        kw["assist_motors"] = assist
         nl = sim.start_nose_lift(motors, float(body.get("target_pitch_deg", sim.airframe.hover_pitch_deg)), **kw)
         return {"ok": True, "status": nl.status()}
 
@@ -911,14 +923,25 @@ def build_app(state: AppState) -> FastAPI:
         return {"ok": True}
 
     # Visible scenario runs share the interactive simulator and its websocket.
-    live = {"runner": None, "hook": None}
+    live = {"runner": None, "hook": None, "preparing": False, "generation": 0}
+
+    def cancel_live(reason):
+        with sim.lock:
+            live["generation"] += 1
+            runner = live["runner"]
+            if runner and not runner.done:
+                runner.finish(sim, reason, False)
+            if live["hook"] in sim.hooks:
+                sim.hooks.remove(live["hook"])
+            sim.stop_nose_lift()
+
 
     @app.post("/api/sim/scenario/start")
     async def live_scenario_start(body: dict):
         from ..sim.scenario import Scenario, ScenarioRunner, load_scenario
         if state.conn.mode != "sitl":
             return JSONResponse({"error": "Visible scripted tests require SITL"}, status_code=409)
-        if link.status().get("armed") or (live["runner"] and not live["runner"].done):
+        if live["preparing"] or link.status().get("armed") or (live["runner"] and not live["runner"].done):
             return JSONResponse({"error": "Disarm and finish the current test first"}, status_code=409)
         try:
             sc = load_scenario(SCENARIO_DIR / Path(str(body["scenario"])).name) if "scenario" in body else Scenario.from_dict(body)
@@ -926,9 +949,22 @@ def build_app(state: AppState) -> FastAPI:
             return JSONResponse({"error": str(exc)}, status_code=400)
         if not sc.phases:
             return JSONResponse({"error": "A test needs phases"}, status_code=400)
-        # Params must already have been pushed and verified; never block the sim hook on replies.
+        if sc.airframe and sc.airframe != sim.airframe.name:
+            return JSONResponse({"error": f"This scenario requires {sc.airframe}; current model is {sim.airframe.name}. Choose the matching full-flight scenario."}, status_code=400)
+        generation = live["generation"]
+        model = sim.airframe
+        # Apply on a worker thread before attaching the flight hook: lockstep sensors must keep flowing.
         if sc.params:
-            return JSONResponse({"error": "Push scenario parameters before starting; omit params here"}, status_code=400)
+            from .scenario_params import prepare_scenario_params
+            live["preparing"] = True
+            try:
+                await prepare_scenario_params(state, sc.params)
+            except ValueError as exc:
+                return JSONResponse({"error": str(exc)}, status_code=409)
+            finally:
+                live["preparing"] = False
+        if generation != live["generation"] or sim.airframe is not model:
+            return JSONResponse({"error": "Scenario cancelled by reset or model change"}, status_code=409)
         with sim.lock:
             if live["hook"] in sim.hooks:
                 sim.hooks.remove(live["hook"])
@@ -969,13 +1005,8 @@ def build_app(state: AppState) -> FastAPI:
     async def live_scenario_stop():
         if state.conn.mode != "sitl":
             return JSONResponse({"error": "Visible scripted tests require SITL"}, status_code=409)
-        with sim.lock:
-            r = live["runner"]
-            if r and not r.done:
-                r.finish(sim, "stopped", False)
-            if live["hook"] in sim.hooks:
-                sim.hooks.remove(live["hook"])
-            sim.paused = True
+        cancel_live("stopped")
+        sim.paused = True
         return {"ok": True, "paused": True}
 
     # ------------------------------------------------------------ scenarios / batch / studies

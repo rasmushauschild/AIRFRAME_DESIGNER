@@ -48,12 +48,13 @@ class Scenario:
     wind: list[float] = field(default_factory=lambda: [0.0, 0.0, 0.0])
     abort: dict = field(default_factory=dict)
     description: str = ""
+    airframe: str = ""
 
     @classmethod
     def from_dict(cls, d: dict) -> "Scenario":
         return cls(name=d.get("name", "scenario"), phases=list(d.get("phases", [])), max_time=float(d.get("max_time", 120.0)),
                    params=dict(d.get("params", {}) or {}), wind=list(d.get("wind", [0, 0, 0]) or [0, 0, 0]),
-                   abort=dict(d.get("abort", {}) or {}), description=str(d.get("description", "")))
+                   abort=dict(d.get("abort", {}) or {}), description=str(d.get("description", "")), airframe=str(d.get("airframe", "")))
 
     def to_dict(self) -> dict:
         return {"name": self.name, "description": self.description, "max_time": self.max_time, "params": self.params,
@@ -127,6 +128,9 @@ class ScenarioRunner:
     def finish(self, simr, status: str, ok: bool) -> None:
         if self.done:
             return
+        if "lower" in self._state:
+            # Aborted tests freeze in the live runner; never leave a motor override behind.
+            simr.motor_override = None
         self.metrics.end_phase(simr.t)
         self.done = True
         self.ok = ok and self.ok
@@ -238,6 +242,31 @@ class ScenarioRunner:
         elif self._elapsed(simr) > float(self.phase.get("timeout", 60.0)):
             self.fail(simr, "did not land in time")
 
+    def _p_nose_land(self, simr) -> None:
+        """SITL-only descent, rear-foot support, then controlled nose lowering."""
+        from .wing_controller import NoseLower
+        if self.link.mode != "sitl":
+            self.fail(simr, "Nose landing test is SITL-only", fatal=True); return
+        st = self._state
+        if "lower" in st:
+            lower = st["lower"]
+            lower.step(simr)
+            if lower.done:
+                self.metrics.note(simr.t, "nose settled, motors stopped and disarmed")
+                self._next(simr)
+        else:
+            self._offboard_stream(simr, vel=[0., 0., float(self.phase.get("descent_speed", .3))], yaw=None)
+            s = simr.sim
+            feet = s.legs.r @ s.rotmat.T + s.pos
+            rear = feet[s.legs.r[:, 0] < 0]
+            contact = s.on_ground and len(rear) > 0 and float(rear[:,2].max()) > -.025 and abs(s.vel[2]) < .2
+            st["contact_since"] = st.get("contact_since", simr.t) if contact else simr.t
+            if contact and simr.t-st["contact_since"] > .3:
+                st["lower"] = NoseLower(simr, self.phase.get("motors", []), float(self.phase.get("rate_deg_s", 3.)))
+                self.metrics.note(simr.t, "rear legs supported; lowering nose")
+        if self._elapsed(simr) > float(self.phase.get("timeout", 90)):
+            self.fail(simr, "nose landing timed out", fatal=True)
+
     def _offboard_stream(self, simr, pos=None, vel=None, yaw=0.0) -> None:
         st = self._state
         every = max(1, int(round(simr.sensor_rate / 20.0)))     # 20 Hz setpoints
@@ -258,6 +287,26 @@ class ScenarioRunner:
         self._offboard_stream(simr, vel=vel, yaw=None if yaw is None else math.radians(float(yaw)))
         if self._elapsed(simr) >= float(self.phase.get("duration", 10.0)):
             self._next(simr)
+
+    def _p_cruise_velocity(self, simr) -> None:
+        """Ramped velocity request using PX4 position/attitude control, at held altitude."""
+        if self.link.mode != "sitl":
+            self.fail(simr, "Scripted cruise is SITL-only", fatal=True); return
+        st = self._state
+        if "reference" not in st:
+            st.update(reference=float(simr.sim.vel[0]), altitude=float(simr.sim.pos[2]), last=simr.t)
+        dt = max(0., min(.1, simr.t-st["last"])); st["last"]=simr.t
+        target = float(self.phase.get("speed", 0.))
+        ramp = max(.05, float(self.phase.get("ramp", .6)))
+        st["reference"] += float(np.clip(target-st["reference"], -ramp*dt, ramp*dt))
+        vz = float(np.clip((st["altitude"]-simr.sim.pos[2])*.6, -.7, .7))
+        self.targets[self._name()] = {"vel": [target, 0., 0.]}
+        self._offboard_stream(simr, vel=[st["reference"], 0., vz], yaw=0.)
+        if self._elapsed(simr) >= float(self.phase.get("duration", 30.)):
+            if abs(float(simr.sim.vel[0])-target)>1.5:
+                self.fail(simr, "cruise target speed not reached", fatal=True)
+            else:
+                self._next(simr)
 
     def _p_wing_velocity(self, simr) -> None:
         """Experimental SITL body-vector controller; ideal state feedback, explicit trim table."""
@@ -342,7 +391,7 @@ class ScenarioRunner:
         if "nl" not in st:
             motors = self.phase.get("motors") or []
             kw = {k: self.phase[k] for k in ("rate_deg_s", "kp", "ki", "kd", "max_cmd", "tolerance_deg", "hold_s", "fade_s", "k_ang", "kq", "kqi", "assist_motors", "assist_cmd") if k in self.phase}
-            st["nl"] = simr.start_nose_lift(motors, float(self.phase.get("target_pitch_deg", simr.airframe.hover_pitch_deg)), **kw)
+            st["nl"] = simr.start_nose_lift(motors, float(self.phase.get("target_pitch_deg", simr.airframe.design.get("nose_lift", {}).get("target_pitch_deg", simr.airframe.hover_pitch_deg))), **kw)
             self.targets[self._name()] = {}
             return
         nl = st["nl"]

@@ -1,6 +1,7 @@
 let lastPrearmReportRequest = 0;
 let prearmReportRequestPending = false;
 import { createScene } from '/static/scene.js';
+import { noseSelection, removeNoseMotor, simulatorNoseSelected } from '/static/nose_selection.js';
 
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => Array.from(document.querySelectorAll(s));
@@ -179,6 +180,7 @@ const KIND_DEFAULTS = { prop: { km: 0.05, tau: 0.04, diameter: 0.25, thrust_expo
                         ducted: { km: 0.01, tau: 0.12, diameter: 0.12, thrust_exponent: 2, ram_drag: true } };
 function fillMotorCard() {
   const r = airframe.rotors[selected >= 0 ? selected : 0]; if (!r) return;
+  $('#m-power').value = r.max_power_w || 0;
   $('#m-kind').value = r.kind || 'prop'; $('#m-tmax').value = r.max_thrust; $('#m-tau').value = r.tau;
   $('#m-km').value = Math.abs(r.km); $('#m-dia').value = r.diameter; $('#m-exp').value = r.thrust_exponent; $('#m-ram').checked = !!r.ram_drag;
   $('#m-turnloss').value = Math.round((r.turn_loss ?? 0.1) * 100);
@@ -191,6 +193,12 @@ function applyMotorCard(kindChanged) {
   airframe.rotors.forEach(r => { r.kind = kind; r.max_thrust = tmax; r.tau = tau; r.km = (r.km >= 0 ? 1 : -1) * km; r.diameter = dia; r.thrust_exponent = ex; r.ram_drag = ram; r.turn_loss = turnLoss; if (kind !== 'ducted') r.duct_axis = null; });
   setAirframe(airframe); pushAirframe(true);
 }
+$('#m-power').addEventListener('change', () => {
+  const watts = Number($('#m-power').value);
+  if (!Number.isFinite(watts) || watts < 0) { fillMotorCard(); return; }
+  airframe.rotors.forEach(r => { r.max_power_w = watts; });
+  pushAirframe(true);
+});
 $('#m-kind').addEventListener('change', () => applyMotorCard(true));
 ['m-tmax', 'm-tau', 'm-km', 'm-dia', 'm-exp', 'm-ram', 'm-turnloss'].forEach(id => $('#' + id).addEventListener('change', () => applyMotorCard(false)));
 
@@ -412,7 +420,17 @@ function renderRotorTable() {
     tr.querySelectorAll('input, select:not(.rotor-port)').forEach(inp => inp.addEventListener('change', () => applyRow(i, tr)));
     tr.querySelector('.rotor-port').addEventListener('change', e => changeMotorPort(e.target));
     tr.querySelector('.spin').addEventListener('click', () => { airframe.rotors[i].km = -airframe.rotors[i].km; scene.updateRotorNode(i, airframe.rotors[i]); renderRotorTable(); pushAirframe(true); });
-    tr.querySelector('.del').addEventListener('click', () => { airframe.rotors.splice(i, 1); selected = -1; setAirframe(airframe); pushAirframe(true); });
+    tr.querySelector('.del').addEventListener('click', () => { airframe.design ||= {}; airframe.design.nose_lift ||= {};
+      airframe.design.nose_lift.motors = removeNoseMotor(noseSelection(airframe.rotors, airframe.design.nose_lift.motors), i);
+      airframe.rotors.splice(i, 1); selected = -1; setAirframe(airframe); pushAirframe(true); });
+  });
+  el.querySelectorAll('tr[data-intake]').forEach(tr => {
+    const i = +tr.dataset.intake, r = airframe.rotors[i];
+    tr.querySelectorAll('input').forEach(input => input.addEventListener('change', () => {
+      const follow = tr.querySelector('[data-follow]').checked;
+      r.intake_pos = follow ? null : [0, 1, 2].map(j => Number(tr.querySelector(`[data-intake-axis="${j}"]`).value));
+      scene.updateRotorNode(i, r); renderRotorTable(); pushAirframe(true);
+    }));
   });
 }
 const axisText = (a) => a.map(v => (v >= 0 ? ' ' : '') + v.toFixed(2)).join(' ');
@@ -432,7 +450,11 @@ function rotorRowHtml(i, r) {
   <td><span class="spin ${ccw ? 'ccw' : 'cw'}" title="click to flip (KM=${r.km})">${ccw ? 'CCW' : 'CW'}</span></td>
   <td><input type="number" step="0.5" data-k="tmax" value="${r.max_thrust}"></td>
   <td class="hover"></td>
-  <td><button class="del" title="remove rotor">✕</button></td></tr>`;
+  <td><button class="del" title="remove rotor">✕</button></td></tr>${r.kind === 'ducted' ? `<tr data-intake="${i}"><td></td><td colspan="13"><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:6px 0">
+    <span>Jet intake</span>${['X','Y','Z'].map((label,j) => `<label>${label} <input aria-label="${esc(r.name)} intake ${label}" type="number" step="0.005" data-intake-axis="${j}" value="${(r.intake_pos || r.pos)[j]}" ${r.intake_pos ? '' : 'disabled'}></label>`).join('')}
+    <label><input type="checkbox" data-follow ${r.intake_pos ? '' : 'checked'}> Follow thrust origin</label>
+    <span class="hint">Row above: ${r.duct_axis ? 'foil' : 'jet'} thrust origin XYZ and direction Tilt° / Cant°. Coordinates: X forward, Y right, Z down (m).</span>
+  </div></td></tr>` : ''}`;
 }
 function renderRotorRow(i) {
   const tr = document.querySelector(`#rotor-table tr[data-i="${i}"]`);
@@ -452,10 +474,11 @@ function applyRow(i, tr) {
   r.axis = tiltToAxis(g('tilt'), g('cant'), r.pos[1]);
   r.max_thrust = g('tmax');
   const duct = tr.querySelector('select[data-k="duct"]');
-  if (duct) r.duct_axis = duct.value === 'foil' ? [1, 0, 0] : null;
+  if (duct) r.duct_axis = duct.value === 'foil' ? (r.duct_axis || [1, 0, 0]) : null;
   tr.classList.toggle('off', !r.enabled);
   scene.updateRotorNode(i, r);
   renderRotorRow(i);
+  renderRotorTable();
   renderReadout();
   pushAirframe(true);
 }
@@ -485,6 +508,8 @@ function mirror(axisIdx) {
   if (selected < 0 || !airframe.rotors[selected]) return;
   const n = JSON.parse(JSON.stringify(airframe.rotors[selected]));
   n.pos[axisIdx] = -n.pos[axisIdx]; n.axis[axisIdx] = -n.axis[axisIdx]; n.km = -n.km;
+  if (n.intake_pos) n.intake_pos[axisIdx] = -n.intake_pos[axisIdx];
+  if (n.duct_axis) n.duct_axis[axisIdx] = -n.duct_axis[axisIdx];
   n.name = 'M' + (airframe.rotors.length + 1);
   airframe.rotors.push(n); selected = airframe.rotors.length - 1;
   setAirframe(airframe); scene.select(selected); pushAirframe(true);
@@ -494,7 +519,7 @@ $('#rotor-mirror-x').addEventListener('click', () => mirror(0));
 $('#rotor-apply-all').addEventListener('click', () => {
   if (selected < 0 || !airframe.rotors[selected]) return;
   const s = airframe.rotors[selected];
-  airframe.rotors.forEach(r => { r.max_thrust = s.max_thrust; r.tau = s.tau; r.diameter = s.diameter; r.thrust_exponent = s.thrust_exponent; r.kind = s.kind; r.ram_drag = s.ram_drag; r.turn_loss = s.turn_loss; r.km = (r.km >= 0 ? 1 : -1) * Math.abs(s.km); });
+  airframe.rotors.forEach(r => { r.max_power_w = s.max_power_w || 0; r.max_thrust = s.max_thrust; r.tau = s.tau; r.diameter = s.diameter; r.thrust_exponent = s.thrust_exponent; r.kind = s.kind; r.ram_drag = s.ram_drag; r.turn_loss = s.turn_loss; r.km = (r.km >= 0 ? 1 : -1) * Math.abs(s.km); });
   setAirframe(airframe); pushAirframe(true);
 });
 
@@ -882,9 +907,9 @@ function updateFooter() {
       .finally(() => { prearmReportRequestPending = false; });
   }
   const nativeNoseLift = nativeModuleActive();
-  const manualPrototype = Number(params.NLF_MANUAL?.value ?? 0) === 1;
-  const pilotHandover = Number(params.NLF_PILOT?.value ?? airframe?.px4_overrides?.NLF_PILOT ?? 0);   // what the flight controller runs now
-  const stagedRc = manualPrototype || (Number(params.NLF_RC_THR?.value ?? 0) === 1 && !pilotHandover);
+  const manualPrototype = nativeNoseLift && Number(params.NLF_MANUAL?.value ?? 0) === 1;
+  const pilotHandover = nativeNoseLift ? Number(params.NLF_PILOT?.value ?? airframe?.px4_overrides?.NLF_PILOT ?? 0) : 0;   // what the flight controller runs now
+  const stagedRc = nativeNoseLift && (manualPrototype || (Number(params.NLF_RC_THR?.value ?? 0) === 1 && !pilotHandover));
   const stagedCheckbox = $('#staged-rc-takeoff');
   stagedCheckbox.disabled = !!status.armed || manualPrototype || !!pilotHandover;
   { const sel = $('#handover-mode');
@@ -908,8 +933,10 @@ function updateFooter() {
   if (stagedRc) tko.title = 'First press: RC-controlled nose lift. Once nose ready, press again to climb to 1 m. Lower throttle to request abort/landing.';
   if (manualPrototype) tko.title = 'Simulation only: RC nose lift, then second press for 2 m altitude hold with RC power ceiling and attitude control.';
   if (pilotHandover) tko.title = status.armed ? 'Second press (throttle at minimum): you get the throttle; raise it slowly to lift off' : `Arms, raises the nose to level and waits for "nose ready"; a second press gives you the throttle, PX4 (${pilotHandover === 2 ? 'Altitude' : 'Stabilized'}) takes over once airborne`;
-  tko.disabled = !!status.resetting || !status.ctl_connected || (nativeNoseLift && status.armed && !stagedRc && !pilotHandover) || (!status.armed && !status.arm_ready);
-  $$('#nl-card input, #nl-card button').forEach(el => { el.disabled = !!nativeNoseLift || status.conn_mode === 'hitl'; });
+  tko.disabled = noseTakeoffPending || !!status.resetting || !status.ctl_connected || (nativeNoseLift && status.armed && !stagedRc && !pilotHandover) || (!status.armed && !status.arm_ready);
+  $$('#nl-card input, #nl-card button').forEach(el => { el.disabled = status.mode !== 'sitl' || !!status.armed || noseTakeoffPending; });
+  $$('#nl-motors input').forEach(el => { el.disabled ||= airframe.rotors[+el.dataset.m]?.enabled === false; });
+  $('#nl-stop').disabled = status.mode !== 'sitl' || !!status.armed;
   { const me = $('#motor-enable'); if (me) { const hitl = status.conn_mode === 'hitl'; me.disabled = hitl && (status.armed || !status.ctl_connected); if (me.disabled && me.checked) { stopMotorTest(); me.checked = false; } me.closest('label') && (me.closest('label').title = hitl ? 'Real motor tests require a connected, disarmed flight controller' : ''); } }
   const landButton = $('#btn-land');
   if (landButton) {
@@ -920,16 +947,18 @@ function updateFooter() {
   $('#af-hover').disabled = !!status.armed;
   $('#af-landed').readOnly = true;
   const targetInput = $('#af-takeoff');
-  targetInput.disabled = !nativeNoseLift || !!status.armed || !status.ctl_connected;
-  $('#nl-target').closest('label').hidden = !!nativeNoseLift;
-  if (nativeNoseLift) {
-    targetInput.disabled = !!status.armed || !status.ctl_connected;
-    targetInput.step = 'any';
-    targetInput.title = 'PX4 NLF_TARGET: ground nose lift angle. Hover pitch is configured separately.';
-    if (document.activeElement !== targetInput) targetInput.value = (params.NLF_TARGET || {}).value ?? (airframe.px4_overrides || {}).NLF_TARGET ?? ((airframe.hover_pitch_deg ?? 25) - 10);
-  }
+  const simPitch = status.mode === 'sitl';
+  targetInput.disabled = !!status.armed || !status.ctl_connected || (!simPitch && !status.native_module);
+  targetInput.step = 'any';
+  targetInput.title = simPitch
+    ? 'SITL nose-lift target, shared with Flight and scenarios. Does not change hover pitch.'
+    : 'PX4 NLF_TARGET: firmware nose-lift target. Editable while connected and disarmed.';
+  $('#nl-target').closest('label').hidden = false;
+  if (document.activeElement !== targetInput) targetInput.value = simPitch
+    ? (airframe.design?.nose_lift?.target_pitch_deg ?? airframe.hover_pitch_deg ?? 0)
+    : ((params.NLF_TARGET || {}).value ?? airframe.px4_overrides?.NLF_TARGET ?? ((airframe.hover_pitch_deg ?? 25) - 10));
   const nlHint = $('#nl-card .hint');
-  if (nlHint && nativeNoseLift) nlHint.textContent = 'Native PX4 module ready. Use Takeoff below. Set Takeoff pitch° in the Geometry tab before takeoff. Hover pitch and Landed pitch are configured in Geometry. Then use Land below. Other controls in this card are simulator-only and inactive.';
+  if (nlHint) nlHint.textContent = status.mode === 'sitl' ? 'SITL only: select the motors that lift the nose. Enable Use for Takeoff to raise the nose before automatic takeoff. Supports any motor count within PX4’s 12-output limit. Land uses the standard PX4 landing sequence.' : 'Simulator-only motor selection. The hardware nose-lift module is unchanged.';
   $$('#mode-pills .pill').forEach(el => { if (el.textContent.toLowerCase() === 'takeoff') { el.disabled = !!nativeNoseLift; el.title = nativeNoseLift ? 'Use Takeoff below' : ''; } });
 
   tko.classList.toggle('hidden', !!status.armed && !status.on_ground_hint && false);
@@ -949,39 +978,42 @@ function updateFooter() {
 }
 // ---- nose lift (ground sequence): settings live in airframe.design.nose_lift
 let lastNoseLift = null;
+let noseTakeoffPending = false;
+let noseTakeoffGeneration = 0;
 function noseLiftCfg() {
   airframe.design = airframe.design || {};
   const d = airframe.design.nose_lift || {};
   const motors = $$('#nl-motors input[data-m]').filter(c => c.checked).map(c => +c.dataset.m);
-  return { enabled: $('#nl-use').checked, motors: motors.length ? motors : (d.motors || []), target_pitch_deg: +$('#nl-target').value,
+  return { enabled: $('#nl-use').checked, motors, target_pitch_deg: +$('#nl-target').value,
            rate_deg_s: +$('#nl-rate').value || 8, assist_cmd: (+$('#nl-assist').value || 0) / 100 };
 }
 function fillNoseLiftCard() {
   if (!airframe) return;
   const d = (airframe.design && airframe.design.nose_lift) || {};
-  const def = d.motors || airframe.rotors.map((r, i) => (r.pos[0] > 0.2 ? i : -1)).filter(i => i >= 0);   // front motors by default
-  $('#nl-motors').innerHTML = airframe.rotors.map((r, i) => `<label class="row tight" style="gap:3px"><input type="checkbox" data-m="${i}" ${def.includes(i) ? 'checked' : ''}> <span class="hint">M${i + 1}</span></label>`).join('');
+  const def = noseSelection(airframe.rotors, d.motors);   // front motors by default
+  $('#nl-motors').innerHTML = airframe.rotors.map((r, i) => `<label class="row tight" style="gap:3px"><input type="checkbox" data-m="${i}" ${def.includes(i) ? 'checked' : ''} ${r.enabled === false ? 'disabled' : ''}> <span class="hint">${esc(r.name || `M${i + 1}`)}${r.enabled === false ? ' (off)' : ''}</span></label>`).join('');
   $('#nl-target').value = d.target_pitch_deg ?? airframe.hover_pitch_deg ?? 0;
   $('#nl-rate').value = d.rate_deg_s ?? 8;
   $('#nl-assist').value = Math.round((d.assist_cmd ?? 0) * 100);
   $('#nl-use').checked = !!d.enabled;
   $$('#nl-card input').forEach(inp => { inp.onchange = () => {
-    if (status.mode === 'sitl' && +((params.NLF_ENABLE || {}).value ?? (airframe.px4_overrides || {}).NLF_ENABLE) === 1) return;
-    airframe.design.nose_lift = noseLiftCfg(); pushAirframe(true);
+    if (status.mode !== 'sitl' || status.armed) return;
+    airframe.design ||= {}; airframe.design.nose_lift = noseLiftCfg(); pushAirframe(true); updateFooter();
   }; });
 }
 async function startNoseLift() {
   const c = noseLiftCfg();
   if (!c.motors.length) { logLine('[ui] nose lift: choose the motors first'); return false; }
-  const assist = airframe.rotors.map((_, i) => i).filter(i => !c.motors.includes(i));
+  const assist = airframe.rotors.flatMap((r, i) => r.enabled !== false && !c.motors.includes(i) ? [i] : []);
+  lastNoseLift = null;
   try {
-    await api('/api/sim/nose_lift', { motors: c.motors, target_pitch_deg: c.target_pitch_deg, rate_deg_s: c.rate_deg_s,
+    await api('/api/sim/nose_lift', { index_space: 'editor', motors: c.motors, target_pitch_deg: c.target_pitch_deg, rate_deg_s: c.rate_deg_s,
                                        assist_motors: c.assist_cmd > 0 ? assist : [], assist_cmd: c.assist_cmd });
     return true;
   } catch (e) { logLine('[ui] nose lift: ' + e.message); $('#nl-status').textContent = e.message; return false; }
 }
 $('#nl-start').addEventListener('click', startNoseLift);
-$('#nl-stop').addEventListener('click', () => api('/api/sim/nose_lift', { stop: true }));
+$('#nl-stop').addEventListener('click', () => { noseTakeoffGeneration++; return api('/api/sim/nose_lift', { stop: true }); });
 function updateNoseLift(st) {
   lastNoseLift = st.nose_lift || null;
   const el = $('#nl-status'); if (!el) return;
@@ -989,10 +1021,11 @@ function updateNoseLift(st) {
   el.textContent = n ? `${n.state}: nose ${n.pitch_deg.toFixed(1)}° → ${n.target_deg}°, cmd ${(n.cmd * 100).toFixed(0)}%${n.reason ? ' · ' + n.reason : ''}` : '';
   el.classList.toggle('err', !!(n && n.state === 'failed'));
 }
-async function waitNoseLift(timeoutMs = 40000) {
+async function waitNoseLift(generation, timeoutMs = 40000) {
   const t0 = Date.now();
   while (Date.now() - t0 < timeoutMs) {
     await new Promise(r => setTimeout(r, 100));
+    if (generation !== noseTakeoffGeneration || status.mode !== 'sitl') return false;
     if (!lastNoseLift) continue;
     if (lastNoseLift.state === 'holding' || lastNoseLift.state === 'handover') return true;
     if (lastNoseLift.state === 'failed') return false;
@@ -1003,11 +1036,16 @@ async function waitNoseLift(timeoutMs = 40000) {
 // SITL always has it; a Pixhawk only once flashed with the ATLAS build. Reported by the status feed, not the lazily
 // loaded parameter list, so it works before the PX4 tab was ever opened.
 function nativeModuleActive() {
+  if (simulatorNoseSelected(status.mode, airframe?.design?.nose_lift)) return false;
   const has = status.mode === 'sitl' || !!status.native_module;
   const enabled = status.nlf_enable ?? (params.NLF_ENABLE || {}).value ?? (airframe && airframe.px4_overrides || {}).NLF_ENABLE;
   return has && +enabled === 1;
 }
 $('#btn-takeoff').addEventListener('click', async () => {
+  if (noseTakeoffPending) return;
+  const generation = ++noseTakeoffGeneration;
+  const simSequence = simulatorNoseSelected(status.mode, airframe?.design?.nose_lift);
+  noseTakeoffPending = true; updateFooter();
   try {
     if (nativeModuleActive()) {
       // one MAVLink command, the same a ground station would send to the real aircraft; the flight controller does the rest
@@ -1020,11 +1058,15 @@ $('#btn-takeoff').addEventListener('click', async () => {
     if (useNl && !status.armed) {
       logLine('[ui] takeoff: lifting the nose first');
       if (!(await startNoseLift())) return;
-      if (!(await waitNoseLift())) { logLine('[ui] takeoff cancelled: nose lift ' + (lastNoseLift ? lastNoseLift.state + ' ' + (lastNoseLift.reason || '') : 'timed out')); return; }
+      if (!(await waitNoseLift(generation))) { logLine('[ui] takeoff cancelled: nose lift ' + (lastNoseLift ? lastNoseLift.state + ' ' + (lastNoseLift.reason || '') : 'timed out')); return; }
     }
-    if (!status.armed) { await api('/api/px4/command', { command: 'arm' }); await new Promise(r => setTimeout(r, 1500)); }
-    await api('/api/px4/command', { command: 'takeoff' });
+    if (simSequence && (generation !== noseTakeoffGeneration || status.mode !== 'sitl')) return;
+    const guard = simSequence ? { expected_mode: 'sitl' } : {};
+    if (!status.armed) { await api('/api/px4/command', { command: 'arm', ...guard }); await new Promise(r => setTimeout(r, 1500)); }
+    if (simSequence && (generation !== noseTakeoffGeneration || status.mode !== 'sitl')) return;
+    await api('/api/px4/command', { command: 'takeoff', ...guard });
   } catch (e) { logLine('[ui] ' + e.message); }
+  finally { noseTakeoffPending = false; updateFooter(); }
 });
 $('#btn-arm').addEventListener('click', async () => {
   try { await api('/api/px4/command', status.armed ? { command: 'kill', force: true } : { command: 'arm' }); } catch (e) { logLine('[ui] ' + e.message); }
@@ -1398,12 +1440,14 @@ function applyState(st) {
   }
   $('#st-rtf').textContent = `RTF ${st.rtf ? st.rtf.toFixed(2) : '—'}${st.lockstep_timeouts ? ' · ' + st.lockstep_timeouts + ' waits' : ''}`;
   const [r, p, y] = st.euler.map(deg);
+  const pitch = Math.abs(p) < 0.05 ? 0 : p;
+  $('#pitch-value').textContent = Number.isFinite(pitch) ? `${pitch > 0 ? '+' : ''}${pitch.toFixed(1)}°` : '—';
+  $('#pitch-direction').textContent = !Number.isFinite(pitch) ? 'Attitude unavailable' : pitch > 0 ? 'Nose up' : pitch < 0 ? 'Nose down' : 'Level';
   $('#st-pose').textContent = `N ${st.pos[0].toFixed(1)} E ${st.pos[1].toFixed(1)} alt ${(-st.pos[2]).toFixed(2)} m · R ${r.toFixed(0)}° P ${p.toFixed(0)}° Y ${y.toFixed(0)}°${st.on_ground ? ' · on ground' + (st.feet_down != null ? ` (${st.feet_down} feet)` : '') : ''}`;
   const f = st.forces || {};
   const parts = [];
   if (f.airspeed != null) parts.push(`airspeed ${(+f.airspeed).toFixed(1)} m/s`);
   if (f.lift != null) parts.push(`lift ${(+f.lift).toFixed(0)} N` + (f.stalled ? ' (stalled)' : ''));
-  if (f.alpha && f.alpha.length) parts.push(`α ${f.alpha.map(a => deg(+a).toFixed(1)).join('/')}°`);
   if (f.wing_drag != null || f.ram_drag != null || f.body_drag != null) parts.push(`drag wing ${(+f.wing_drag || 0).toFixed(0)} · ram ${(+f.ram_drag || 0).toFixed(0)} · body ${(+f.body_drag || 0).toFixed(0)} N`);
   if (f.power != null) parts.push(`power ${(+f.power).toFixed(0)} W`);
   if (st.rotor_health && st.rotor_health.some(h => h < 0.999)) parts.push('rotor health ' + st.rotor_health.map(h => (h * 100).toFixed(0) + '%').join(' '));
@@ -1428,7 +1472,7 @@ function connectWs() {
     if (m.type === 'airframe') { setAirframe(m.airframe); }
     if (m.type === 'state') { lastRc = m.rc || {}; lastManual = m.manual || {}; applyState(m.state); if (m.status) applyStatus(m.status); if (m.log) m.log.forEach(l => logLine(l[1])); if ($('#tab-px4').classList.contains('active')) renderRcLive(); }
   };
-  ws.onclose = () => { logLine('[ui] connection to simulator lost, retrying…'); setTimeout(connectWs, 1500); };
+  ws.onclose = () => { $('#pitch-value').textContent = '—'; $('#pitch-direction').textContent = 'Disconnected'; logLine('[ui] connection to simulator lost, retrying…'); setTimeout(connectWs, 1500); };
 }
 connectWs();
 loadPresetList();
@@ -2248,6 +2292,14 @@ $('#af-takeoff').addEventListener('change', async () => {
   const value = Number(inp.value);
   try {
     if (status.armed || !status.ctl_connected || !Number.isFinite(value)) throw new Error('Enter a finite takeoff pitch while connected and disarmed');
+    if (status.mode === 'sitl') {
+      airframe.design ||= {};
+      airframe.design.nose_lift = { ...(airframe.design.nose_lift || {}), target_pitch_deg: value };
+      $('#nl-target').value = value;
+      pushAirframe(true);
+      updateFooter();
+      return;
+    }
     const saved = await api('/api/params/set', { name: 'NLF_TARGET', value });
     if (!saved.ok || Math.abs(Number(saved.value) - value) > 0.01) throw new Error(saved.error || 'PX4 did not confirm the takeoff pitch');
     params.NLF_TARGET = { ...(params.NLF_TARGET || {}), value };
@@ -2255,7 +2307,9 @@ $('#af-takeoff').addEventListener('change', async () => {
     logLine('[ui] Takeoff pitch saved: ' + value + '°');
   } catch (e) {
     logLine('[ui] ' + e.message);
-    inp.value = (params.NLF_TARGET || {}).value ?? (airframe.px4_overrides || {}).NLF_TARGET ?? 25;
+    inp.value = status.mode === 'sitl'
+      ? (airframe.design?.nose_lift?.target_pitch_deg ?? airframe.hover_pitch_deg ?? 0)
+      : ((params.NLF_TARGET || {}).value ?? airframe.px4_overrides?.NLF_TARGET ?? 25);
   }
 });
 

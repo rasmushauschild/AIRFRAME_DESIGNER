@@ -34,6 +34,7 @@ CG never means re-entering positions. Angles are degrees in JSON.
     "kind": "ducted",             // "prop" | "ducted"
     "ram_drag": true,             // momentum drag of the inlet flow (ducted fans)
     "duct_axis": [1, 0, 0],       // jetfoil: physical fan axis; the jet is bent to "axis" (null = fan along the jet)
+    "intake_pos": null,           // independent fan intake XYZ (structural metres); null follows pos
     "turn_loss": 0.1              // thrust lost at 90 degrees of jet deflection
   } ],
   "wings": [ {

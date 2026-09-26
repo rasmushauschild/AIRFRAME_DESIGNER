@@ -29,9 +29,16 @@ class RotorSet:
         self.any_ram = bool(self.ram.any())
         self.scale = np.ones(self.n)                                  # per-rotor health (1 = fine, 0 = dead)
         self.S = skew_stack(self.r)                                   # r x (.)
+        self.intake_S = skew_stack(np.array([r.intake_position() for r in rotors], float).reshape(self.n, 3) - cg)
         self.MA = np.cross(self.r, self.axis) - self.km[:, None] * self.axis   # moment per unit thrust
         self.power_coef = np.where(self.ducted, 1.0 / (2 * np.sqrt(RHO * np.maximum(self.area, 1e-9))),
                                    1.0 / np.sqrt(2 * RHO * np.maximum(self.area, 1e-9)))
+
+        # Calibrate the T^1.5 curve to electrical input at effective full thrust.
+        # Turning loss reduces thrust, not full-command electrical consumption.
+        for i, rotor in enumerate(rotors):
+            if np.isfinite(rotor.max_power_w) and rotor.max_power_w > 0 and self.tmax[i] > 0:
+                self.power_coef[i] = rotor.max_power_w / self.tmax[i] ** 1.5
 
     def thrust(self, omega: np.ndarray) -> np.ndarray:
         om = np.clip(omega, 0.0, 1.0)
@@ -48,16 +55,16 @@ class RotorSet:
         if self.any_ram:
             # the inlet swallows mdot = sqrt(rho A T) of air arriving with the local airspeed; that momentum is lost
             mdot = self.mdot_coef * np.sqrt(thrust)
-            V = v_air_body - np.einsum("nij,j->ni", self.S, rates)
+            V = v_air_body - np.einsum("nij,j->ni", self.intake_S, rates)
             f = -mdot[:, None] * V
             fs = f.sum(axis=0)
             F = F + fs
-            M = M + np.einsum("nij,nj->i", self.S, f)
+            M = M + np.einsum("nij,nj->i", self.intake_S, f)
             if detail:
                 ram = float(np.sqrt(fs @ fs))
         return F, M, thrust, ram
 
     def ideal_power(self, thrust: np.ndarray) -> float:
-        """Momentum-theory power: T^1.5 / (2 sqrt(rho A)) for a duct, T^1.5 / sqrt(2 rho A) for an open prop."""
+        """Estimated power: rated electrical T^1.5 curve when supplied, otherwise ideal momentum theory."""
         t = np.maximum(thrust, 0.0)
         return float((t * np.sqrt(t) * self.power_coef).sum())
