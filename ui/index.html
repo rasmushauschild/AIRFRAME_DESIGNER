@@ -64,7 +64,7 @@
         </div>
         <span class="panel-spacer"></span>
         <select id="run-pick" class="preset-select" title="a saved run; pick one to scrub through it"><option value="">Live</option></select>
-        <input id="run-name" class="run-name" hidden maxlength="60" placeholder="name this run">
+        <input id="run-name" type="text" class="run-name" hidden maxlength="60" placeholder="name this run">
         <button class="pill small" id="run-save" title="keep this run with the airframe and parameters that produced it">Keep run</button>
         <button class="pill small" id="run-rename" title="rename the selected run" hidden>Rename</button>
         <button class="pill small danger" id="run-delete" title="delete the selected run" hidden>Delete</button>
@@ -116,7 +116,6 @@
         <label title="Nose-up angle before takeoff. Edits the simulator target in SITL or the PX4 firmware target in HITL. Editable while connected and disarmed; does not change hover pitch.">Takeoff pitch° <input id="af-takeoff" type="number" step="any" value="25" disabled></label>
         <label title="Nose-up pitch of the airframe in hover. PX4 treats this attitude as level: the geometry is exported rotated into that frame and SENS_BOARD_Y_OFF is set to match.">Hover pitch° <input id="af-hover" type="number" step="1" min="-90" max="90"></label>
         <label title="Calculated automatically from the enabled landing feet. Actual resting pitch can differ slightly as the legs compress.">Landed pitch° (auto) <input id="af-landed" type="number" step="1" min="-90" max="90"></label>
-        <span class="hint">Model changes apply to PX4 automatically while disarmed. Landed pitch is calculated from the landing legs.</span>
       </div>
       </div>
 
@@ -141,7 +140,7 @@
           <button id="cad-reset-offsets" class="pill small" title="put every body back where the CAD file has it">Reset drags</button>
           <button id="cad-remove-all" class="pill small" title="forget the CAD file and all its bodies">Remove CAD</button>
         </div>
-        <div id="cad-table"><div class="hint">No CAD file. Import a STEP file to place its bodies and give them masses.</div></div>
+        <div id="cad-table"><div class="hint">No CAD file</div></div>
         <div id="cad-totals" class="hint"></div>
       </details>
       </div>

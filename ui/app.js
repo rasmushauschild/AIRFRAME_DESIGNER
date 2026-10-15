@@ -248,7 +248,7 @@ function cadRowHtml(b, k) {
 }
 function renderCadTable() {
   const el = $('#cad-table'); const cad = airframe && airframe.cad;
-  if (!cad || !cad.file) { el.innerHTML = '<div class="hint">No CAD file. Import a STEP file to place its bodies and give them masses.</div>'; $('#cad-totals').innerHTML = ''; $('#cad-summary').textContent = ''; return; }
+  if (!cad || !cad.file) { el.innerHTML = '<div class="hint">No CAD file</div>'; $('#cad-totals').innerHTML = ''; $('#cad-summary').textContent = ''; return; }
   const live = (cad.bodies || []).filter(b => !b.removed);
   el.innerHTML = `<table class="grid cad"><thead><tr><th>#</th><th>Body</th><th class="num" title="litres">Vol L</th><th>Mass kg</th><th title="centroid in the structural frame (x fwd, y right, z down), m: click a row to highlight the body, drag it in the 3D view along its axes">X Y Z</th><th></th></tr></thead><tbody>${live.map(cadRowHtml).join('') || '<tr><td colspan="6" class="hint">All bodies removed.</td></tr>'}</tbody></table>`;
   el.querySelectorAll('tr[data-cad]').forEach(tr => {
@@ -383,7 +383,7 @@ $('#af-preset').addEventListener('change', async (e) => {
 
 // --- rotor helpers: axis <-> tilt/direction
 // Tilt: forward lean of the thrust axis from vertical (negative = backward). Cant: sideways lean, positive = outward
-// (away from the centreline; for a rotor on the centreline positive = right). Same convention as the Optimize tab.
+// (away from the centreline; for a rotor on the centreline positive = right).
 const outward = (y) => (y < 0 ? -1 : 1);
 const axisToTilt = (a, y = 1) => {
   const n = Math.hypot(a[0], a[1], a[2]) || 1;
