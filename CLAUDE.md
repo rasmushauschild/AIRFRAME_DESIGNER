@@ -48,6 +48,10 @@ airframes/    schema-2 JSON (docs/SCHEMA.md);  scenarios/  studies/  results/ (g
   scenario phases are non-blocking state machines.
 * Keep `run_once` results JSON-serialisable; metrics are the contract for studies.
 * Mass resolution goes through `Airframe.resolve_mass()` (items + CAD bodies), never `mass.resolve()` alone.
+* A rotor or a leg may carry a `pair` token: two items sharing one are a left/right couple and the app keeps
+  their geometry mirrored about y as either is edited. They stay two separate things — two PX4 outputs, two
+  names, two spin directions, two contact points — so nothing downstream has to know about the link.
+  `Airframe.validate()` reports a token that is not on exactly two items.
 * Ground contact damping is clamped per step to the integrator's stable range (dynamics/contact.py); without it a
   light, low-inertia airframe jitters on its legs and the fake gyro noise makes PX4's estimator refuse to arm.
 * `sim/nose_lift.py` is the pre-arm ground sequence (motor floors under PX4's commands); it is a simulator hook,

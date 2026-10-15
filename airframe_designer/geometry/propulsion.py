@@ -33,6 +33,8 @@ class Rotor:
     diameter: float = 0.12       # fan diameter, m (disc area for ram drag and momentum-theory power)
     thrust_exponent: float = 2.0  # thrust = max_thrust * omega_norm ** exponent
     enabled: bool = True
+    pair: str = ""               # two rotors sharing a token are a left/right couple: the app keeps their
+                                 # geometry mirrored about y. Each still has its own output, name and spin.
 
     # ------------------------------------------------------------ derived
     def effective_max_thrust(self) -> float:

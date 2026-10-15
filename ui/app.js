@@ -34,7 +34,11 @@ let scene;
 try {
   scene = createScene($('#c'), {
     onSelect: (i) => { selected = i; if (i >= 0) cadSelected = null; renderRotorTable(); renderReadout(); if (i >= 0) renderCadTable(); },
-    onRotorChanged: (i, r, commit) => { renderRotorRow(i); renderReadout(); if (commit) pushAirframe(); },
+    onRotorChanged: (i, r, commit) => {
+      const twin = twinOf(airframe.rotors, i);
+      if (twin >= 0) { mirrorRotorOnto(r, airframe.rotors[twin]); scene.updateRotorNode(twin, airframe.rotors[twin]); renderRotorRow(twin); }
+      renderRotorRow(i); renderReadout(); if (commit) pushAirframe();
+    },
     onCadSelect: (id) => { cadSelected = id; if (id !== null && selected >= 0) { selected = -1; renderRotorTable(); renderReadout(); } renderCadTable(); },
     onCadGroupChanged: (changes, commit) => {
       for (const { id, offset } of changes) { const b = cadBody(id); if (b) { b.offset = offset; renderCadRow(id); } }
@@ -446,6 +450,49 @@ $('#af-delete').addEventListener('click', async (e) => {
   } catch (err) { logLine('[preset] ' + err.message); }
 });
 
+// --- mirrored couples: a rotor or a leg can be tied to its opposite number, so moving one moves the
+// other. They stay two separate things — two outputs, two names, two spin directions, two contact points —
+// because that is what they are on the aircraft; what the tie keeps the same is the geometry.
+const pairToken = () => 'p' + Math.random().toString(36).slice(2, 9);
+const twinOf = (list, i) => {
+  const tok = list[i] && list[i].pair;
+  if (!tok) return -1;
+  const others = list.map((x, k) => (k !== i && x.pair === tok ? k : -1)).filter(k => k >= 0);
+  return others.length === 1 ? others[0] : -1;    // a couple is two; anything else is a mistake to leave alone
+};
+function unpair(list, i) {
+  const j = twinOf(list, i);
+  if (j >= 0) list[j].pair = '';
+  if (list[i]) list[i].pair = '';
+}
+// Copy the geometry of `src` onto its twin, mirrored about the centreline.
+function mirrorRotorOnto(src, dst) {
+  dst.pos = [src.pos[0], -src.pos[1], src.pos[2]];
+  dst.axis = [src.axis[0], -src.axis[1], src.axis[2]];
+  dst.max_thrust = src.max_thrust; dst.max_power_w = src.max_power_w;
+  dst.tau = src.tau; dst.diameter = src.diameter; dst.thrust_exponent = src.thrust_exponent;
+  dst.km = (dst.km >= 0 ? 1 : -1) * Math.abs(src.km);     // same motor, its own direction of rotation
+}
+function mirrorLegOnto(src, dst) {
+  dst.attach = [src.attach[0], -src.attach[1], src.attach[2]];
+  dst.length = src.length; dst.tilt_deg = src.tilt_deg; dst.cant_deg = src.cant_deg;   // cant is outward, so it mirrors as it is
+  dst.foot_radius = src.foot_radius; dst.stiffness = src.stiffness; dst.damping = src.damping; dst.friction = src.friction;
+}
+/** Tie item `i` to its opposite number, making one if there is not one already. Returns false with a reason. */
+function makePair(list, i, mirrorOnto, keyY, mk) {
+  const src = list[i];
+  const y = keyY(src);
+  if (Math.abs(y) < 1e-6) return 'it sits on the centreline, so it has no opposite side';
+  const near = list.findIndex((x, k) => k !== i && !x.pair && Math.abs(keyY(x) + y) < 0.02
+    && Math.abs(keyY(x)) > 1e-6);
+  const tok = pairToken();
+  let j = near;
+  if (j < 0) { list.push(mk(src)); j = list.length - 1; }
+  src.pair = tok; list[j].pair = tok;
+  mirrorOnto(src, list[j]);
+  return '';
+}
+
 // --- rotor helpers: axis <-> tilt/direction
 // Tilt: forward lean of the thrust axis from vertical (negative = backward). Cant: sideways lean, positive = outward
 // (away from the centreline; for a rotor on the centreline positive = right).
@@ -466,15 +513,16 @@ const nf = (v, d = 3) => (typeof v === 'number' && isFinite(v)) ? +v.toFixed(d) 
 function renderRotorTable() {
   const el = $('#rotor-table');
   const rows = airframe.rotors.map((r, i) => rotorRowHtml(i, r)).join('');
-  el.innerHTML = `<table class="grid"><thead><tr><th title="Physical PWM port: 1–8 = MAIN 1–8; 9–10 = AUX 1–2">#</th><th title="enabled: takes part in the simulation and the PX4 export">On</th><th>Name</th><th title="position, m, structural frame (FRD like PX4): X forward">X</th><th title="Y right (+)">Y</th><th title="Z DOWN (+): a rotor 10 cm above the reference point has Z = -0.10">Z</th><th title="forward lean of the thrust axis from vertical, degrees; negative = backward">Tilt°</th><th title="sideways lean, degrees; positive = outward from the centreline (right for a rotor on the centreline)">Cant°</th><th title="resulting unit thrust vector = CA_ROTORn_AX / AY / AZ">Axis AX AY AZ</th><th title="direction of rotation; click a cell to flip it (the sign of KM)">Spin</th><th title="max thrust N">Tmax</th><th title="share of max thrust this rotor needs to hover, as PX4's allocator would solve it">Hover</th><th></th></tr></thead><tbody>${rows || '<tr><td colspan="13" class="hint">No rotors. Add one below.</td></tr>'}</tbody></table>`;
+  el.innerHTML = `<table class="grid"><thead><tr><th title="Physical PWM port: 1–8 = MAIN 1–8; 9–10 = AUX 1–2">#</th><th title="enabled: takes part in the simulation and the PX4 export">On</th><th title="tied to the rotor on the other side: moving one moves the other. They keep their own name, output and spin">Sym</th><th>Name</th><th title="position, m, structural frame (FRD like PX4): X forward">X</th><th title="Y right (+)">Y</th><th title="Z DOWN (+): a rotor 10 cm above the reference point has Z = -0.10">Z</th><th title="forward lean of the thrust axis from vertical, degrees; negative = backward">Tilt°</th><th title="sideways lean, degrees; positive = outward from the centreline (right for a rotor on the centreline)">Cant°</th><th title="resulting unit thrust vector = CA_ROTORn_AX / AY / AZ">Axis AX AY AZ</th><th title="direction of rotation; click a cell to flip it (the sign of KM)">Spin</th><th title="max thrust N">Tmax</th><th title="share of max thrust this rotor needs to hover, as PX4's allocator would solve it">Hover</th><th></th></tr></thead><tbody>${rows || '<tr><td colspan="14" class="hint">No rotors. Add one below.</td></tr>'}</tbody></table>`;
   api('/api/airframe/hover_check').then(showHover).catch(() => { });
   el.querySelectorAll('tr[data-i]').forEach(tr => {
     const i = +tr.dataset.i;
     tr.addEventListener('click', (e) => { if (!['INPUT', 'SELECT', 'OPTION', 'BUTTON'].includes(e.target.tagName) && !e.target.classList.contains('spin') && !e.target.classList.contains('del')) { selected = i; scene.select(i); renderRotorTable(); renderReadout(); } });
-    tr.querySelectorAll('input, select:not(.rotor-port)').forEach(inp => inp.addEventListener('change', () => applyRow(i, tr)));
+    tr.querySelectorAll('input:not(.sym), select:not(.rotor-port)').forEach(inp => inp.addEventListener('change', () => applyRow(i, tr)));
+    tr.querySelector('input.sym').addEventListener('change', (e) => toggleRotorPair(i, e.target.checked));
     tr.querySelector('.rotor-port').addEventListener('change', e => changeMotorPort(e.target));
     tr.querySelector('.spin').addEventListener('click', () => { airframe.rotors[i].km = -airframe.rotors[i].km; scene.updateRotorNode(i, airframe.rotors[i]); renderRotorTable(); pushAirframe(true); });
-    tr.querySelector('.del').addEventListener('click', () => { airframe.design ||= {}; airframe.design.nose_lift ||= {};
+    tr.querySelector('.del').addEventListener('click', () => { unpair(airframe.rotors, i); airframe.design ||= {}; airframe.design.nose_lift ||= {};
       airframe.design.nose_lift.motors = removeNoseMotor(noseSelection(airframe.rotors, airframe.design.nose_lift.motors), i);
       airframe.rotors.splice(i, 1); selected = -1; setAirframe(airframe); pushAirframe(true); });
   });
@@ -485,6 +533,7 @@ function rotorRowHtml(i, r) {
   const [tilt, cant] = axisToTilt(r.axis, r.pos[1]);
   return `<tr data-i="${i}" class="${i === selected ? 'selected' : ''} ${r.enabled === false ? 'off' : ''}"><td class="idx">${rotorPortHtml(i, r)}</td>
   <td><input type="checkbox" data-k="on" ${r.enabled === false ? '' : 'checked'}></td>
+  <td><input type="checkbox" class="sym" data-k="sym" ${r.pair ? 'checked' : ''} title="${r.pair ? 'tied to its opposite number' : 'tie this rotor to the one on the other side'}"></td>
   <td><input type="text" class="name" data-k="name" value="${esc(r.name)}"></td>
   <td><input type="number" step="0.005" data-k="x" value="${r.pos[0]}"></td>
   <td><input type="number" step="0.005" data-k="y" value="${r.pos[1]}"></td>
@@ -514,12 +563,29 @@ function applyRow(i, tr) {
   r.pos = [g('x'), g('y'), g('z')];
   r.axis = tiltToAxis(g('tilt'), g('cant'), r.pos[1]);
   r.max_thrust = g('tmax');
+  const twin = twinOf(airframe.rotors, i);
+  if (twin >= 0) { mirrorRotorOnto(r, airframe.rotors[twin]); scene.updateRotorNode(twin, airframe.rotors[twin]); }
   tr.classList.toggle('off', !r.enabled);
   scene.updateRotorNode(i, r);
   renderRotorRow(i);
   renderRotorTable();
   renderReadout();
   pushAirframe(true);
+}
+function toggleRotorPair(i, on) {
+  const r = airframe.rotors[i];
+  if (!r) return;
+  if (!on) { unpair(airframe.rotors, i); setAirframe(airframe); pushAirframe(true); return; }
+  const why = makePair(airframe.rotors, i, mirrorRotorOnto, (x) => x.pos[1], (src) => {
+    const n = JSON.parse(JSON.stringify(src));
+    n.name = (src.name || 'M') + ' R';
+    n.km = -src.km;                       // a new opposite number spins the other way; change it if you want
+    n.pair = '';
+    return n;
+  });
+  if (why) { logLine('[rotors] ' + (r.name || 'this rotor') + ' cannot be mirrored: ' + why); renderRotorTable(); return; }
+  selected = i;
+  setAirframe(airframe); scene.select(i); pushAirframe(true);
 }
 function renderReadout() {
   const el = $('#rotor-readout');
@@ -533,27 +599,9 @@ $('#rotor-add').addEventListener('click', () => {
   const base = airframe.rotors[selected] || airframe.rotors[airframe.rotors.length - 1] || { pos: [0.2, 0, 0], axis: [0, 0, -1], km: 0.05, max_thrust: 8, max_power_w: 0, tau: 0.04, diameter: 0.25, thrust_exponent: 2, enabled: true };
   const n = JSON.parse(JSON.stringify(base));
   n.pos = [n.pos[0] + 0.05, n.pos[1] + 0.05, n.pos[2]];
-  n.name = 'M' + (airframe.rotors.length + 1); n.enabled = true;
+  n.name = 'M' + (airframe.rotors.length + 1); n.enabled = true; n.pair = '';
   airframe.rotors.push(n); selected = airframe.rotors.length - 1;
   setAirframe(airframe); scene.select(selected); pushAirframe(true);
-});
-function mirror(axisIdx) {
-  if (selected < 0 || !airframe.rotors[selected]) return;
-  const n = JSON.parse(JSON.stringify(airframe.rotors[selected]));
-  n.pos[axisIdx] = -n.pos[axisIdx]; n.axis[axisIdx] = -n.axis[axisIdx]; n.km = -n.km;
-  n.name = 'M' + (airframe.rotors.length + 1);
-  airframe.rotors.push(n); selected = airframe.rotors.length - 1;
-  setAirframe(airframe); scene.select(selected); pushAirframe(true);
-}
-$('#rotor-mirror-y').addEventListener('click', () => mirror(1));
-$('#rotor-mirror-x').addEventListener('click', () => mirror(0));
-$('#rotor-apply-all').addEventListener('click', () => {
-  if (selected < 0 || !airframe.rotors[selected]) return;
-  const s = airframe.rotors[selected];
-  // the motor, not the placement: thrust, power, spool, size and the strength of the reaction torque.
-  // Each rotor keeps where it is, which way it points and which way it turns.
-  airframe.rotors.forEach(r => { r.max_power_w = s.max_power_w || 0; r.max_thrust = s.max_thrust; r.tau = s.tau; r.diameter = s.diameter; r.thrust_exponent = s.thrust_exponent; r.km = (r.km >= 0 ? 1 : -1) * Math.abs(s.km); });
-  setAirframe(airframe); pushAirframe(true);
 });
 
 // ============================================================ wings
@@ -687,12 +735,13 @@ const LEG_DEFAULT = { name: 'leg', attach: [0.15, 0.15, 0], length: 0.2, tilt_de
 function renderLegTable() {
   const el = $('#leg-table');
   const rows = airframe.legs.map((l, i) => legRowHtml(i, l)).join('');
-  el.innerHTML = `<table class="grid legs"><thead><tr><th>On</th><th>Name</th><th title="attachment point on the structure, structural frame, m: X forward">X</th><th title="Y right (+)">Y</th><th title="Z DOWN (+), like PX4: legs usually have positive Z">Z</th><th title="attachment to foot, m">Len</th><th title="lean forward (+) / backward (-) from straight down">Tilt°</th><th title="lean outward (+) / inward (-) from the centreline">Cant°</th><th title="contact starts this far above the foot point (ball or skid tube), m">Foot r</th><th title="N/m">Stiff</th><th title="N/(m/s)">Damp</th><th title="foot point, structural frame">Foot</th><th></th></tr></thead>
-    <tbody>${rows || '<tr><td colspan="13" class="hint">No legs. The vehicle needs at least 3 to stand; use Generate below.</td></tr>'}</tbody></table>`;
+  el.innerHTML = `<table class="grid legs"><thead><tr><th>On</th><th title="tied to the leg on the other side: moving one moves the other">Sym</th><th>Name</th><th title="attachment point on the structure, structural frame, m: X forward">X</th><th title="Y right (+)">Y</th><th title="Z DOWN (+), like PX4: legs usually have positive Z">Z</th><th title="attachment to foot, m">Len</th><th title="lean forward (+) / backward (-) from straight down">Tilt°</th><th title="lean outward (+) / inward (-) from the centreline">Cant°</th><th title="contact starts this far above the foot point (ball or skid tube), m">Foot r</th><th title="N/m">Stiff</th><th title="N/(m/s)">Damp</th><th title="foot point, structural frame">Foot</th><th></th></tr></thead>
+    <tbody>${rows || '<tr><td colspan="14" class="hint">No legs. The vehicle needs at least 3 to stand.</td></tr>'}</tbody></table>`;
   el.querySelectorAll('tr[data-l]').forEach(tr => {
     const i = +tr.dataset.l;
-    tr.querySelectorAll('input').forEach(inp => inp.addEventListener('change', () => applyLegRow(i)));
-    tr.querySelector('.del').addEventListener('click', () => { airframe.legs.splice(i, 1); renderLegTable(); scene.setAirframe(airframe); pushAirframe(true); });
+    tr.querySelectorAll('input:not(.sym)').forEach(inp => inp.addEventListener('change', () => applyLegRow(i)));
+    tr.querySelector('input.sym').addEventListener('change', (e) => toggleLegPair(i, e.target.checked));
+    tr.querySelector('.del').addEventListener('click', () => { unpair(airframe.legs, i); airframe.legs.splice(i, 1); renderLegTable(); scene.setAirframe(airframe); pushAirframe(true); });
   });
 }
 const legFoot = (l) => {
@@ -706,6 +755,7 @@ function legRowHtml(i, l) {
   const f = legFoot(l);
   return `<tr data-l="${i}" class="${l.enabled === false ? 'off' : ''}">
     <td><input type="checkbox" data-k="on" ${l.enabled === false ? '' : 'checked'}></td>
+    <td><input type="checkbox" class="sym" data-k="sym" ${l.pair ? 'checked' : ''} title="${l.pair ? 'tied to its opposite number' : 'tie this leg to the one on the other side'}"></td>
     <td><input type="text" class="name" data-k="name" value="${esc(l.name)}"></td>
     <td>${n('x', 0.01, l.attach[0])}</td><td>${n('y', 0.01, l.attach[1])}</td><td>${n('z', 0.01, l.attach[2])}</td>
     <td>${n('len', 0.01, l.length, 'min="0"')}</td><td>${n('tilt', 1, l.tilt_deg)}</td><td>${n('cant', 1, l.cant_deg)}</td>
@@ -721,23 +771,30 @@ function applyLegRow(i) {
   l.attach = [g('x'), g('y'), g('z')];
   l.length = Math.max(0, g('len')); l.tilt_deg = g('tilt'); l.cant_deg = g('cant');
   l.foot_radius = Math.max(0, g('footr')); l.stiffness = Math.max(0, g('stiff')); l.damping = Math.max(0, g('damp'));
+  const twin = twinOf(airframe.legs, i);
+  if (twin >= 0) { mirrorLegOnto(l, airframe.legs[twin]); renderLegTable(); }
   tr.classList.toggle('off', !l.enabled);
   const calc = tr.querySelector('td.calc'); if (calc) calc.textContent = legFoot(l).map(v => v.toFixed(2)).join(' ');
   scene.setAirframe(airframe); pushAirframe(true);
 }
+function toggleLegPair(i, on) {
+  const l = airframe.legs[i];
+  if (!l) return;
+  if (!on) { unpair(airframe.legs, i); renderLegTable(); scene.setAirframe(airframe); pushAirframe(true); return; }
+  const why = makePair(airframe.legs, i, mirrorLegOnto, (x) => x.attach[1], (src) => {
+    const n = JSON.parse(JSON.stringify(src));
+    n.name = (src.name || 'leg') + ' R';
+    n.pair = '';
+    return n;
+  });
+  if (why) { logLine('[legs] ' + (l.name || 'this leg') + ' cannot be mirrored: ' + why); renderLegTable(); return; }
+  renderLegTable(); scene.setAirframe(airframe); pushAirframe(true);
+}
 $('#leg-add').addEventListener('click', () => {
   const base = airframe.legs[airframe.legs.length - 1] || LEG_DEFAULT;
   const l = JSON.parse(JSON.stringify(base));
-  l.name = 'leg' + (airframe.legs.length + 1); l.enabled = true;
+  l.name = 'leg' + (airframe.legs.length + 1); l.enabled = true; l.pair = '';
   if (airframe.legs.length) l.attach = [l.attach[0] - 0.05, l.attach[1], l.attach[2]];
-  airframe.legs.push(l);
-  renderLegTable(); scene.setAirframe(airframe); pushAirframe(true);
-});
-$('#leg-mirror').addEventListener('click', () => {
-  const src = airframe.legs[airframe.legs.length - 1]; if (!src) return;
-  const l = JSON.parse(JSON.stringify(src));
-  l.attach[1] = -l.attach[1];
-  l.name = src.name.endsWith('L') ? src.name.slice(0, -1) + 'R' : src.name.endsWith('R') ? src.name.slice(0, -1) + 'L' : src.name + '_m';
   airframe.legs.push(l);
   renderLegTable(); scene.setAirframe(airframe); pushAirframe(true);
 });

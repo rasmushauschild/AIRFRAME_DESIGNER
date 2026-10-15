@@ -162,6 +162,21 @@ class Airframe:
         return copy.deepcopy(self)
 
     # --------------------------------------------------------- validation
+    def _pair_problems(self) -> list[str]:
+        """A mirrored couple is two items sharing a token. One on its own means the app stopped keeping
+        them mirrored without saying so, which is exactly the kind of quiet asymmetry that flies badly."""
+        out = []
+        for what, items in (("rotor", self.rotors), ("leg", self.legs)):
+            seen: dict[str, list] = {}
+            for it in items:
+                tok = getattr(it, "pair", "") or ""
+                if tok:
+                    seen.setdefault(tok, []).append(it.name or what)
+            for tok, members in seen.items():
+                if len(members) != 2:
+                    out.append(f"mirrored {what} group {', '.join(members)} has {len(members)} member(s), not 2")
+        return out
+
     def validate(self) -> list[str]:
         problems = []
         n = len(self.active_rotors())
@@ -172,6 +187,7 @@ class Airframe:
         zero = [r.name or f"M{i + 1}" for i, r in enumerate(self.active_rotors()) if r.max_thrust <= 0]
         if zero:
             problems.append(f"rotor(s) {', '.join(zero)} have max thrust 0")
+        problems += self._pair_problems()
         if any(i <= 0 for i in self.mass.inertia):
             problems.append("inertia diagonal must be positive")
         try:

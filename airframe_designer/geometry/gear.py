@@ -21,6 +21,7 @@ class Leg:
     damping: float = 150.0        # N/(m/s)
     friction: float = 0.8         # Coulomb coefficient at the foot
     enabled: bool = True
+    pair: str = ""                # two legs sharing a token are a left/right couple, kept mirrored about y
 
     @property
     def side(self) -> float:

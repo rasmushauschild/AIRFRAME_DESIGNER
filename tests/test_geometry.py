@@ -398,3 +398,23 @@ def test_a_blank_design_is_empty_but_still_stands():
     assert blank("Thing").name == "Thing"
     assert "PX4 supports 1..12 rotors, airframe has 0 enabled" in af.validate()
     assert "fewer than 3 legs: the vehicle cannot stand" not in af.validate()
+
+
+def test_a_mirrored_couple_is_two_items_that_the_app_keeps_together():
+    """`pair` ties a rotor or a leg to its opposite number. It is only a link: both are still real, with
+    their own name, output, spin and contact point — the app mirrors the geometry when either is edited,
+    and the airframe says so when a link is left half finished."""
+    from airframe_designer.geometry.airframe import quad_x
+    af = quad_x()
+    af.rotors[0].pair = af.rotors[2].pair = "p1"        # M1 front-right and M3 front-left
+    assert af.validate() == [] or "mirrored" not in " ".join(af.validate())
+    assert af.rotors[0].to_dict()["pair"] == "p1"       # survives a save
+    assert Airframe.from_dict(af.to_dict()).rotors[2].pair == "p1"
+
+    af.rotors[2].pair = ""                               # one half of the couple undone by hand
+    assert any("mirrored rotor group" in p for p in af.validate())
+
+    af.rotors[2].pair = "p1"
+    af.legs[0].pair = af.legs[1].pair = "p2"
+    assert not any("mirrored" in p for p in af.validate())
+    assert Airframe.from_dict(af.to_dict()).legs[1].pair == "p2"
