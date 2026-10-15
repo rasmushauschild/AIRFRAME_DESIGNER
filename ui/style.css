@@ -499,3 +499,9 @@ select.preset-select:hover { background-color: var(--soft); color: var(--text); 
 #scrub-label { min-width: 150px; text-align: right; }
 input.run-name { width: 190px; flex: 0 0 auto; padding: 3px 9px; border-radius: 999px; font-size: 11.5px;
   box-shadow: inset 0 0 0 1px var(--accent); background: var(--panel); color: var(--text); }
+
+/* ---- preset row above the tabs: load a preset, or a version of this one */
+.preset-bar { display: flex; gap: 6px; align-items: center; padding: 14px 22px 0; flex: none; }
+.preset-bar select.preset-select { flex: 1 1 0; max-width: none; background-color: var(--panel);
+  box-shadow: inset 0 0 0 1px var(--line); }
+.preset-bar select.preset-select:hover { background-color: var(--soft); }

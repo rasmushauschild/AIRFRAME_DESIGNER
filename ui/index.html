@@ -19,8 +19,6 @@
       <div class="panel-head">
         <div class="panel-title">Airframe</div>
         <input id="af-name" type="text" class="name-input" title="preset name; every change on every tab is saved to it automatically" spellcheck="false">
-        <select id="af-preset" class="preset-select" title="load a preset"><option value="">Load…</option></select>
-        <select id="af-version" class="preset-select" title="versions of this preset pushed to GitHub"><option value="">Versions…</option></select>
         <button class="pill" id="af-push" title="push this preset to GitHub as a new version: geometry, every parameter, and the firmware sources">Push version</button>
         <span id="af-saved" class="hint saved-mark"></span>
         <div class="panel-spacer"></div>
@@ -85,6 +83,10 @@
 
   <div class="vresizer" id="resize-side" title="Drag to resize"></div>
   <aside class="panel side" id="side">
+    <div class="preset-bar">
+      <select id="af-preset" class="preset-select" title="load a preset"><option value="">Load…</option></select>
+      <select id="af-version" class="preset-select" title="versions of this preset pushed to GitHub"><option value="">Versions…</option></select>
+    </div>
     <nav class="tabs">
       <button data-tab="airframe" class="active">Geometry</button>
       <button data-tab="px4">Params</button>
@@ -228,12 +230,6 @@
 
     <!-- ============================ PX4 ============================ -->
     <section id="tab-px4" class="tab">
-      <div class="rc-head">
-        <span class="pill st" id="rc-ind" title="a transmitter reaches PX4: over a receiver bound to the flight controller, or from a radio on this computer over USB / serial"><i class="dot"></i><b>Remote</b>&nbsp;<span id="rc-ind-text">not detected</span></span>
-        <span class="panel-spacer"></span>
-        <button id="joy-connect" class="pill small" title="use a RadioMaster or joystick attached to this computer (USB, or a serial link such as Bluetooth). Its channels appear in the same table as a receiver on the flight controller, with the same mapping.">Connect radio…</button>
-      </div>
-      <div id="rc-board" class="card" hidden></div>
       <div id="sync-card" class="card" hidden><div class="conn-row"><div><b>Board vs SITL</b> <span id="sync-text" class="hint"></span></div><button id="sync-btn" class="pill small primary" title="write every parameter that differs from the last SITL run to the board (calibration, links, safety and RC settings are left alone)">Sync board to SITL</button></div><div id="sync-list" class="hint mono"></div></div>
 
       <h3>Edited parameters</h3>
@@ -348,7 +344,12 @@
       </div>
 
       <h3>Remote</h3>
-      <div class="hint" style="margin:6px 0 12px">Radio and channel mapping live on the <a href="#" id="conn-goto-rc">Params tab</a>.</div>
+      <div class="rc-head">
+        <span class="pill st" id="rc-ind" title="a transmitter reaches PX4: over a receiver bound to the flight controller, or from a radio on this computer over USB / serial"><i class="dot"></i><b>Remote</b>&nbsp;<span id="rc-ind-text">not detected</span></span>
+        <span class="panel-spacer"></span>
+        <button id="joy-connect" class="pill small" title="use a RadioMaster or joystick attached to this computer (USB, or a serial link such as Bluetooth). Its channels appear in the same table as a receiver on the flight controller, with the same mapping.">Connect radio…</button>
+      </div>
+      <div id="rc-board" class="card" hidden></div>
 
       <h3>Motor testing</h3>
       <label class="row"><input id="motor-enable" type="checkbox"> Enable motor sliders</label>

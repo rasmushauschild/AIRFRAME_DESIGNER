@@ -56,7 +56,7 @@ $$('.tabs button').forEach(b => b.addEventListener('click', () => {
   $$('.tab').forEach(t => t.classList.toggle('active', t.id === 'tab-' + b.dataset.tab));
   if (b.dataset.tab === 'airframe') loadExport();
   if (b.dataset.tab === 'px4') { ensureParams(); loadExport(); }
-  if (b.dataset.tab === 'connect') refreshConnection();
+  if (b.dataset.tab === 'connect') { refreshConnection(); ensureParams(); renderRcLive(); }
   if (b.dataset.tab === 'batch') refreshBatch();
   if (b.dataset.tab === 'firmware') refreshFirmware();
 }));
@@ -65,14 +65,15 @@ function openTab(name) { $$('.tabs button').find(b => b.dataset.tab === name)?.c
 
 // ============================================================ confirmation without dialogs
 // window.confirm() returns false at once inside the Claude desktop app's web view (and other embedded browsers),
-// so destructive buttons arm on the first click ("Click again to …", 8 s) and act on the second.
+// so destructive buttons ask on the button itself: the first click turns it into "Really …?" for 8 s,
+// and the second does the thing. `label` is the short verb phrase that question is built from.
 const confirmArm = new Map();   // key -> expiry (ms)
 function confirmArmed(key) { return (confirmArm.get(key) || 0) > Date.now(); }
 function confirmTwice(key, btn, label) {
   if (confirmArmed(key)) { confirmArm.delete(key); btn.classList.remove('confirm'); return true; }
   confirmArm.set(key, Date.now() + 8000);
   btn.dataset.label = btn.dataset.label || btn.textContent;
-  btn.textContent = 'Click again to ' + label; btn.classList.add('confirm');
+  btn.textContent = 'Really ' + label + '?'; btn.classList.add('confirm');
   setTimeout(() => { if (!confirmArmed(key)) { confirmArm.delete(key); if (document.body.contains(btn)) { btn.textContent = btn.dataset.label; btn.classList.remove('confirm'); } } }, 8100);
   return false;
 }
@@ -317,7 +318,7 @@ async function cadFrameChanged() {
 }
 ['cad-rx', 'cad-ry', 'cad-rz', 'cad-ox', 'cad-oy', 'cad-oz', 'cad-scale'].forEach(id => $('#' + id).addEventListener('change', cadFrameChanged));
 $('#cad-reset-offsets').addEventListener('click', () => { if (!airframe.cad) return; airframe.cad.bodies.forEach(b => b.offset = [0, 0, 0]); scene.syncCad(); renderCadTable(); pushAirframe(true); });
-$('#cad-remove-all').addEventListener('click', () => { if (!airframe.cad || !confirmTwice('cad-remove', $('#cad-remove-all'), 'remove the CAD file and all its bodies')) return; airframe.cad = null; cadSelected = null; scene.selectCad(null); setAirframe(airframe); pushAirframe(true); });
+$('#cad-remove-all').addEventListener('click', () => { if (!airframe.cad || !confirmTwice('cad-remove', $('#cad-remove-all'), 'remove the CAD file')) return; airframe.cad = null; cadSelected = null; scene.selectCad(null); setAirframe(airframe); pushAirframe(true); });
 
 function bindNumber(id, fn) {
   $('#' + id).addEventListener('change', (e) => { fn(parseFloat(e.target.value) || 0); scene.setAirframe(airframe); pushAirframe(true); });
@@ -930,7 +931,7 @@ $('#param-search').addEventListener('input', renderParams);
 $('#param-group').addEventListener('change', renderParams);
 $('#param-refresh').addEventListener('click', async () => { $('#param-count').textContent = 'loading…'; await api('/api/params/refresh', {}); await loadParams(); });
 $('#param-save').addEventListener('click', () => api('/api/params/save', {}));
-$('#param-reboot').addEventListener('click', () => { if (confirmTwice('param-reboot', $('#param-reboot'), 'reboot the flight controller')) api('/api/px4/command', { command: 'reboot' }); });
+$('#param-reboot').addEventListener('click', () => { if (confirmTwice('param-reboot', $('#param-reboot'), 'reboot')) api('/api/px4/command', { command: 'reboot' }); });
 $('#param-meta-fetch').addEventListener('click', async () => {
   $('#param-count').textContent = 'downloading descriptions via MAVLink FTP…';
   try { const r = await api('/api/params/meta/fetch', {}); await loadMeta(); logLine(`[ui] ${r.count} parameter descriptions from ${r.source}`); }
@@ -1119,7 +1120,7 @@ function applyStatus(s) {
   if (s.params_session !== undefined && s.params_session !== paramsSession) {   // board (re)connected or reflashed: forget the old list
     paramsSession = s.params_session; paramsLoaded = false; params = {};
   }
-  if (s.params_loaded && s.param_count && s.params_loaded >= s.param_count && !paramsLoaded && (hardwareMotors() || $('#tab-px4').classList.contains('active'))) ensureParams();
+  if (s.params_loaded && s.param_count && s.params_loaded >= s.param_count && !paramsLoaded && (hardwareMotors() || rcVisible() || $('#tab-px4').classList.contains('active'))) ensureParams();
   updateFooter();
 }
 const effectiveMax = (r) => (r.enabled === false ? 0 : r.max_thrust);
@@ -1421,13 +1422,13 @@ $('#run-rename').addEventListener('click', () => {
 });
 $('#run-delete').addEventListener('click', async (e) => {
   const id = $('#run-pick').value;
-  if (!id || !confirmTwice('run-delete', e.target, 'delete this run')) return;
+  if (!id || !confirmTwice('run-delete', e.target, 'delete')) return;
   try { await api(`/api/runs/${encodeURIComponent(id)}/delete`, {}); await selectRun(''); await loadRunList(''); }
   catch (err) { logLine('[runs] ' + err.message); }
 });
 $('#run-load').addEventListener('click', async (e) => {
   const id = $('#run-pick').value;
-  if (!id || !confirmTwice('run-load', e.target, 'replace the design with this run\'s')) return;
+  if (!id || !confirmTwice('run-load', e.target, 'load this design')) return;
   try {
     const r = await api(`/api/runs/${encodeURIComponent(id)}/load`, {});
     if (r.airframe) { setAirframe(r.airframe); logLine('[runs] loaded the design from ' + id); }
@@ -1447,7 +1448,7 @@ function connectWs() {
   ws.onmessage = (ev) => {
     const m = JSON.parse(ev.data);
     if (m.type === 'airframe') { setAirframe(m.airframe); }
-    if (m.type === 'state') { lastRc = m.rc || {}; lastManual = m.manual || {}; applyState(m.state); if (m.status) applyStatus(m.status); if (m.log) m.log.forEach(l => logLine(l[1])); if ($('#tab-px4').classList.contains('active')) renderRcLive(); }
+    if (m.type === 'state') { lastRc = m.rc || {}; lastManual = m.manual || {}; applyState(m.state); if (m.status) applyStatus(m.status); if (m.log) m.log.forEach(l => logLine(l[1])); if (rcVisible()) renderRcLive(); }
   };
   ws.onclose = () => { $('#ro-fc-v').textContent = 'disconnected'; logLine('[ui] websocket closed; reconnecting'); setTimeout(connectWs, 800); };
 }
@@ -1507,7 +1508,7 @@ $('#ro-fc').addEventListener('click', async () => { openTab('connect'); if ((sta
 $('#conn-sitl').addEventListener('click', async () => { await connCall('/api/connection/connect', { mode: 'sitl' }); });
 $('#conn-rescan').addEventListener('click', refreshConnection);
 $('#conn-disconnect').addEventListener('click', async () => { await connCall('/api/connection/disconnect', {}); });
-$('#conn-reboot').addEventListener('click', async () => { if (confirmTwice('conn-reboot', $('#conn-reboot'), 'reboot the board (the link reconnects by itself)')) { await api('/api/px4/command', { command: 'reboot' }); setTimeout(refreshConnection, 3000); } });
+$('#conn-reboot').addEventListener('click', async () => { if (confirmTwice('conn-reboot', $('#conn-reboot'), 'reboot the board')) { await api('/api/px4/command', { command: 'reboot' }); setTimeout(refreshConnection, 3000); } });
 async function connectHitl(serial) {
   await connCall('/api/connection/connect', { mode: 'hitl', serial, baud: +$('#conn-baud').value || 921600 });
 }
@@ -1563,15 +1564,15 @@ async function refreshConnection() {
     if (b.dataset.act === 'reboot') { b.textContent = 'Rebooting…'; await api('/api/px4/command', { command: 'reboot' }); setTimeout(refreshConnection, 3000); }
     if (b.dataset.act === 'build_atlas') { b.textContent = 'Building…'; await connCall('/api/firmware/build', { atlas: true }); }
     if (b.dataset.act === 'upload_atlas') {
-      if (!confirmTwice('upload_atlas', b, 'replace the board firmware with the ATLAS build (reboots, parameters kept, archived)')) return;
+      if (!confirmTwice('upload_atlas', b, 'flash the ATLAS firmware')) return;
       b.textContent = 'Flashing…'; await connCall('/api/firmware/upload', { atlas: true });
     }
     if (b.dataset.act === 'enable_hw') {
-      if (!confirmTwice('enable_hw', b, 'allow the experimental sequence to arm and run motors on the real aircraft')) return;
+      if (!confirmTwice('enable_hw', b, 'allow motors on the real aircraft')) return;
       b.textContent = 'Setting…'; await api('/api/params/set', { name: 'NLF_HW_OK', value: 1 }); setTimeout(refreshConnection, 1500);
     }
     if (b.dataset.act === 'upload_firmware') {
-      if (!confirmTwice('upload_firmware', b, 'flash the HITL firmware (the board reboots, parameters kept)')) return;
+      if (!confirmTwice('upload_firmware', b, 'flash the HITL firmware')) return;
       b.textContent = 'Flashing…'; await connCall('/api/firmware/upload', {});
     }
   });
@@ -1595,7 +1596,7 @@ $('#af-version').addEventListener('change', async e => {
   const id = e.target.value;
   e.target.selectedIndex = 0;
   if (!id) return;
-  if (!confirmTwice('load-version', e.target, 'load this version over the current preset')) return;
+  if (!confirmTwice('load-version', e.target, 'load this version')) return;
   try {
     const r = await api('/api/archive/load_airframe', { id });
     if (r.airframe) { setAirframe(r.airframe); logLine('[preset] loaded version ' + id); }
@@ -1664,7 +1665,7 @@ $('#fw-build').addEventListener('click', async e => {
 });
 $('#fw-flash').addEventListener('click', async e => {
   const b = e.currentTarget, label = b.textContent;
-  if (!confirmTwice('fw-flash', b, 'flash this firmware to the board')) return;
+  if (!confirmTwice('fw-flash', b, 'flash the board')) return;
   b.disabled = true; b.textContent = 'Flashing…';
   try { const r = await api('/api/px4/push', { save: true, firmware: true }); logLine('[firmware] ' + JSON.stringify(r.firmware || r)); }
   catch (err) { logLine('[firmware] ' + err.message); }
@@ -1808,14 +1809,15 @@ function renderRcBoard() {
     `<a href="#" id="rc-cal-start">${pv('RC_CHAN_CNT', 0) > 0 ? 'Recalibrate' : 'Calibrate'}</a>`].join(' ');
   const cs = $('#rc-cal-start'); if (cs) cs.onclick = (e) => { e.preventDefault(); rcCal = { step: 1, min: [], max: [] }; };
 }
+// The remote (indicator, channel table, mapping) is on the Connect tab, beside the link it comes in on.
+const rcVisible = () => $('#tab-connect').classList.contains('active');
 function renderRcLive() {
   const now = performance.now();
   if (now - rcLastRender < 80) return;
   rcLastRender = now;
   renderRcIndicator(); renderRcBoard();
 }
-$('#conn-goto-rc') && $('#conn-goto-rc').addEventListener('click', (e) => { e.preventDefault(); openTab('px4'); });
-setInterval(() => { if ($('#tab-px4').classList.contains('active')) renderRcLive(); }, 500);
+setInterval(() => { if (rcVisible()) renderRcLive(); }, 500);
 
 // ============================================================ board vs SITL parameter sync
 let syncTimer = null, syncLast = null;
@@ -1840,7 +1842,7 @@ async function refreshSync() {
 }
 $('#sync-btn').addEventListener('click', async () => {
   const b = $('#sync-btn');
-  if (!confirmTwice('sync-sitl', b, `write ${syncLast ? syncLast.differ.length : ''} parameters to the board`)) return;
+  if (!confirmTwice('sync-sitl', b, `write ${syncLast ? syncLast.differ.length : ''} parameters`)) return;
   b.disabled = true; b.textContent = 'Writing…';
   try { const r = await api('/api/px4/sync_sitl', {}); $('#sync-text').textContent = r.ok ? `${r.written} parameters written in ${r.seconds} s` : `failed: ${(r.failed || []).join(', ') || r.error}`; paramsLoaded = false; ensureParams(); }
   catch (e) { $('#sync-text').textContent = e.message; }
@@ -2075,7 +2077,7 @@ function joyTick() {
       }
     }
   }
-  if (joyCurrent() || $('#tab-px4').classList.contains('active')) requestAnimationFrame(joyTick); else setTimeout(joyTick, 500);
+  if (joyCurrent() || rcVisible()) requestAnimationFrame(joyTick); else setTimeout(joyTick, 500);
 }
 if (navigator.hid) navigator.hid.addEventListener('disconnect', (e) => { if (e.device === hidDevice) { hidDevice = null; joySrc = null; logLine('[ui] radio disconnected'); joyRenderMap(); } });
 $('#joy-connect').addEventListener('click', serialConnect);
@@ -2255,7 +2257,7 @@ $('#motor-test-stop').addEventListener('click', () => { stopMotorTest(); $('#mot
 $('#real-flight-setup').addEventListener('click', async e => {
   const b = e.currentTarget;
   if (status.armed || !status.ctl_connected || !hardwareMotors()) { $('#real-flight-result').textContent='Connect a disarmed Pixhawk first.'; return; }
-  if (!confirmTwice('real-flight-setup', b, 'prepare REAL flight (motor power disconnected; flash if needed, reboot and enable physical outputs)')) return;
+  if (!confirmTwice('real-flight-setup', b, 'prepare for real flight')) return;
   stopMotorTest(); $('#motor-enable').checked=false; b.disabled=true;
   $('#real-flight-result').textContent='Preparing real flight… watch the log. Keep the board connected.';
   try {
@@ -2266,7 +2268,7 @@ $('#real-flight-setup').addEventListener('click', async e => {
   finally { b.disabled=false; b.textContent='Prepare Pixhawk for real flight'; }
 });
 $('#return-hitl').addEventListener('click', async e => {
-  if (!confirmTwice('return-hitl', e.currentTarget, 'return to HITL and reboot')) return;
+  if (!confirmTwice('return-hitl', e.currentTarget, 'return to HITL')) return;
   const r=await api('/api/connection/enable_hitl', {});
   $('#real-flight-result').textContent=r.ok?'Returning to HITL…':r.error;
 });
