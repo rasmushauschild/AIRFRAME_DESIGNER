@@ -485,7 +485,7 @@
   },
   "notes": "120 kg baseline; OBJ-fitted UIUC wing revision of CONCEPT_04. Matched ATLAS_JO_05B (1).obj upper-shell leading/trailing edges with 16 mirrored wing segments at native OBJ scale (assumed metres). OBJ -Z forward, +X right, -Y down; pitch registration +23.081844 deg preserves the baseline root chord attitude. NACA23018/23012 UIUC sections retained, not arbitrary OBJ skins. Rear/cruise mount heights follow revised wing chord surfaces; contact pads follow nose/tips. Aerodynamics and ground posture require simulation revalidation. Revised 2026-09-23: UIUC NACA 66-018 double-arc centerbody fitted to upper and lower OBJ contours, smoothly blending into UIUC S1210 high-lift outer wings. 60 mm constraint withdrawn. Static predicted wing lift reaches weight near 24.25 deg body pitch at 50 km/h; this is NOT a demonstrated trimmed cruise condition. Current default allocator cruise result is thrust-supported and does not satisfy the wing-borne cruise target. ATLAS_MVP_07B: three motors per wing (two lift, one cruise), three front motors in a symmetric triangle. Motor 10 is 0.25 m aft of CG on centreline, Z=0; downward exhaust/upward thrust. Mass and inertia retained from baseline; motor-count mass change not estimated. Not flight tested. Centre motor moved aft between wing lift motors on the centreline. Front group changed to four motors in two symmetric pairs; other motors preserved from the active model. Front group now has three motors in a symmetric triangle; CG retained.",
   "cad": {
-    "file": "airframes/cad/portal_v3.stp",
+    "file": "airframes/cad/latestver.x.v.3.stp",
     "rotation_deg": [
       7.2301,
       0.0,
@@ -558,6 +558,96 @@
           0.3233259498897189,
           -5.954132046070981e-06,
           0.3379790213364018
+        ]
+      },
+      {
+        "id": "2:COMPOUND surface 1",
+        "name": "COMPOUND surface 1",
+        "mass": 0.0,
+        "offset": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "removed": false,
+        "volume": 0.0,
+        "centroid": [
+          19.279719285932757,
+          -4.089827114275555,
+          -40.13230387409074
+        ],
+        "inertia_unit": [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "pos": [
+          -0.8188854816678437,
+          -1.038662714067243,
+          0.10491471822986398
+        ]
+      },
+      {
+        "id": "3:COMPOUND surface 2",
+        "name": "COMPOUND surface 2",
+        "mass": 0.0,
+        "offset": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "removed": false,
+        "volume": 0.0,
+        "centroid": [
+          21.35704444709863,
+          -4.089827114275555,
+          -40.13230387409074
+        ],
+        "inertia_unit": [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "pos": [
+          -0.8188854816678437,
+          1.0386624470986305,
+          0.10491471822986398
+        ]
+      },
+      {
+        "id": "4:COMPOUND surface 3",
+        "name": "COMPOUND surface 3",
+        "mass": 0.0,
+        "offset": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "removed": false,
+        "volume": 0.0,
+        "centroid": [
+          20.31838186651568,
+          -4.8270332014033075,
+          -40.55339635684935
+        ],
+        "inertia_unit": [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "pos": [
+          -0.14053747485153473,
+          -1.334843204858771e-07,
+          -0.4056101837899746
         ]
       }
     ]
