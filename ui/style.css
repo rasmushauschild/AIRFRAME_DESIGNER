@@ -22,8 +22,8 @@
   --green: #34c759;
   --amber: #ff9500;
   --radius-xl: 24px;
-  --shadow: 0 0 0 0.5px var(--rim);        /* no blur: a crisp edge, nothing smeared over the 3D view */
-  --menu-shadow: 0 0 0 1px var(--line);
+  --shadow: 0 2px 6px rgba(0, 0, 0, 0.05), 0 18px 44px rgba(0, 0, 0, 0.1);
+  --menu-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
   --font: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI Variable', 'Segoe UI', Inter, system-ui, sans-serif;
   --mono: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, monospace;
   color-scheme: light;
@@ -47,8 +47,8 @@
   --accent: #3b9cff;
   --sel-blk: rgba(59, 156, 255, 0.16);
   --red: #ff5b52;
-  --shadow: 0 0 0 0.5px var(--rim);
-  --menu-shadow: 0 0 0 1px var(--line);
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 4px 12px rgba(0, 0, 0, 0.35);
+  --menu-shadow: 0 2px 8px rgba(0, 0, 0, 0.4), 0 16px 40px rgba(0, 0, 0, 0.6);
   color-scheme: dark;
 }
 
@@ -169,7 +169,7 @@ select { padding-right: 24px; background-image: linear-gradient(45deg, transpare
   background-position: calc(100% - 13px) 55%, calc(100% - 9px) 55%; background-size: 4px 4px; background-repeat: no-repeat; cursor: pointer; }
 
 /* card */
-.card { background: var(--panel); border-radius: 14px; box-shadow: 0 0 0 0.5px var(--rim); padding: 12px 14px; margin: 8px 0; }
+.card { background: var(--panel); border-radius: 14px; box-shadow: 0 0 0 0.5px var(--rim), 0 1px 3px rgba(0, 0, 0, 0.04); padding: 12px 14px; margin: 8px 0; }
 
 /* rotor table */
 table.grid { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
@@ -212,7 +212,7 @@ table.grid td.mono { font-family: var(--mono); font-size: 12px; }
 .prow .pval { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
 .prow .pval .muted { font-weight: 500; font-size: 11px; }
 .prow .pdesc { color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.editor { background: var(--panel); border-radius: 14px; box-shadow: 0 0 0 0.5px var(--rim); padding: 12px 14px; margin: 8px 0 12px; font-size: 13px; line-height: 1.5; }
+.editor { background: var(--panel); border-radius: 14px; box-shadow: 0 0 0 0.5px var(--rim), 0 1px 3px rgba(0, 0, 0, 0.04); padding: 12px 14px; margin: 8px 0 12px; font-size: 13px; line-height: 1.5; }
 .editor .pn { font-family: var(--mono); font-weight: 700; color: var(--accent); font-size: 13px; }
 .editor .long { color: var(--text-2); white-space: pre-wrap; margin: 6px 0; max-height: 140px; overflow: auto; }
 .editor .meta { color: var(--text-3); font-size: 12px; font-weight: 500; font-variant-numeric: tabular-nums; }
@@ -478,7 +478,7 @@ select.preset-select:hover { background-color: var(--soft); color: var(--text); 
 .series-menu { position: relative; flex: none; }
 .series-pop { position: absolute; z-index: 40; top: calc(100% + 6px); left: 0; display: grid; gap: 1px 14px;
   grid-template-columns: repeat(2, minmax(150px, 1fr)); padding: 8px 10px; border-radius: 12px;
-  background: var(--panel); box-shadow: 0 0 0 1px var(--line);
+  background: var(--panel); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18), inset 0 0 0 1px var(--line);
   max-height: 260px; overflow: auto; }
 .series-pop[hidden] { display: none; }
 .series-pop label { display: flex; flex-direction: row; align-items: center; gap: 7px; padding: 3px 4px;

@@ -264,6 +264,7 @@ export function createScene(canvas, handlers) {
     for (const w of af.wings || []) {
       if (!w || !w.pos) { wingArrows.push(null); continue; }
       const on = w.enabled !== false;
+      let lofted = false;
       if (w.aero && w.aero.model === 'polar' && w.aero.airfoil_root) {
         const rootName = w.aero.airfoil_root, tipName = w.aero.airfoil_tip || rootName;
         const rc = airfoilCache.get(rootName), tc = airfoilCache.get(tipName);
@@ -274,6 +275,7 @@ export function createScene(canvas, handlers) {
             if (on && color) material.color.set(color);
             const mesh = new THREE.Mesh(geo, material);
             frame.add(mesh); wingNodes.push(mesh);
+            lofted = true;
           }
         } else {
           for (const n of new Set([rootName, tipName])) loadAirfoil(n, af);
@@ -285,13 +287,19 @@ export function createScene(canvas, handlers) {
       frame.add(fa); wingArrows.push(fa);
       for (const corners of wingOutline(w)) {
         const verts = corners.map(c => frdToThree(c));
-        const geo = new THREE.BufferGeometry().setFromPoints(verts);
-        geo.setIndex([0, 1, 2, 0, 2, 3]); geo.computeVertexNormals();
-        const mesh = new THREE.Mesh(geo, on ? wingMat : wingMatOff);
-        mesh.renderOrder = 1;
+        // The planform is filled in only when there is no lofted surface to look at. Drawing the
+        // half-transparent quad over a solid wing is what made the wing look hazy and let the background
+        // through it; with a loft, the planform is just its outline.
+        if (!lofted) {
+          const geo = new THREE.BufferGeometry().setFromPoints(verts);
+          geo.setIndex([0, 1, 2, 0, 2, 3]); geo.computeVertexNormals();
+          const mesh = new THREE.Mesh(geo, on ? wingMat : wingMatOff);
+          mesh.renderOrder = 1;
+          frame.add(mesh); wingNodes.push(mesh);
+        }
         const edge = new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(verts), on ? wingEdgeMat : wingEdgeMatOff);
-        frame.add(mesh, edge);
-        wingNodes.push(mesh, edge);
+        frame.add(edge);
+        wingNodes.push(edge);
       }
     }
 

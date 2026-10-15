@@ -268,17 +268,17 @@
       "name": "Lower wing",
       "enabled": true,
       "pos": [
-        -0.511,
+        -0.371,
         0,
-        0.434
+        -0.016
       ],
       "root_y": 0.587,
       "span": 2.582,
-      "root_chord": 0.75,
+      "root_chord": 1.11,
       "tip_chord": 0.595,
       "sweep_deg": 4.8,
-      "dihedral_deg": -27.1,
-      "incidence_deg": 0,
+      "dihedral_deg": -42.1,
+      "incidence_deg": 7,
       "twist_deg": 0,
       "pitch_deg": 0,
       "symmetric": true,
