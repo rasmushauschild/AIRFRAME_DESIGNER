@@ -24,7 +24,7 @@ airframe_designer/
   sensors/    IMU/mag/baro/GPS -> HIL messages
   px4/        link (MAVLink SITL/HITL), sitl (process, BSON param seeding, instances), connection (runtime SITL<->HITL),
               events, param_meta
-  sim/        simulator loop (hooks), scenario runner, metrics
+  sim/        simulator loop (hooks), scenario runner, metrics, recorder (every run, 20 Hz, to results/runs)
   analysis/   static hover/cruise model + geometric optimiser (no PX4)
   batch/      worker (run_once), runner (parallel), objective (expressions), optimizers, study
   server/     FastAPI + websocket;  app.py = interactive entry;  cli.py = subcommands
@@ -45,6 +45,10 @@ airframes/    schema-2 JSON (docs/SCHEMA.md);  scenarios/  studies/  results/ (g
   light, low-inertia airframe jitters on its legs and the fake gyro noise makes PX4's estimator refuse to arm.
 * `sim/nose_lift.py` is the pre-arm ground sequence (motor floors under PX4's commands); it is a simulator hook,
   not a PX4 feature.
+* Every run is recorded (`sim/recorder.py`) and kept at the next reset if it armed or left the ground, with the
+  airframe and the exported parameters inside the same file. The log window plots it and scrubs the 3D view
+  through it; `/api/runs/current` is the recording in progress. Adding a column means appending to `COLUMNS`
+  and to `LIVE_COLS` in `ui/app.js` — never reordering, or every saved run reads back wrong.
 
 ## The physics, and what you may not do to it
 * **JSBSim is the only engine.** It owns integration, gravity, the moment arms and the ground contact. The

@@ -117,6 +117,8 @@ kbd { display: inline-block; min-width: 18px; text-align: center; padding: 0 5px
   transition: background 0.15s, color 0.15s; font-size: 13px;
 }
 .pill.small { padding: 5px 10px; font-size: 13px; }
+.pills { display: flex; gap: 4px; }
+.pill[hidden], .pills[hidden] { display: none; }
 .pill.num { font-variant-numeric: tabular-nums; }
 button.pill:hover { background: var(--soft); color: var(--text); }
 .pill.active { background: var(--text); color: var(--bg); box-shadow: none; }
@@ -473,3 +475,24 @@ table.grid.rc-map td.rc-state { color: var(--text-3); min-width: 56px; }
 #ro-wind  { min-width: 76px; }
 .status .ro.warn b { color: var(--warn); }
 .status .ro.crit b { color: var(--crit); }
+
+/* ---- log window: terminal log or graphs of the recorded run */
+#graph-body { display: flex; flex: 1; flex-direction: column; gap: 6px; min-height: 0; padding: 2px 22px 12px; }
+#graph-body[hidden], #log-body[hidden] { display: none; }
+.series-picker { display: flex; flex-wrap: wrap; gap: 4px; }
+.series-picker button { padding: 2px 9px; border-radius: 999px; font-size: 11.5px; font-weight: 600;
+  color: var(--text-2); box-shadow: inset 0 0 0 1px var(--line); background: var(--panel); white-space: nowrap; }
+.series-picker button .sw { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 5px;
+  background: var(--c, var(--text-3)); vertical-align: 1px; }
+.series-picker button.on { color: var(--text); box-shadow: inset 0 0 0 1px var(--c, var(--accent)); }
+#graph-plot { flex: 1; min-height: 0; position: relative; }
+#graph-plot svg { width: 100%; height: 100%; display: block; }
+#graph-plot .grid { stroke: var(--line); stroke-width: 1; }
+#graph-plot .ln { fill: none; stroke-width: 1.6; stroke-linejoin: round; }
+#graph-plot .cursor { stroke: var(--today, #ff3b30); stroke-width: 1.5; }
+#graph-plot text { fill: var(--text-3); font-size: 10px; font-variant-numeric: tabular-nums; }
+.scrub-row { display: flex; align-items: center; gap: 10px; }
+.scrub-row input { flex: 1; }
+#scrub-label { min-width: 150px; text-align: right; }
+.run-name { width: 190px; padding: 3px 9px; border-radius: 999px; font-size: 11.5px;
+  box-shadow: inset 0 0 0 1px var(--accent); background: var(--panel); color: var(--text); }

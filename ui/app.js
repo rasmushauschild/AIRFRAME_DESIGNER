@@ -1124,7 +1124,7 @@ function applyStatus(s) {
 }
 const effectiveMax = (r) => (r.enabled === false ? 0 : r.max_thrust);
 function applyState(st) {
-  scene.updateState(st);
+  if (replayT == null) scene.updateState(st);   // while scrubbing, the view belongs to the recording
   $('#btn-pause').textContent = st.paused ? 'Resume' : 'Pause';
   $('#btn-pause').classList.toggle('armed', !!st.paused);
 
@@ -1171,6 +1171,269 @@ function applyState(st) {
 const logPre = $('#log-pre');
 function logLine(s) { logPre.textContent += s + '\n'; if (logPre.textContent.length > 40000) logPre.textContent = logPre.textContent.slice(-30000); const b = $('#log-body'); b.scrollTop = b.scrollHeight; }
 $('#log-toggle').addEventListener('click', (e) => { const c = $('#log').classList.toggle('collapsed'); e.target.textContent = c ? 'Show' : 'Hide'; });
+
+// ============================================================ the log window: terminal, graphs, replay
+// Two views of one flight. The terminal is what the app and PX4 said; the graph is what the aircraft did.
+// The server records every run at 20 Hz with the airframe and the parameters that produced it, so a flight
+// can be scrubbed afterwards — the 3D view follows the slider — kept, named and loaded back. The graph
+// itself is drawn from a buffer this page fills from the live state, so it is there while the sim runs.
+const SERIES = [
+  { key: 'power', label: 'power', unit: 'W', c: '#f59e0b' },
+  { key: 'battery', label: 'battery', unit: '%', c: '#22c55e' },
+  { key: 'lift', label: 'wing lift', unit: 'N', c: '#38bdf8' },
+  { key: 'thrust', label: 'thrust', unit: 'N', c: '#a78bfa' },
+  { key: 'airspeed', label: 'airspeed', unit: 'm/s', c: '#06b6d4' },
+  { key: 'speed', label: 'ground speed', unit: 'm/s', c: '#0ea5e9' },
+  { key: 'height', label: 'height', unit: 'm', c: '#ef4444' },
+  { key: 'wind', label: 'wind', unit: 'm/s', c: '#94a3b8' },
+  { key: 'roll', label: 'roll', unit: '°', c: '#f472b6' },
+  { key: 'pitch', label: 'pitch', unit: '°', c: '#fb923c' },
+  { key: 'yaw', label: 'yaw', unit: '°', c: '#c084fc' },
+  { key: 'p', label: 'roll rate', unit: '°/s', c: '#fda4af' },
+  { key: 'q', label: 'pitch rate', unit: '°/s', c: '#fcd34d' },
+  { key: 'r', label: 'yaw rate', unit: '°/s', c: '#d8b4fe' },
+  { key: 'n', label: 'north', unit: 'm', c: '#4ade80' },
+  { key: 'e', label: 'east', unit: 'm', c: '#2dd4bf' },
+  { key: 'vd', label: 'climb rate', unit: 'm/s', c: '#60a5fa' },
+  { key: 'armed', label: 'armed', unit: '', c: '#64748b' },
+];
+// The columns the recorder writes on the server (sim/recorder.py). The live graph is that recording, polled
+// while it is on screen, not a second copy kept here: what is plotted is exactly what gets saved.
+const LIVE_COLS = ['t', 'n', 'e', 'd', 'vn', 've', 'vd', 'qw', 'qx', 'qy', 'qz', 'roll', 'pitch', 'yaw',
+  'p', 'q', 'r', 'height', 'speed', 'airspeed', 'thrust', 'power', 'lift', 'battery', 'wind', 'armed', 'on_ground'];
+let liveRun = { columns: LIVE_COLS, rows: [] };
+let shownRun = null;                    // a loaded saved run, or null while the live recording is shown
+let graphOn = false;                    // the graph view is the one on screen
+let replayT = null;                     // scrubbed time; null means "follow the live state"
+let graphTimer = null;
+const picked = new Set(['power', 'battery', 'height', 'pitch']);
+try { const p = JSON.parse(localStorage.getItem('airframe-graph') || 'null'); if (Array.isArray(p) && p.length) { picked.clear(); p.forEach(k => picked.add(k)); } } catch { }
+const saveGraphPrefs = () => { try { localStorage.setItem('airframe-graph', JSON.stringify([...picked])); } catch { } };
+
+async function pollLive() {
+  let j;
+  try { j = await api('/api/runs/current?since=' + liveRun.rows.length); } catch { return; }
+  if (j.total < liveRun.rows.length || j.since > liveRun.rows.length) {   // the sim was reset: a new run
+    liveRun = { columns: j.columns || LIVE_COLS, rows: [] };
+    replayT = null;
+    return;
+  }
+  liveRun.columns = j.columns || LIVE_COLS;
+  if (j.rows && j.rows.length) liveRun.rows = liveRun.rows.concat(j.rows);
+}
+
+const runData = () => shownRun || liveRun;
+function rowAt(data, t) {
+  const rows = data.rows;
+  if (!rows.length) return -1;
+  if (t == null) return rows.length - 1;
+  let lo = 0, hi = rows.length - 1;
+  while (lo < hi) { const mid = (lo + hi) >> 1; if (rows[mid][0] < t) lo = mid + 1; else hi = mid; }
+  return lo;
+}
+
+function drawGraph() {
+  if (!graphOn) return;
+  const host = $('#graph-plot'), data = runData(), rows = data.rows || [];
+  const cols = data.columns || LIVE_COLS;
+  const W = Math.max(120, host.clientWidth), H = Math.max(60, host.clientHeight);
+  const T = 6, B = 14, L = 2, R = 2, ph = H - T - B, pw = W - L - R;
+  const cursor = rowAt(data, replayT);
+  const chips = {};
+  $$('#series-picker button').forEach(b => chips[b.dataset.key] = b.querySelector('b'));
+  if (rows.length < 2) {
+    host.innerHTML = `<svg viewBox="0 0 ${W} ${H}"><text x="${W / 2}" y="${H / 2}" text-anchor="middle">`
+      + `${shownRun ? 'this run has no samples' : 'nothing recorded yet — start the simulation'}</text></svg>`;
+    Object.values(chips).forEach(c => c.textContent = '');
+    return;
+  }
+  const t0 = rows[0][0], t1 = rows[rows.length - 1][0], span = Math.max(1e-6, t1 - t0);
+  const x = (t) => L + pw * (t - t0) / span;
+  const stride = Math.max(1, Math.ceil(rows.length / Math.max(200, pw)));
+
+  let g = '';
+  for (let i = 0; i <= 4; i++) { const y = T + ph * i / 4; g += `<line class="grid" x1="${L}" y1="${y.toFixed(1)}" x2="${W - R}" y2="${y.toFixed(1)}"/>`; }
+  const step = [0.5, 1, 2, 5, 10, 20, 30, 60, 120, 300, 600].find(s => span / s <= 8) || Math.ceil(span / 8);
+  for (let t = Math.ceil(t0 / step) * step; t <= t1; t += step) {
+    g += `<line class="grid" x1="${x(t).toFixed(1)}" y1="${T}" x2="${x(t).toFixed(1)}" y2="${T + ph}"/>`
+      + `<text x="${x(t).toFixed(1)}" y="${H - 3}" text-anchor="middle">${t.toFixed(step < 1 ? 1 : 0)}s</text>`;
+  }
+
+  let lines = '';
+  for (const s of SERIES) {
+    const ci = cols.indexOf(s.key);
+    if (ci < 0) { if (chips[s.key]) chips[s.key].textContent = ''; continue; }
+    if (chips[s.key]) {
+      const v = rows[cursor][ci];
+      chips[s.key].textContent = (Math.abs(v) >= 100 ? v.toFixed(0) : Math.abs(v) >= 10 ? v.toFixed(1) : v.toFixed(2)) + (s.unit ? ' ' + s.unit : '');
+    }
+    if (!picked.has(s.key)) continue;
+    // Each trace gets its own scale, since they share no unit. The scale includes zero unless the trace
+    // actually moves through a good part of its own range: without that, a quantity sitting still at 0.35 m
+    // with a millimetre of noise would be drawn as a full-height sawtooth and read as violent motion.
+    let lo = Infinity, hi = -Infinity;
+    for (const r of rows) { const v = r[ci]; if (v < lo) lo = v; if (v > hi) hi = v; }
+    const z0 = Math.min(lo, 0), z1 = Math.max(hi, 0);
+    if ((hi - lo) <= 0.25 * (z1 - z0)) { lo = z0; hi = z1; }
+    const pad2 = (hi - lo) < 1e-9 ? 1 : (hi - lo) * 0.08;
+    lo -= pad2; hi += pad2;
+    const y = (v) => T + ph * (1 - (v - lo) / (hi - lo));
+    let d = '';
+    for (let i = 0; i < rows.length; i += stride) d += (d ? 'L' : 'M') + x(rows[i][0]).toFixed(1) + ' ' + y(rows[i][ci]).toFixed(1);
+    const last = rows[rows.length - 1];
+    d += 'L' + x(last[0]).toFixed(1) + ' ' + y(last[ci]).toFixed(1);
+    lines += `<path class="ln" d="${d}" stroke="${s.c}"/>`;
+  }
+  const cx = x(rows[cursor][0]).toFixed(1);
+  const cur = replayT == null ? '' : `<line class="cursor" x1="${cx}" y1="${T}" x2="${cx}" y2="${T + ph}"/>`;
+  host.innerHTML = `<svg viewBox="0 0 ${W} ${H}">${g}${lines}${cur}</svg>`;
+  $('#scrub-label').textContent = `${pad(rows[cursor][0], 1, 6)} / ${t1.toFixed(1)} s`
+    + (replayT == null ? ' · live' : '');
+}
+
+function buildPicker() {
+  const host = $('#series-picker');
+  host.innerHTML = '';
+  for (const s of SERIES) {
+    const b = document.createElement('button');
+    b.dataset.key = s.key;
+    b.style.setProperty('--c', s.c);
+    b.className = picked.has(s.key) ? 'on' : '';
+    b.innerHTML = `<span class="sw"></span>${esc(s.label)} <b class="num"></b>`;
+    b.title = 'show or hide this trace';
+    b.addEventListener('click', () => {
+      if (picked.has(s.key)) picked.delete(s.key); else picked.add(s.key);
+      b.classList.toggle('on', picked.has(s.key));
+      saveGraphPrefs(); drawGraph();
+    });
+    host.appendChild(b);
+  }
+}
+buildPicker();
+
+// Scrubbing: the slider is a clock. Everything the 3D view shows is the recorded pose at that instant.
+function applyReplay() {
+  const data = runData(), rows = data.rows || [], cols = data.columns || LIVE_COLS;
+  if (!rows.length) return;
+  const r = rows[rowAt(data, replayT)];
+  const i = (k) => cols.indexOf(k);
+  if (i('n') < 0 || i('qw') < 0) return;
+  scene.updateState({ pos: [r[i('n')], r[i('e')], r[i('d')]], q: [r[i('qw')], r[i('qx')], r[i('qy')], r[i('qz')]],
+                      forces: {}, rotors: [] });
+}
+$('#scrub').addEventListener('input', (e) => {
+  const data = runData(), rows = data.rows || [];
+  if (rows.length < 2) return;
+  const f = +e.target.value / 1000;
+  const t0 = rows[0][0], t1 = rows[rows.length - 1][0];
+  replayT = f >= 0.999 && !shownRun ? null : t0 + f * (t1 - t0);
+  applyReplay(); drawGraph();
+});
+
+function showGraph(on) {
+  graphOn = on;
+  $('#log-body').hidden = on;
+  $('#graph-body').hidden = !on;
+  $('#view-log').classList.toggle('active', !on);
+  $('#view-graph').classList.toggle('active', on);
+  const log = $('#log');
+  if (on) {
+    if (log.classList.contains('collapsed')) { log.classList.remove('collapsed'); $('#log-toggle').textContent = 'Hide'; }
+    if (log.getBoundingClientRect().height < 260) log.style.height = '300px';
+    loadRunList();
+    drawGraph();
+    clearInterval(graphTimer);
+    const tick = async () => {
+      if (!graphOn) return;
+      if (!shownRun) { await pollLive(); if (replayT == null) $('#scrub').value = 1000; }
+      drawGraph();
+    };
+    tick();
+    graphTimer = setInterval(tick, 250);
+  } else {
+    clearInterval(graphTimer); graphTimer = null;
+  }
+  try { localStorage.setItem('airframe-logview', on ? 'graph' : 'log'); } catch { }
+}
+$('#view-log').addEventListener('click', () => showGraph(false));
+$('#view-graph').addEventListener('click', () => showGraph(true));
+new ResizeObserver(() => drawGraph()).observe($('#graph-plot'));
+
+// ------------------------------------------------------------ the list of kept runs
+function runLabel(r) {
+  const when = new Date((r.started || 0) * 1000).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  return `${r.name || 'flight'} · ${when} · ${(+r.duration || 0).toFixed(0)} s`;
+}
+async function loadRunList(select) {
+  let j;
+  try { j = await api('/api/runs'); } catch { return; }
+  const pick = $('#run-pick'), want = select !== undefined ? select : pick.value;
+  pick.innerHTML = '<option value="">Live</option>'
+    + (j.runs || []).map(r => `<option value="${esc(r.id)}">${esc(runLabel(r))}</option>`).join('');
+  pick.value = (j.runs || []).some(r => r.id === want) ? want : '';
+  if (pick.value !== want) selectRun('');
+  runButtons();
+}
+function runButtons() {
+  const has = !!$('#run-pick').value;
+  ['#run-rename', '#run-delete', '#run-load'].forEach(s => $(s).hidden = !has);
+  $('#run-save').hidden = has;
+}
+async function selectRun(id) {
+  if (!id) {
+    shownRun = null; replayT = null; $('#scrub').value = 1000;
+  } else {
+    try { shownRun = await api('/api/runs/' + encodeURIComponent(id)); }
+    catch (err) { logLine('[runs] ' + err.message); shownRun = null; }
+    replayT = shownRun && shownRun.rows.length ? shownRun.rows[0][0] : null;
+    $('#scrub').value = 0;
+    applyReplay();
+  }
+  runButtons();
+  drawGraph();
+}
+$('#run-pick').addEventListener('change', (e) => selectRun(e.target.value));
+$('#run-save').addEventListener('click', async (e) => {
+  e.target.disabled = true;
+  try {
+    const r = await api('/api/runs/save', { name: '' });
+    if (r.ok) { await loadRunList(r.id); await selectRun(r.id); logLine(`[runs] kept ${r.id} (${(+r.duration).toFixed(1)} s)`); }
+    else logLine('[runs] nothing to keep: ' + (r.error || ''));
+  } catch (err) { logLine('[runs] ' + err.message); }
+  e.target.disabled = false;
+});
+$('#run-rename').addEventListener('click', () => {
+  const id = $('#run-pick').value;
+  if (!id) return;
+  const box = $('#run-name');
+  box.hidden = false; $('#run-pick').hidden = true;
+  box.value = (shownRun && shownRun.name) || '';
+  box.focus(); box.select();
+  const done = async (commit) => {
+    box.hidden = true; $('#run-pick').hidden = false;
+    box.onblur = box.onkeydown = null;
+    if (!commit) return;
+    try { await api(`/api/runs/${encodeURIComponent(id)}/rename`, { name: box.value }); if (shownRun) shownRun.name = box.value; await loadRunList(id); }
+    catch (err) { logLine('[runs] ' + err.message); }
+  };
+  box.onblur = () => done(true);
+  box.onkeydown = (ev) => { if (ev.key === 'Enter') done(true); if (ev.key === 'Escape') done(false); };
+});
+$('#run-delete').addEventListener('click', async (e) => {
+  const id = $('#run-pick').value;
+  if (!id || !confirmTwice('run-delete', e.target, 'delete this run')) return;
+  try { await api(`/api/runs/${encodeURIComponent(id)}/delete`, {}); await selectRun(''); await loadRunList(''); }
+  catch (err) { logLine('[runs] ' + err.message); }
+});
+$('#run-load').addEventListener('click', async (e) => {
+  const id = $('#run-pick').value;
+  if (!id || !confirmTwice('run-load', e.target, 'replace the design with this run\'s')) return;
+  try {
+    const r = await api(`/api/runs/${encodeURIComponent(id)}/load`, {});
+    if (r.airframe) { setAirframe(r.airframe); logLine('[runs] loaded the design from ' + id); }
+  } catch (err) { logLine('[runs] ' + err.message); }
+});
+try { if (localStorage.getItem('airframe-logview') === 'graph') showGraph(true); } catch { }
 $('#btn-theme').addEventListener('click', () => {
   const dark = document.documentElement.dataset.theme !== 'dark';
   document.documentElement.dataset.theme = dark ? 'dark' : 'light';

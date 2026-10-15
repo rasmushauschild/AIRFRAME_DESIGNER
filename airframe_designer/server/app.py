@@ -22,6 +22,7 @@ from ..analysis import static as design
 from ..analysis.geometric_optimiser import optimise as geometric_optimise, default_groups
 from ..px4.link import mavlink
 from ..px4 import param_meta
+from ..sim.recorder import COLUMNS as RECORDER_COLUMNS, RunStore
 from ..px4.sitl import instance_is_free
 from ..aero import airfoils
 
@@ -915,6 +916,11 @@ def build_app(state: AppState) -> FastAPI:
     async def sim_reset(body: dict | None = None):
         body = body or {}
         cancel_live("reset")
+        # A run ends when the next one begins. Keep it first: every flight is in the list without being asked for.
+        if sim.recorder.flew and sim.recorder.unsaved and sim.recorder.duration >= 2.0:
+            r = await run_in_threadpool(save_current_run)
+            if r.get("ok"):
+                state.log(f"[runs] kept {r['id']} ({r['duration']:.1f} s)")
         sim.reset(yaw=float(body.get("yaw", 0.0)))
         return {"ok": True}
 
@@ -1127,6 +1133,72 @@ def build_app(state: AppState) -> FastAPI:
             except Exception:
                 pass
         return {"studies": out}
+
+    # ------------------------------------------------------------------ flight recorder: saved runs
+    RUNS = RunStore(PROJECT_DIR / "results" / "runs")
+
+    def save_current_run(name: str = "", note: str = "") -> dict:
+        """Keep the run that just happened, with the design and the parameters that produced it."""
+        try:
+            params = state.conn.export_params_fn() if state.conn.export_params_fn else {}
+        except Exception:
+            params = {}
+        return RUNS.save(sim.recorder, airframe=sim.airframe.to_dict(), params=params,
+                         name=name or sim.airframe.name, note=note)
+
+    @app.get("/api/runs")
+    async def runs_list():
+        return {"runs": RUNS.list(), "recording": {"samples": len(sim.recorder.rows),
+                                                   "duration": round(sim.recorder.duration, 2)}}
+
+    @app.get("/api/runs/current")
+    async def runs_current(since: int = 0):
+        """The run in progress, straight from the recorder, so the graph shows the whole flight and not
+        only the part that happened while this page was open. Incremental: ask for the rows after `since`."""
+        rows = sim.recorder.rows
+        since = max(0, min(int(since), len(rows)))
+        return {"columns": RECORDER_COLUMNS, "rows": rows[since:], "total": len(rows), "since": since,
+                "duration": round(sim.recorder.duration, 2), "flew": sim.recorder.flew}
+
+    @app.get("/api/runs/{run_id}")
+    async def runs_get(run_id: str):
+        doc = RUNS.get(run_id)
+        if doc is None:
+            return JSONResponse({"ok": False, "error": "no such run"}, status_code=404)
+        return doc
+
+    @app.post("/api/runs/save")
+    async def runs_save(body: dict | None = None):
+        body = body or {}
+        r = await run_in_threadpool(save_current_run, str(body.get("name", "")), str(body.get("note", "")))
+        if r.get("ok"):
+            state.log(f"[runs] saved {r['id']} ({r['samples']} samples, {r['duration']:.1f} s)")
+        return r
+
+    @app.post("/api/runs/{run_id}/rename")
+    async def runs_rename(run_id: str, body: dict):
+        ok = RUNS.rename(run_id, str(body.get("name", "")))
+        return {"ok": ok} if ok else JSONResponse({"ok": False, "error": "no such run"}, status_code=404)
+
+    @app.post("/api/runs/{run_id}/delete")
+    async def runs_delete(run_id: str):
+        ok = RUNS.delete(run_id)
+        if ok:
+            state.log(f"[runs] deleted {run_id}")
+        return {"ok": ok} if ok else JSONResponse({"ok": False, "error": "no such run"}, status_code=404)
+
+    @app.post("/api/runs/{run_id}/load")
+    async def runs_load(run_id: str):
+        """Load the airframe a run was flown with, so the design can be put back as it was."""
+        doc = RUNS.get(run_id)
+        if doc is None or not doc.get("airframe"):
+            return JSONResponse({"ok": False, "error": "no such run"}, status_code=404)
+        af = Airframe.from_dict(doc["airframe"])
+        af.resolve_mass()
+        sim.set_airframe(af)
+        autosave(af)
+        state.log(f"[runs] loaded the airframe from {run_id}")
+        return {"ok": True, "airframe": af.to_dict()}
 
     @app.post("/api/airframe/path")
     async def airframe_set_path(body: dict):

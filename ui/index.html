@@ -58,11 +58,28 @@
     <div class="resizer" id="resize-log" title="Drag to resize"></div>
     <section class="panel log" id="log">
       <div class="panel-head">
-        <div class="panel-title">Log</div>
-        <div class="panel-spacer"></div>
+        <div class="pills" role="group">
+          <button class="pill small active" id="view-log">Log</button>
+          <button class="pill small" id="view-graph">Graph</button>
+        </div>
+        <span class="panel-spacer"></span>
+        <select id="run-pick" class="preset-select" title="a saved run; pick one to scrub through it"><option value="">Live</option></select>
+        <input id="run-name" class="run-name" hidden maxlength="60" placeholder="name this run">
+        <button class="pill small" id="run-save" title="keep this run with the airframe and parameters that produced it">Keep run</button>
+        <button class="pill small" id="run-rename" title="rename the selected run" hidden>Rename</button>
+        <button class="pill small danger" id="run-delete" title="delete the selected run" hidden>Delete</button>
+        <button class="pill small" id="run-load" title="load the airframe this run was flown with" hidden>Load design</button>
         <button class="pill small" id="log-toggle">Hide</button>
       </div>
       <div id="log-body"><pre id="log-pre"></pre></div>
+      <div id="graph-body" hidden>
+        <div class="series-picker" id="series-picker"></div>
+        <div id="graph-plot"></div>
+        <div class="scrub-row">
+          <input type="range" id="scrub" min="0" max="1000" value="1000" step="1" title="drag to move the 3D view through the run">
+          <span class="hint num" id="scrub-label">—</span>
+        </div>
+      </div>
     </section>
   </div>
 

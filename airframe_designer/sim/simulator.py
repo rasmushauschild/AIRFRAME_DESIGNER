@@ -18,6 +18,7 @@ import numpy as np
 
 from ..geometry.airframe import Airframe
 from ..sensors import SensorSuite, Home
+from .recorder import Recorder
 
 
 class Simulator:
@@ -53,6 +54,8 @@ class Simulator:
         self.nose_lift = None          # sim.nose_lift.NoseLift while a ground sequence runs
         self.nose_lift_last = None     # status of the last finished sequence (for the UI)
         self.hooks: list[Callable[["Simulator"], None]] = []
+        # The flight recorder. Always on: a run you did not think to record is the one you want back.
+        self.recorder = Recorder()
         self.link_seq = 0
         self._last_send_err = 0.0
         self._thread: threading.Thread | None = None
@@ -95,12 +98,20 @@ class Simulator:
     def reset(self, yaw: float = 0.0) -> None:
         with self.lock:
             self.sim.reset(yaw=yaw)
+            self.recorder.reset()
             self.energy_wh = 0.0
             self.power_avg_w = 0.0
             self.motor_override = None
             self.nose_lift = None
             if self.link is not None:
                 self.link.clear_actuators()
+
+    def battery_percent(self) -> float:
+        """Charge left, as the gauge shows it. 100 when no capacity is configured."""
+        cap = float((getattr(self.airframe, "design", None) or {}).get("battery_wh", 0) or 0)
+        if cap <= 0:
+            return 100.0
+        return max(0.0, min(100.0, 100.0 * (cap - self.energy_wh) / cap))
 
     def set_airframe(self, airframe: Airframe) -> None:
         """Load an edited airframe. JSBSim rebuilds its model, so the vehicle restarts on the ground."""
@@ -202,6 +213,11 @@ class Simulator:
                     self.nose_lift(self)
                 except Exception as e:
                     self.log(f"[sim] nose lift failed: {e}"); self.nose_lift = None
+            try:
+                self.recorder.sample(self.time_usec / 1e6, self.sim, {"armed": bool(getattr(link, "armed", False))},
+                                     self.battery_percent())
+            except Exception as e:
+                self.log(f"[sim] recorder failed: {e}")
             for h in list(self.hooks):
                 try:
                     h(self)
