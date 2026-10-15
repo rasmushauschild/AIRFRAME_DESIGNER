@@ -1,0 +1,1082 @@
+{
+  "schema": 2,
+  "name": "PORTAL_MVP_01",
+  "mass": {
+    "mass": 120,
+    "cg": [
+      -0.7045580596599523,
+      0,
+      0.05209663966975366
+    ],
+    "inertia": [
+      52,
+      76,
+      108
+    ],
+    "inertia_products": [
+      0,
+      0,
+      0
+    ],
+    "items": [],
+    "from_items": false,
+    "manual": null
+  },
+  "body": {
+    "size": [
+      0.1,
+      0.1,
+      0.1
+    ],
+    "drag_quadratic": [
+      0.12,
+      0.3,
+      0.3
+    ],
+    "drag_angular": [
+      0.005,
+      0.005,
+      0.005
+    ],
+    "drag_center": [
+      0,
+      0,
+      0
+    ]
+  },
+  "rotors": [
+    {
+      "name": "Rear lift 1",
+      "pos": [
+        -1.4691215845421737,
+        -0.56,
+        0.552602104019684
+      ],
+      "axis": [
+        0.31057137746201824,
+        0.0,
+        -0.9505500615440223
+      ],
+      "km": -0.01,
+      "max_thrust": 324.83299065960875,
+      "max_power_w": 15600,
+      "tau": 0.12,
+      "diameter": 0.25,
+      "thrust_exponent": 2,
+      "enabled": true
+    },
+    {
+      "name": "Rear lift 2",
+      "pos": [
+        -1.4691215845421737,
+        0.56,
+        0.552602104019684
+      ],
+      "axis": [
+        0.31057137746201824,
+        0.0,
+        -0.9505500615440223
+      ],
+      "km": 0.01,
+      "max_thrust": 324.83299065960875,
+      "max_power_w": 15600,
+      "tau": 0.12,
+      "diameter": 0.25,
+      "thrust_exponent": 2,
+      "enabled": true
+    },
+    {
+      "name": "Rear lift 3",
+      "pos": [
+        -1.2704086821322622,
+        -1.14,
+        0.8301111206445164
+      ],
+      "axis": [
+        -0.024539048887659006,
+        0.0,
+        -0.9996988722008688
+      ],
+      "km": -0.01,
+      "max_thrust": 317.18388493996554,
+      "max_power_w": 15600,
+      "tau": 0.12,
+      "diameter": 0.25,
+      "thrust_exponent": 2,
+      "enabled": true
+    },
+    {
+      "name": "Rear lift 4",
+      "pos": [
+        -1.2704086821322622,
+        1.14,
+        0.8301111206445164
+      ],
+      "axis": [
+        -0.024539048887659006,
+        0.0,
+        -0.9996988722008688
+      ],
+      "km": 0.01,
+      "max_thrust": 317.18388493996554,
+      "max_power_w": 15600,
+      "tau": 0.12,
+      "diameter": 0.25,
+      "thrust_exponent": 2,
+      "enabled": true
+    },
+    {
+      "name": "Nose lift 1",
+      "pos": [
+        1.08,
+        -0.2,
+        -0.14
+      ],
+      "axis": [
+        0.2588190579255234,
+        0.4829631080905364,
+        -0.8365161872181993
+      ],
+      "km": -0.01,
+      "max_thrust": 338.2925919700051,
+      "max_power_w": 15600,
+      "tau": 0.12,
+      "diameter": 0.25,
+      "thrust_exponent": 2,
+      "enabled": true
+    },
+    {
+      "name": "Nose lift 2",
+      "pos": [
+        1.08,
+        0.2,
+        -0.14
+      ],
+      "axis": [
+        0.2588190579255234,
+        -0.4829631080905364,
+        -0.8365161872181993
+      ],
+      "km": -0.01,
+      "max_thrust": 338.2925919700051,
+      "max_power_w": 15600,
+      "tau": 0.12,
+      "diameter": 0.25,
+      "thrust_exponent": 2,
+      "enabled": true
+    },
+    {
+      "name": "Nose lift centre",
+      "pos": [
+        1.48,
+        0,
+        -0.14
+      ],
+      "axis": [
+        0.2588190449821725,
+        0.0,
+        -0.9659258263213155
+      ],
+      "km": 0.01,
+      "max_thrust": 344.01728200280024,
+      "max_power_w": 15600,
+      "tau": 0.12,
+      "diameter": 0.25,
+      "thrust_exponent": 2,
+      "enabled": true
+    },
+    {
+      "name": "Cruise 1",
+      "pos": [
+        -1.32860252802991,
+        -0.85,
+        0.6666376265430021
+      ],
+      "axis": [
+        0.14511211060646587,
+        0.0,
+        -0.9894152188820106
+      ],
+      "km": 0.01,
+      "max_thrust": 321.00843779978715,
+      "max_power_w": 15600,
+      "tau": 0.12,
+      "diameter": 0.25,
+      "thrust_exponent": 2,
+      "enabled": true
+    },
+    {
+      "name": "Cruise 2",
+      "pos": [
+        -1.32860252802991,
+        0.85,
+        0.6666376265430021
+      ],
+      "axis": [
+        0.14511211060646587,
+        0.0,
+        -0.9894152188820106
+      ],
+      "km": -0.01,
+      "max_thrust": 321.00843779978715,
+      "max_power_w": 15600,
+      "tau": 0.12,
+      "diameter": 0.25,
+      "thrust_exponent": 2,
+      "enabled": true
+    }
+  ],
+  "wings": [
+    {
+      "name": "Centerbody 1",
+      "enabled": false,
+      "pos": [
+        1.7,
+        0,
+        -0.1574
+      ],
+      "root_y": 0,
+      "span": 0.1628,
+      "root_chord": 3.8472,
+      "tip_chord": 3.7872,
+      "sweep_deg": 18.3987,
+      "dihedral_deg": -10.7288,
+      "incidence_deg": 0,
+      "twist_deg": -0.2677,
+      "pitch_deg": 5.9374,
+      "symmetric": true,
+      "panels": 3,
+      "aspect_ratio": 2.3662636208307717,
+      "aero": {
+        "model": "polar",
+        "airfoil_root": "naca66-018",
+        "airfoil_tip": "naca66-018",
+        "polar_source": "neuralfoil",
+        "ncrit": 9,
+        "cl_alpha": 6.2832,
+        "cl0": 0,
+        "cd0": 0.02,
+        "oswald": 0.75,
+        "stall_deg": 30,
+        "stall_blend_deg": 15,
+        "cd_flat": 1.2,
+        "cm0": 0,
+        "vortex_lift": true
+      }
+    },
+    {
+      "name": "Centerbody 2",
+      "enabled": false,
+      "pos": [
+        1.6746,
+        0,
+        -0.1395
+      ],
+      "root_y": 0.08,
+      "span": 0.1629,
+      "root_chord": 3.7872,
+      "tip_chord": 3.5986,
+      "sweep_deg": 51.1499,
+      "dihedral_deg": -10.9074,
+      "incidence_deg": 0,
+      "twist_deg": -0.2662,
+      "pitch_deg": 5.6649,
+      "symmetric": true,
+      "panels": 3,
+      "aspect_ratio": 2.3662636208307717,
+      "aero": {
+        "model": "polar",
+        "airfoil_root": "naca66-018",
+        "airfoil_tip": "naca66-018",
+        "polar_source": "neuralfoil",
+        "ncrit": 9,
+        "cl_alpha": 6.2832,
+        "cl0": 0,
+        "cd0": 0.02,
+        "oswald": 0.75,
+        "stall_deg": 30,
+        "stall_blend_deg": 15,
+        "cd_flat": 1.2,
+        "cm0": 0,
+        "vortex_lift": true
+      }
+    },
+    {
+      "name": "Centerbody 3",
+      "enabled": false,
+      "pos": [
+        1.5755,
+        0,
+        -0.1142
+      ],
+      "root_y": 0.16,
+      "span": 0.1602,
+      "root_chord": 3.5986,
+      "tip_chord": 3.269,
+      "sweep_deg": 68.876,
+      "dihedral_deg": 2.8257,
+      "incidence_deg": 0,
+      "twist_deg": 0.1134,
+      "pitch_deg": 5.3938,
+      "symmetric": true,
+      "panels": 3,
+      "aspect_ratio": 2.3662636208307717,
+      "aero": {
+        "model": "polar",
+        "airfoil_root": "naca66-018",
+        "airfoil_tip": "naca66-018",
+        "polar_source": "neuralfoil",
+        "ncrit": 9,
+        "cl_alpha": 6.2832,
+        "cl0": 0,
+        "cd0": 0.02,
+        "oswald": 0.75,
+        "stall_deg": 30,
+        "stall_blend_deg": 15,
+        "cd_flat": 1.2,
+        "cm0": 0,
+        "vortex_lift": true
+      }
+    },
+    {
+      "name": "Centerbody 4",
+      "enabled": false,
+      "pos": [
+        1.3687,
+        0,
+        -0.0986
+      ],
+      "root_y": 0.24,
+      "span": 0.1604,
+      "root_chord": 3.269,
+      "tip_chord": 2.8214,
+      "sweep_deg": 75.7179,
+      "dihedral_deg": 4.1185,
+      "incidence_deg": 0,
+      "twist_deg": 0.3398,
+      "pitch_deg": 5.5074,
+      "symmetric": true,
+      "panels": 3,
+      "aspect_ratio": 2.3662636208307717,
+      "aero": {
+        "model": "polar",
+        "airfoil_root": "naca66-018",
+        "airfoil_tip": "naca66-018",
+        "polar_source": "neuralfoil",
+        "ncrit": 9,
+        "cl_alpha": 6.2832,
+        "cl0": 0,
+        "cd0": 0.02,
+        "oswald": 0.75,
+        "stall_deg": 30,
+        "stall_blend_deg": 15,
+        "cd_flat": 1.2,
+        "cm0": 0,
+        "vortex_lift": true
+      }
+    },
+    {
+      "name": "Centerbody 5",
+      "enabled": false,
+      "pos": [
+        1.0545,
+        0,
+        -0.0741
+      ],
+      "root_y": 0.32,
+      "span": 0.1227,
+      "root_chord": 2.8214,
+      "tip_chord": 2.4376,
+      "sweep_deg": 78.1511,
+      "dihedral_deg": 12.0309,
+      "incidence_deg": 0,
+      "twist_deg": 0.6207,
+      "pitch_deg": 5.849,
+      "symmetric": true,
+      "panels": 3,
+      "aspect_ratio": 2.3662636208307717,
+      "aero": {
+        "model": "polar",
+        "airfoil_root": "naca66-018",
+        "airfoil_tip": "s1210",
+        "polar_source": "neuralfoil",
+        "ncrit": 9,
+        "cl_alpha": 6.2832,
+        "cl0": 0,
+        "cd0": 0.02,
+        "oswald": 0.75,
+        "stall_deg": 30,
+        "stall_blend_deg": 15,
+        "cd_flat": 1.2,
+        "cm0": 0,
+        "vortex_lift": true
+      }
+    },
+    {
+      "name": "Centerbody 6",
+      "enabled": false,
+      "pos": [
+        0.7624,
+        0,
+        -0.057
+      ],
+      "root_y": 0.38,
+      "span": 0.2416,
+      "root_chord": 2.4376,
+      "tip_chord": 1.7998,
+      "sweep_deg": 76.3137,
+      "dihedral_deg": 6.5289,
+      "incidence_deg": 0,
+      "twist_deg": 1.5359,
+      "pitch_deg": 6.4893,
+      "symmetric": true,
+      "panels": 3,
+      "aspect_ratio": 2.3662636208307717,
+      "aero": {
+        "model": "polar",
+        "airfoil_root": "s1210",
+        "airfoil_tip": "s1210",
+        "polar_source": "neuralfoil",
+        "ncrit": 9,
+        "cl_alpha": 6.2832,
+        "cl0": 0,
+        "cd0": 0.02,
+        "oswald": 0.75,
+        "stall_deg": 30,
+        "stall_blend_deg": 15,
+        "cd_flat": 1.2,
+        "cm0": 0,
+        "vortex_lift": true
+      }
+    },
+    {
+      "name": "Aft wing 7",
+      "enabled": false,
+      "pos": [
+        0.268,
+        0,
+        -0.0146
+      ],
+      "root_y": 0.5,
+      "span": 0.3656,
+      "root_chord": 1.7998,
+      "tip_chord": 1.3927,
+      "sweep_deg": 57.2567,
+      "dihedral_deg": -10.0585,
+      "incidence_deg": 0,
+      "twist_deg": 1.308,
+      "pitch_deg": 8.0358,
+      "symmetric": true,
+      "panels": 3,
+      "aspect_ratio": 2.3662636208307717,
+      "aero": {
+        "model": "polar",
+        "airfoil_root": "s1210",
+        "airfoil_tip": "s1210",
+        "polar_source": "neuralfoil",
+        "ncrit": 9,
+        "cl_alpha": 6.2832,
+        "cl0": 0,
+        "cd0": 0.02,
+        "oswald": 0.75,
+        "stall_deg": 30,
+        "stall_blend_deg": 15,
+        "cd_flat": 1.2,
+        "cm0": 0,
+        "vortex_lift": true
+      }
+    },
+    {
+      "name": "Aft wing 8",
+      "enabled": false,
+      "pos": [
+        -0.009,
+        0,
+        0.0567
+      ],
+      "root_y": 0.68,
+      "span": 0.7074,
+      "root_chord": 1.3927,
+      "tip_chord": 1.0695,
+      "sweep_deg": 35.1857,
+      "dihedral_deg": -25.2088,
+      "incidence_deg": 0,
+      "twist_deg": 0.911,
+      "pitch_deg": 9.3984,
+      "symmetric": true,
+      "panels": 3,
+      "aspect_ratio": 2.3662636208307717,
+      "aero": {
+        "model": "polar",
+        "airfoil_root": "s1210",
+        "airfoil_tip": "s1210",
+        "polar_source": "neuralfoil",
+        "ncrit": 9,
+        "cl_alpha": 6.2832,
+        "cl0": 0,
+        "cd0": 0.02,
+        "oswald": 0.75,
+        "stall_deg": 30,
+        "stall_blend_deg": 15,
+        "cd_flat": 1.2,
+        "cm0": 0,
+        "vortex_lift": true
+      }
+    },
+    {
+      "name": "Aft wing 9",
+      "enabled": false,
+      "pos": [
+        -0.2304,
+        0,
+        0.2461
+      ],
+      "root_y": 1,
+      "span": 0.5811,
+      "root_chord": 1.0695,
+      "tip_chord": 0.9176,
+      "sweep_deg": 28.9091,
+      "dihedral_deg": -30.6366,
+      "incidence_deg": 0,
+      "twist_deg": 0.6223,
+      "pitch_deg": 10.5112,
+      "symmetric": true,
+      "panels": 3,
+      "aspect_ratio": 2.3662636208307717,
+      "aero": {
+        "model": "polar",
+        "airfoil_root": "s1210",
+        "airfoil_tip": "s1210",
+        "polar_source": "neuralfoil",
+        "ncrit": 9,
+        "cl_alpha": 6.2832,
+        "cl0": 0,
+        "cd0": 0.02,
+        "oswald": 0.75,
+        "stall_deg": 30,
+        "stall_blend_deg": 15,
+        "cd_flat": 1.2,
+        "cm0": 0,
+        "vortex_lift": true
+      }
+    },
+    {
+      "name": "Aft wing 10",
+      "enabled": false,
+      "pos": [
+        -0.3612,
+        0,
+        0.4209
+      ],
+      "root_y": 1.25,
+      "span": 0.4106,
+      "root_chord": 0.9176,
+      "tip_chord": 0.835,
+      "sweep_deg": 29.7865,
+      "dihedral_deg": -34.0951,
+      "incidence_deg": 0,
+      "twist_deg": 0.5253,
+      "pitch_deg": 11.3517,
+      "symmetric": true,
+      "panels": 3,
+      "aspect_ratio": 2.3662636208307717,
+      "aero": {
+        "model": "polar",
+        "airfoil_root": "s1210",
+        "airfoil_tip": "s1210",
+        "polar_source": "neuralfoil",
+        "ncrit": 9,
+        "cl_alpha": 6.2832,
+        "cl0": 0,
+        "cd0": 0.02,
+        "oswald": 0.75,
+        "stall_deg": 30,
+        "stall_blend_deg": 15,
+        "cd_flat": 1.2,
+        "cm0": 0,
+        "vortex_lift": true
+      }
+    },
+    {
+      "name": "Aft wing 11",
+      "enabled": false,
+      "pos": [
+        -0.4538,
+        0,
+        0.5569
+      ],
+      "root_y": 1.42,
+      "span": 0.56,
+      "root_chord": 0.835,
+      "tip_chord": 0.7446,
+      "sweep_deg": 30.7529,
+      "dihedral_deg": -38.217,
+      "incidence_deg": 0,
+      "twist_deg": 0.3626,
+      "pitch_deg": 12.1177,
+      "symmetric": true,
+      "panels": 3,
+      "aspect_ratio": 2.3662636208307717,
+      "aero": {
+        "model": "polar",
+        "airfoil_root": "s1210",
+        "airfoil_tip": "s1210",
+        "polar_source": "neuralfoil",
+        "ncrit": 9,
+        "cl_alpha": 6.2832,
+        "cl0": 0,
+        "cd0": 0.02,
+        "oswald": 0.75,
+        "stall_deg": 30,
+        "stall_blend_deg": 15,
+        "cd_flat": 1.2,
+        "cm0": 0,
+        "vortex_lift": true
+      }
+    },
+    {
+      "name": "Aft wing 12",
+      "enabled": false,
+      "pos": [
+        -0.5803,
+        0,
+        0.7612
+      ],
+      "root_y": 1.64,
+      "span": 0.3685,
+      "root_chord": 0.7446,
+      "tip_chord": 0.6973,
+      "sweep_deg": 30.9911,
+      "dihedral_deg": -40.5576,
+      "incidence_deg": 0,
+      "twist_deg": 0.1737,
+      "pitch_deg": 12.7051,
+      "symmetric": true,
+      "panels": 3,
+      "aspect_ratio": 2.3662636208307717,
+      "aero": {
+        "model": "polar",
+        "airfoil_root": "s1210",
+        "airfoil_tip": "s1210",
+        "polar_source": "neuralfoil",
+        "ncrit": 9,
+        "cl_alpha": 6.2832,
+        "cl0": 0,
+        "cd0": 0.02,
+        "oswald": 0.75,
+        "stall_deg": 30,
+        "stall_blend_deg": 15,
+        "cd_flat": 1.2,
+        "cm0": 0,
+        "vortex_lift": true
+      }
+    },
+    {
+      "name": "Aft wing 13",
+      "enabled": false,
+      "pos": [
+        -0.6619,
+        0,
+        0.9025
+      ],
+      "root_y": 1.78,
+      "span": 0.1839,
+      "root_chord": 0.6973,
+      "tip_chord": 0.6105,
+      "sweep_deg": 53.0127,
+      "dihedral_deg": -40.4205,
+      "incidence_deg": 0,
+      "twist_deg": 0.3593,
+      "pitch_deg": 13.0061,
+      "symmetric": true,
+      "panels": 3,
+      "aspect_ratio": 2.3662636208307717,
+      "aero": {
+        "model": "polar",
+        "airfoil_root": "s1210",
+        "airfoil_tip": "s1210",
+        "polar_source": "neuralfoil",
+        "ncrit": 9,
+        "cl_alpha": 6.2832,
+        "cl0": 0,
+        "cd0": 0.02,
+        "oswald": 0.75,
+        "stall_deg": 30,
+        "stall_blend_deg": 15,
+        "cd_flat": 1.2,
+        "cm0": 0,
+        "vortex_lift": true
+      }
+    },
+    {
+      "name": "Aft wing 14",
+      "enabled": false,
+      "pos": [
+        -0.7674,
+        0,
+        0.988
+      ],
+      "root_y": 1.85,
+      "span": 0.1351,
+      "root_chord": 0.6105,
+      "tip_chord": 0.3653,
+      "sweep_deg": 76.0435,
+      "dihedral_deg": -42.2438,
+      "incidence_deg": 0,
+      "twist_deg": -0.0268,
+      "pitch_deg": 13.6261,
+      "symmetric": true,
+      "panels": 3,
+      "aspect_ratio": 2.3662636208307717,
+      "aero": {
+        "model": "polar",
+        "airfoil_root": "s1210",
+        "airfoil_tip": "s1210",
+        "polar_source": "neuralfoil",
+        "ncrit": 9,
+        "cl_alpha": 6.2832,
+        "cl0": 0,
+        "cd0": 0.02,
+        "oswald": 0.75,
+        "stall_deg": 30,
+        "stall_blend_deg": 15,
+        "cd_flat": 1.2,
+        "cm0": 0,
+        "vortex_lift": true
+      }
+    },
+    {
+      "name": "Aft wing 15",
+      "enabled": false,
+      "pos": [
+        -1.0209,
+        0,
+        1.0962
+      ],
+      "root_y": 1.9,
+      "span": 0.0819,
+      "root_chord": 0.3653,
+      "tip_chord": 0.1874,
+      "sweep_deg": 77.7437,
+      "dihedral_deg": -42.8856,
+      "incidence_deg": 0,
+      "twist_deg": -0.2601,
+      "pitch_deg": 13.5772,
+      "symmetric": true,
+      "panels": 3,
+      "aspect_ratio": 2.3662636208307717,
+      "aero": {
+        "model": "polar",
+        "airfoil_root": "s1210",
+        "airfoil_tip": "s1210",
+        "polar_source": "neuralfoil",
+        "ncrit": 9,
+        "cl_alpha": 6.2832,
+        "cl0": 0,
+        "cd0": 0.02,
+        "oswald": 0.75,
+        "stall_deg": 30,
+        "stall_blend_deg": 15,
+        "cd_flat": 1.2,
+        "cm0": 0,
+        "vortex_lift": true
+      }
+    },
+    {
+      "name": "Aft wing 16",
+      "enabled": false,
+      "pos": [
+        -1.1975,
+        0,
+        1.1675
+      ],
+      "root_y": 1.93,
+      "span": 0.0446,
+      "root_chord": 0.1874,
+      "tip_chord": 0.0361,
+      "sweep_deg": 80.2637,
+      "dihedral_deg": -44.1935,
+      "incidence_deg": 0,
+      "twist_deg": -0.1234,
+      "pitch_deg": 13.0927,
+      "symmetric": true,
+      "panels": 3,
+      "aspect_ratio": 2.3662636208307717,
+      "aero": {
+        "model": "polar",
+        "airfoil_root": "s1210",
+        "airfoil_tip": "s1210",
+        "polar_source": "neuralfoil",
+        "ncrit": 9,
+        "cl_alpha": 6.2832,
+        "cl0": 0,
+        "cd0": 0.02,
+        "oswald": 0.75,
+        "stall_deg": 30,
+        "stall_blend_deg": 15,
+        "cd_flat": 1.2,
+        "cm0": 0,
+        "vortex_lift": true
+      }
+    }
+  ],
+  "legs": [
+    {
+      "name": "Nose contact",
+      "attach": [
+        1.7,
+        0,
+        -0.0678
+      ],
+      "length": 0,
+      "tilt_deg": 0,
+      "cant_deg": 0,
+      "foot_radius": 0,
+      "stiffness": 130000,
+      "damping": 3500,
+      "friction": 0.8,
+      "enabled": true
+    },
+    {
+      "name": "Right wingtip contact",
+      "attach": [
+        -1.3558085226140189,
+        1.946075480743506,
+        1.220214909114319
+      ],
+      "length": 0,
+      "tilt_deg": 0,
+      "cant_deg": 0,
+      "foot_radius": 0,
+      "stiffness": 130000,
+      "damping": 3500,
+      "friction": 0.8,
+      "enabled": true
+    },
+    {
+      "name": "Left wingtip contact",
+      "attach": [
+        -1.3558085226140189,
+        -1.946075480743506,
+        1.220214909114319
+      ],
+      "length": 0,
+      "tilt_deg": 0,
+      "cant_deg": 0,
+      "foot_radius": 0,
+      "stiffness": 130000,
+      "damping": 3500,
+      "friction": 0.8,
+      "enabled": true
+    }
+  ],
+  "hover_pitch_deg": 10.000000000066347,
+  "landed_pitch_deg": -22.86,
+  "px4_overrides": {
+    "MIS_TAKEOFF_ALT": 10,
+    "MPC_TKO_RAMP_T": 1,
+    "MPC_THR_HOVER": 0.4,
+    "MC_AIRMODE": 1,
+    "MPC_MAN_Y_MAX": 150,
+    "MC_YAWRATE_I": 0.03,
+    "IMU_INTEG_RATE": 250,
+    "SENS_MAG_AUTOCAL": 0,
+    "MC_PITCH_P": 3,
+    "MC_PITCHRATE_P": 0.5,
+    "MC_PITCHRATE_D": 0.035,
+    "MC_PITCHRATE_I": 0.1,
+    "MC_ROLL_P": 3,
+    "MC_ROLLRATE_P": 0.55,
+    "MC_ROLLRATE_D": 0.04,
+    "MPC_XY_VEL_MAX": 35,
+    "MPC_VEL_MANUAL": 31,
+    "MPC_XY_CRUISE": 30,
+    "MPC_TILTMAX_AIR": 80,
+    "THR_MDL_FAC": 1,
+    "MC_YAW_P": 2,
+    "MC_ROLLRATE_I": 0.06,
+    "MC_YAWRATE_P": 0.5,
+    "MC_YAWRATE_D": 0.01,
+    "MPC_XY_VEL_P_ACC": 1.2,
+    "MC_YAWRATE_K": 3,
+    "MC_YAW_WEIGHT": 1,
+    "NLF_LAND_ANG": -22.86,
+    "CA_ROTOR0_CT": 5.980676,
+    "CA_ROTOR1_CT": 5.980676,
+    "CA_ROTOR2_CT": 5.839845,
+    "CA_ROTOR3_CT": 5.839845,
+    "CA_ROTOR4_CT": 6.228489,
+    "CA_ROTOR5_CT": 6.228489,
+    "CA_ROTOR6_CT": 6.333889,
+    "CA_ROTOR7_CT": 5.910261,
+    "CA_ROTOR8_CT": 5.910261
+  },
+  "design": {
+    "cruise_speed_kmh": 50,
+    "groups": {},
+    "nose_lift": {
+      "enabled": true,
+      "motors": [
+        4,
+        5,
+        6
+      ],
+      "target_pitch_deg": 10,
+      "rate_deg_s": 8,
+      "assist_cmd": 0
+    },
+    "visual": {
+      "wing_colors": [
+        "#172c3e",
+        "#172c3e",
+        "#172c3e",
+        "#172c3e",
+        "#172c3e",
+        "#172c3e",
+        "#e8ecef",
+        "#e8ecef",
+        "#e8ecef",
+        "#e8ecef",
+        "#e8ecef",
+        "#e8ecef",
+        "#e8ecef",
+        "#e8ecef",
+        "#e8ecef",
+        "#e8ecef"
+      ]
+    },
+    "obj_reference": {
+      "file": "ATLAS_JO_05B (1).obj",
+      "object": "primitive-up.006",
+      "units_assumed": "m",
+      "pitch_registration_deg": 23.081844242794656,
+      "translation_frd": [
+        0.8236776883601744,
+        1.0000190809368332e-06,
+        2.3915401123717346
+      ],
+      "station_y_m": [
+        0,
+        0.08,
+        0.16,
+        0.24,
+        0.32,
+        0.38,
+        0.5,
+        0.68,
+        1,
+        1.25,
+        1.42,
+        1.64,
+        1.78,
+        1.85,
+        1.9,
+        1.93,
+        1.946
+      ]
+    },
+    "battery_wh": 20000,
+    "airfoil_study": {
+      "report": "results/mvp05-airfoil-study/analysis.json",
+      "target_speed_kmh": 50,
+      "target_wing_lift_fraction": 1,
+      "trimmed_target_demonstrated": false,
+      "minimum_thickness_required": false
+    },
+    "motor_layout": {
+      "derived_from": "ATLAS_MVP_06",
+      "wing_motors_each": 3,
+      "wing_roles": "two lift and one cruise per side",
+      "front_motors": 3,
+      "centre_motor": true,
+      "centre_motor_position": [
+        -1.3687776434283956,
+        0,
+        0
+      ]
+    },
+    "pixhawk_position": [
+      -1,
+      0,
+      0
+    ]
+  },
+  "notes": "120 kg baseline; OBJ-fitted UIUC wing revision of CONCEPT_04. Matched ATLAS_JO_05B (1).obj upper-shell leading/trailing edges with 16 mirrored wing segments at native OBJ scale (assumed metres). OBJ -Z forward, +X right, -Y down; pitch registration +23.081844 deg preserves the baseline root chord attitude. NACA23018/23012 UIUC sections retained, not arbitrary OBJ skins. Rear/cruise mount heights follow revised wing chord surfaces; contact pads follow nose/tips. Aerodynamics and ground posture require simulation revalidation. Revised 2026-09-23: UIUC NACA 66-018 double-arc centerbody fitted to upper and lower OBJ contours, smoothly blending into UIUC S1210 high-lift outer wings. 60 mm constraint withdrawn. Static predicted wing lift reaches weight near 24.25 deg body pitch at 50 km/h; this is NOT a demonstrated trimmed cruise condition. Current default allocator cruise result is thrust-supported and does not satisfy the wing-borne cruise target. ATLAS_MVP_07B: three motors per wing (two lift, one cruise), three front motors in a symmetric triangle. Motor 10 is 0.25 m aft of CG on centreline, Z=0; downward exhaust/upward thrust. Mass and inertia retained from baseline; motor-count mass change not estimated. Not flight tested. Centre motor moved aft between wing lift motors on the centreline. Front group changed to four motors in two symmetric pairs; other motors preserved from the active model. Front group now has three motors in a symmetric triangle; CG retained.",
+  "cad": {
+    "file": "airframes/cad/latestver.x.v.3.stp",
+    "rotation_deg": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "origin": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "scale": 1.0,
+    "visible": true,
+    "bodies": [
+      {
+        "id": "0:COMPOUND",
+        "name": "COMPOUND",
+        "mass": 0,
+        "offset": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "removed": false,
+        "volume": 0.002793220222884245,
+        "centroid": [
+          20.320319750816846,
+          -3.626353111925686,
+          -39.83465539156117
+        ],
+        "inertia_unit": [
+          0.0003775406670536441,
+          0.00024999282027238223,
+          0.000608934759453339,
+          2.110646516451098e-06,
+          -3.927213891863346e-07,
+          -5.855208809357748e-06
+        ],
+        "pos": [
+          20.320319750816846,
+          -3.626353111925686,
+          -39.83465539156117
+        ]
+      },
+      {
+        "id": "1:COMPOUND (2)",
+        "name": "COMPOUND (2)",
+        "mass": 0,
+        "offset": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "removed": false,
+        "volume": 0.008061253228461908,
+        "centroid": [
+          20.318376045867954,
+          -5.193624332258535,
+          -39.757340375418735
+        ],
+        "inertia_unit": [
+          0.004307958052471861,
+          0.0006373515768380855,
+          0.0048268221548197765,
+          -4.775899231646008e-09,
+          -1.5655299279160317e-10,
+          0.00026540691599596933
+        ],
+        "pos": [
+          20.318376045867954,
+          -5.193624332258535,
+          -39.757340375418735
+        ]
+      }
+    ]
+  }
+}

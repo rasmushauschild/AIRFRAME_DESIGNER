@@ -219,11 +219,13 @@ function fillCadCard() {
     ['ox', 'oy', 'oz'].forEach((k, i) => $('#cad-' + k).value = +(+(cad.origin || [0, 0, 0])[i]).toFixed(4));
     $('#cad-scale').value = cad.scale ?? 1;
     $('#cad-frame-row').style.display = '';
+    $('#cad-remove-all').hidden = false;
     const key = cadKey(cad);
     if (key !== cadMeshKey) loadCadMesh(key);
   } else {
     $('#cad-filename').textContent = '';
     $('#cad-frame-row').style.display = 'none';
+    $('#cad-remove-all').hidden = true;
     if (cadMeshKey) { cadMeshKey = null; scene.setCad(null); }
     cadSelected = null;
   }
@@ -320,7 +322,17 @@ async function cadFrameChanged() {
 }
 ['cad-rx', 'cad-ry', 'cad-rz', 'cad-ox', 'cad-oy', 'cad-oz', 'cad-scale'].forEach(id => $('#' + id).addEventListener('change', cadFrameChanged));
 $('#cad-reset-offsets').addEventListener('click', () => { if (!airframe.cad) return; airframe.cad.bodies.forEach(b => b.offset = [0, 0, 0]); scene.syncCad(); renderCadTable(); pushAirframe(true); });
-$('#cad-remove-all').addEventListener('click', () => { if (!airframe.cad || !confirmTwice('cad-remove', $('#cad-remove-all'), 'remove the CAD file')) return; airframe.cad = null; cadSelected = null; scene.selectCad(null); setAirframe(airframe); pushAirframe(true); });
+$('#cad-remove-all').addEventListener('click', (e) => {
+  const cad = airframe.cad;
+  if (!cad) return;
+  const n = (cad.bodies || []).length;
+  if (!confirmTwice('cad-remove', e.currentTarget, `remove the model and its ${n} ${n === 1 ? 'body' : 'bodies'}`)) return;
+  airframe.cad = null; cadSelected = null; scene.selectCad(null);
+  // With the model gone, mass from bodies has nothing to add up unless there are mass items of their own.
+  if (airframe.mass.from_items && !(airframe.mass.items || []).length) airframe.mass.from_items = false;
+  setAirframe(airframe); pushAirframe(true);
+  logLine('[cad] removed ' + (cad.file || 'the model'));
+});
 
 function bindNumber(id, fn) {
   $('#' + id).addEventListener('change', (e) => { fn(parseFloat(e.target.value) || 0); scene.setAirframe(airframe); pushAirframe(true); });
