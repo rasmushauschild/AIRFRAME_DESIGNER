@@ -263,14 +263,6 @@ details[open] summary::before { transform: rotate(90deg); }
 .conn-row .dev { font-family: var(--mono); font-size: 12px; color: var(--text-2); }
 .card + .card { margin-top: 8px; }
 .card.current { box-shadow: 0 0 0 1.5px var(--accent); }
-.check { display: flex; align-items: flex-start; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--line); }
-.check:last-child { border-bottom: 0; }
-.check .mark { width: 20px; height: 20px; border-radius: 50%; flex: none; display: grid; place-items: center; font-size: 12px; font-weight: 800; color: #fff; background: var(--text-3); margin-top: 1px; }
-.check.ok .mark { background: var(--green); }
-.check .body { flex: 1; min-width: 0; }
-.check .label { font-weight: 600; }
-.check .detail { color: var(--text-2); font-size: 12px; font-variant-numeric: tabular-nums; }
-.check .pill { flex: none; }
 .pill.detected { background: var(--accent); color: #fff; box-shadow: none; }
 .pill.detected.blink { animation: pulse 1.6s ease-in-out infinite; }
 @keyframes pulse { 50% { filter: brightness(1.2); } }
@@ -284,7 +276,6 @@ details[open] summary::before { transform: rotate(90deg); }
 #px4-messages .msg.err .lvl { color: var(--red); } #px4-messages .msg.warn .lvl { color: var(--amber); }
 
 /* RC channels */
-.rc-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; }
 .rc-row { display: grid; grid-template-columns: 22px 92px 1fr 44px; gap: 8px; align-items: center; padding: 2px 0; font-size: 12px; }
 .rc-n { color: var(--text-3); font-weight: 700; }
 .rc-name { color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -405,7 +396,6 @@ table.grid.trials tr.infeasible td { color: var(--text-3); }
 .rc-state { color: var(--text-3); font-size: 12px; margin-left: 6px; }
 
 /* remote control (PX4 tab) */
-.rc-head { display: flex; align-items: center; gap: 10px; margin: 4px 0 10px; }
 #rc-ind .dot { background: var(--text-3); }
 #rc-ind.on .dot { background: var(--green); box-shadow: 0 0 6px var(--green); }
 .rc-sub { margin-bottom: 8px; font-size: 13px; }
@@ -518,3 +508,21 @@ input.run-name { width: 190px; flex: 0 0 auto; padding: 3px 9px; border-radius: 
 .preset-bar select.preset-select { background-color: var(--panel); box-shadow: inset 0 0 0 1px var(--line); max-width: 150px; }
 .preset-bar select.preset-select:hover { background-color: var(--soft); }
 .preset-bar select.pick { flex: 0 0 auto; min-width: 0; width: 30px; padding: 5px 20px 5px 2px; }
+
+/* ---- sections: one rule for every tab
+   A section is the white box. Its title is the handle that opens and closes it, its contents sit directly
+   on it, and nothing inside is another white box — a box drawn on a box says there is a second thing there
+   when there is not. Anything that is a list of its own (a table, the parameter list) is flush. */
+details.sec { background: var(--panel); border-radius: 16px; box-shadow: inset 0 0 0 1px var(--line); margin: 0 0 10px; }
+details.sec > summary { display: flex; align-items: center; gap: 8px; padding: 11px 16px; cursor: pointer;
+  font-size: 14px; font-weight: 700; letter-spacing: -0.01em; color: var(--text); list-style: none; }
+details.sec > summary::-webkit-details-marker { display: none; }
+details.sec > summary::before { content: '▸'; color: var(--text-3); font-size: 11px; width: 10px; transition: transform .12s; }
+details.sec[open] > summary::before { transform: rotate(90deg); }
+details.sec > summary:hover { color: var(--text); background: var(--soft); border-radius: 16px; }
+details.sec[open] > summary:hover { border-radius: 16px 16px 0 0; }
+details.sec > summary .hint { font-weight: 500; }
+details.sec > summary .sum-spacer { flex: 1; }
+.sec-body { padding: 2px 16px 14px; display: flex; flex-direction: column; gap: 8px; }
+.sec-body > .row { margin: 0; }
+.sec-body .card { background: transparent; box-shadow: none; padding: 0; border-radius: 0; }

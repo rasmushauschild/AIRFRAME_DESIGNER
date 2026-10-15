@@ -56,7 +56,7 @@ $$('.tabs button').forEach(b => b.addEventListener('click', () => {
   $$('.tab').forEach(t => t.classList.toggle('active', t.id === 'tab-' + b.dataset.tab));
   if (b.dataset.tab === 'airframe') loadExport();
   if (b.dataset.tab === 'px4') { ensureParams(); loadExport(); }
-  if (b.dataset.tab === 'connect') { refreshConnection(); ensureParams(); renderRcLive(); }
+  if (b.dataset.tab === 'controller') { refreshConnection(); ensureParams(); renderRcLive(); renderModeButtons(); }
   if (b.dataset.tab === 'batch') refreshBatch();
   if (b.dataset.tab === 'firmware') refreshFirmware();
 }));
@@ -836,7 +836,6 @@ function updateFooter() {
       : (status.ctl_connected ? 'Write the rotor geometry and output mapping to the flight controller and save it' : 'PX4 not connected'));
   upd.classList.toggle('fw-stale', fwStale);
   if (fwStale && !geometryDirty && !$('#update-status').textContent) $('#update-status').innerHTML = onBoard ? '<span class="warn">The board firmware is out of date</span>' : '<span class="warn">Firmware sources changed: Update PX4 rebuilds it</span>';
-  $$('#mode-pills .pill').forEach(b => b.classList.toggle('active', status.connected && (status.mode_name || '').toLowerCase() === b.textContent.toLowerCase()));
 }
 // ============================================================ edited parameters (overrides saved with the airframe)
 function renderOverrides(r) {
@@ -1158,6 +1157,7 @@ function applyStatus(s) {
     paramsSession = s.params_session; paramsLoaded = false; params = {};
   }
   if (s.params_loaded && s.param_count && s.params_loaded >= s.param_count && !paramsLoaded && (hardwareMotors() || rcVisible() || $('#tab-px4').classList.contains('active'))) ensureParams();
+  if (rcVisible()) renderModeButtons();
   updateFooter();
 }
 const effectiveMax = (r) => (r.enabled === false ? 0 : r.max_thrust);
@@ -1248,12 +1248,21 @@ const picked = new Set(['power', 'battery', 'height', 'pitch']);
 try { const p = JSON.parse(localStorage.getItem('airframe-graph') || 'null'); if (Array.isArray(p) && p.length) { picked.clear(); p.forEach(k => picked.add(k)); } } catch { }
 const saveGraphPrefs = () => { try { localStorage.setItem('airframe-graph', JSON.stringify([...picked])); } catch { } };
 
-async function pollLive() {
+// One poll at a time. Two in flight ask for the same rows, both append them, and the buffer then holds
+// more samples than the recorder does — which looks exactly like a reset, so the graph would empty itself
+// and refill every few seconds.
+let polling = false;
+async function pollLive(again = true) {
+  if (polling) return;
+  polling = true;
   let j;
-  try { j = await api('/api/runs/current?since=' + liveRun.rows.length); } catch { return; }
+  try { j = await api('/api/runs/current?since=' + liveRun.rows.length); }
+  catch { return; }
+  finally { polling = false; }
   if (j.total < liveRun.rows.length || j.since > liveRun.rows.length) {   // the sim was reset: a new run
     liveRun = { columns: j.columns || LIVE_COLS, rows: [] };
     replayT = null;
+    if (again) await pollLive(false);                 // refill now, so the plot never blinks empty
     return;
   }
   liveRun.columns = j.columns || LIVE_COLS;
@@ -1284,6 +1293,7 @@ function drawGraph() {
     host.innerHTML = `<svg viewBox="0 0 ${W} ${H}"><text x="${W / 2}" y="${H / 2}" text-anchor="middle">`
       + `${shownRun ? 'this run has no samples' : 'nothing recorded yet — start the simulation'}</text></svg>`;
     Object.keys(chips).forEach(k => show(k, ''));
+    $('#scrub-label').textContent = '—';               // never a time that belongs to a plot that is not there
     return;
   }
   const t0 = rows[0][0], t1 = rows[rows.length - 1][0], span = Math.max(1e-6, t1 - t0);
@@ -1538,6 +1548,23 @@ loadVersionList();
 api('/api/log?since=0').then(lines => lines.forEach(l => logLine(l[1]))).catch(() => { });
 
 
+// ============================================================ sections
+// Every section on every tab is the same thing: a white box with its title as the handle. Which ones are
+// open is the user's, so it is remembered; a section with nothing in it yet still opens, because an empty
+// box that says what belongs in it is clearer than no box.
+(function () {
+  let open = {};
+  try { open = JSON.parse(localStorage.getItem('airframe-sections') || '{}'); } catch { }
+  $$('details.sec').forEach(d => {
+    if (d.id && open[d.id] !== undefined) d.open = !!open[d.id];
+    d.addEventListener('toggle', () => {
+      if (!d.id) return;
+      open[d.id] = d.open;
+      try { localStorage.setItem('airframe-sections', JSON.stringify(open)); } catch { }
+    });
+  });
+})();
+
 // ============================================================ resizable panels
 (function () {
   const side = $('#side'), log = $('#log');
@@ -1583,13 +1610,48 @@ api('/api/log?since=0').then(lines => lines.forEach(l => logLine(l[1]))).catch((
 })();
 
 
-// ============================================================ connection / HITL
-let connTimer = null, lastChecklistHtml = '';
-$('#ro-fc').addEventListener('click', async () => { openTab('connect'); if ((status.px4_ports || []).length && status.mode !== 'hitl') await connectHitl(); });
+// ============================================================ the flight controller, and where it runs
+// One choice, not two: SITL (PX4 on this computer), HITL (the board over USB, flying the simulation) or
+// Real flight (the board on its own sensors and outputs). The old page asked what to connect to and then,
+// separately, what state to be in, and kept a checklist of everything that might still be wrong.
+let connTimer = null;
+const LINK_LABEL = { sitl: 'SITL', hitl: 'Pixhawk (HITL)', real: 'Pixhawk (real flight)' };
+let lastPorts = [];
+
+function linkNow(c) {
+  if (!c || !c.mode) return '';
+  if (c.mode === 'sitl') return 'sitl';
+  return status.hil_enabled === false ? 'real' : 'hitl';
+}
+$('#ro-fc').addEventListener('click', async () => { openTab('controller'); });
 $('#conn-sitl').addEventListener('click', async () => { await connCall('/api/connection/connect', { mode: 'sitl' }); });
+$('#conn-hitl').addEventListener('click', async (e) => {
+  if (!lastPorts.length) { $('#conn-error').textContent = 'No flight controller on USB. Plug it in and click Rescan.'; return; }
+  if (status.hil_enabled === false && !confirmTwice('return-hitl', e.currentTarget, 'put the board back into HITL')) return;
+  if (status.hil_enabled === false) { const r = await api('/api/connection/enable_hitl', {}); $('#real-flight-result').textContent = r.ok ? 'Returning to HITL…' : r.error; return; }
+  await connectHitl((lastPorts.find(p => p.likely_px4) || lastPorts[0]).device);
+});
+$('#conn-real').addEventListener('click', async (e) => {
+  const b = e.currentTarget;
+  if (status.armed || !status.ctl_connected || !hardwareMotors()) { $('#real-flight-result').textContent = 'Connect a disarmed Pixhawk over USB first.'; return; }
+  if (!confirmTwice('real-flight-setup', b, 'prepare the board for real flight')) return;
+  stopMotorTest(); $('#motor-enable').checked = false; b.disabled = true;
+  $('#real-flight-result').textContent = 'Preparing real flight… watch the log. Keep the board connected.';
+  try {
+    const r = await api('/api/firmware/real_flight', { confirmed: true });
+    $('#real-flight-result').textContent = r.ok ? r.message : 'Setup incomplete: ' + r.error;
+    paramsLoaded = false;
+  } catch (err) { $('#real-flight-result').textContent = 'Setup incomplete: ' + err.message; }
+  finally { b.disabled = false; b.textContent = 'Real flight'; refreshConnection(); }
+});
 $('#conn-rescan').addEventListener('click', refreshConnection);
 $('#conn-disconnect').addEventListener('click', async () => { await connCall('/api/connection/disconnect', {}); });
-$('#conn-reboot').addEventListener('click', async () => { if (confirmTwice('conn-reboot', $('#conn-reboot'), 'reboot the board')) { await api('/api/px4/command', { command: 'reboot' }); setTimeout(refreshConnection, 3000); } });
+$('#conn-reboot').addEventListener('click', async (e) => { if (confirmTwice('conn-reboot', e.currentTarget, 'reboot the board')) { await api('/api/px4/command', { command: 'reboot' }); setTimeout(refreshConnection, 3000); } });
+$('#conn-hw-ok').addEventListener('click', async (e) => {
+  if (!confirmTwice('enable_hw', e.currentTarget, 'allow motors on the real aircraft')) return;
+  await api('/api/params/set', { name: 'NLF_HW_OK', value: 1 });
+  paramsLoaded = false; setTimeout(refreshConnection, 1500);
+});
 async function connectHitl(serial) {
   await connCall('/api/connection/connect', { mode: 'hitl', serial, baud: +$('#conn-baud').value || 921600 });
 }
@@ -1601,65 +1663,52 @@ async function connCall(path, body) {
 }
 async function refreshConnection() {
   clearTimeout(connTimer);
-  if (!$('#tab-connect').classList.contains('active')) return;
+  if (!$('#tab-controller').classList.contains('active')) return;
   let c;
   try { c = await api('/api/connection'); } catch (e) { $('#conn-error').textContent = e.message; return; }
-  const L = c.link;
-  const cur = $('#conn-current');
-  if (!c.mode) cur.innerHTML = '<div class="conn-row"><div><b>Not connected</b><div class="hint">Pick PX4 SITL or a Pixhawk below.</div></div></div>';
-  else if (c.mode === 'sitl') cur.innerHTML = `<div class="conn-row"><div><b>PX4 SITL</b> <span class="${L.connected ? 'ok' : 'muted'}">${L.connected ? '● connected' : (c.px4_running ? '○ starting…' : '○ waiting for PX4')}</span><div class="hint">instance ${c.px4_instance ?? 0} · simulator tcp ${L.address} · control ${L.ctl_address}</div></div></div>`;
-  else cur.innerHTML = `<div class="conn-row"><div><b>Pixhawk</b> <span class="${L.connected ? 'ok' : 'muted'}">${L.connected ? '● link up' : '○ no data yet'}</span><div class="dev">${c.serial} @ ${c.baud}</div><div class="hint">QGroundControl: connect over UDP ${c.qgc}</div></div></div>`;
+  const L = c.link, where = linkNow(c);
+  $$('#conn-modes button').forEach(b => b.classList.toggle('active', b.dataset.link === where));
+  if (!c.mode) $('#conn-current').innerHTML = '<div class="hint">Not connected. Choose where PX4 runs.</div>';
+  else if (c.mode === 'sitl') $('#conn-current').innerHTML =
+    `<b>PX4 SITL</b> <span class="${L.connected ? 'ok' : 'muted'}">${L.connected ? '● connected' : (c.px4_running ? '○ starting…' : '○ waiting for PX4')}</span>`
+    + `<div class="hint">instance ${c.px4_instance ?? 0} · simulator tcp ${L.address} · control ${L.ctl_address}</div>`;
+  else $('#conn-current').innerHTML =
+    `<b>${where === 'real' ? 'Pixhawk, real flight' : 'Pixhawk, HITL'}</b> <span class="${L.connected ? 'ok' : 'muted'}">${L.connected ? '● link up' : '○ no data yet'}</span>`
+    + `<div class="dev">${esc(c.serial)} @ ${c.baud}</div><div class="hint">QGroundControl: connect over UDP ${esc(c.qgc)}</div>`;
+  $('#conn-head').textContent = c.mode ? `${LINK_LABEL[where] || ''}${L.connected ? ' · connected' : ' · waiting'}` : 'not connected';
   $('#conn-error').textContent = c.error || '';
-  $('#conn-sitl-card').classList.toggle('current', c.mode === 'sitl');
-  const ports = c.ports || [];
-  $('#conn-ports').innerHTML = ports.length ? ports.map(p => `
-    <div class="card ${c.mode === 'hitl' && c.serial === p.device ? 'current' : ''}"><div class="conn-row">
-      <div><b>${p.likely_px4 ? 'Pixhawk' : 'Serial device'}</b> <span class="hint">${p.description || ''}</span><div class="dev">${p.device}</div></div>
-      <button class="pill small ${p.likely_px4 ? 'primary' : ''}" data-dev="${p.device}">${c.mode === 'hitl' && c.serial === p.device ? 'Reconnect' : 'Connect'}</button>
-    </div></div>`).join('')
-    : '<div class="card"><div class="conn-row"><div><b>No USB flight controller found</b><div class="hint">Plug the Pixhawk in over USB and click Rescan. If QGroundControl is open, close it or disable its serial auto-connect.</div></div></div></div>';
+  lastPorts = c.ports || [];
+  $('#conn-ports').innerHTML = lastPorts.length
+    ? lastPorts.map(p => `<div class="conn-row"><div><b>${p.likely_px4 ? 'Pixhawk' : 'Serial device'}</b> <span class="hint">${esc(p.description || '')}</span><div class="dev">${esc(p.device)}</div></div>
+        <button class="pill small ${p.likely_px4 ? 'primary' : ''}" data-dev="${esc(p.device)}">${c.mode === 'hitl' && c.serial === p.device ? 'Reconnect' : 'Connect'}</button></div>`).join('')
+    : '<div class="hint">No flight controller on USB. Plug the Pixhawk in and click Rescan; if QGroundControl is open, close it or disable its serial auto-connect.</div>';
   $$('#conn-ports button[data-dev]').forEach(b => b.addEventListener('click', () => connectHitl(b.dataset.dev)));
-  const steps = c.checklist || [];
-  const checklistHtml = steps.map(s => `<div class="check ${s.ok ? 'ok' : ''}"><div class="mark">${s.ok ? '✓' : ''}</div>
-    <div class="body"><div class="label">${s.label}</div>${s.detail ? `<div class="detail">${s.detail}</div>` : ''}</div>
-    ${s.busy ? '<span class="pill small">Working…</span>' : ''}
-    ${s.action === 'enable_hitl' ? '<button class="pill small primary" data-act="enable_hitl">Enable HITL</button>' : ''}
-    ${s.action === 'build_firmware' ? '<button class="pill small primary" data-act="build_firmware">Build firmware</button>' : ''}
-    ${s.action === 'upload_firmware' ? '<button class="pill small primary" data-act="upload_firmware">Flash firmware</button>' : ''}
-    ${s.action === 'build_atlas' ? '<button class="pill small primary" data-act="build_atlas">Build ATLAS firmware</button>' : ''}
-    ${s.action === 'upload_atlas' ? '<button class="pill small primary" data-act="upload_atlas">Flash ATLAS firmware</button>' : ''}
-    ${s.action === 'enable_hw' ? '<button class="pill small" data-act="enable_hw">Allow on hardware</button>' : ''}
-    ${s.action === 'push' ? '<button class="pill small primary" data-act="push">Push geometry</button>' : ''}
-    ${s.action === 'reboot' ? '<button class="pill small" data-act="reboot">Reboot board</button>' : ''}
-    ${s.action === 'ekf' ? '<button class="pill small" data-act="ekf">Restart estimator</button>' : ''}</div>`).join('');
-  if (checklistHtml !== lastChecklistHtml) {          // re-rendering every 2 s would pull the buttons out from under a click
-    lastChecklistHtml = checklistHtml;
-    $('#conn-checklist').innerHTML = checklistHtml;
-    $$('#conn-checklist button[data-act]').forEach(b => { if (confirmArmed(b.dataset.act)) { b.dataset.label = b.textContent; b.textContent = 'Click again to confirm'; b.classList.add('confirm'); } });
-  }
-  $$('#conn-checklist button[data-act]').forEach(b => b.onclick = async () => {
-    if (b.dataset.act === 'enable_hitl') { b.textContent = 'Rebooting…'; await connCall('/api/connection/enable_hitl', {}); }
-    if (b.dataset.act === 'push') { if (status.armed) { alert('Disarm before updating PX4'); return; } await pushToPX4($('#update-status'), true); await refreshConnection(); }
-    if (b.dataset.act === 'build_firmware') { b.textContent = 'Building…'; await connCall('/api/firmware/build', {}); }
-    if (b.dataset.act === 'ekf') { b.textContent = 'Restarting…'; await api('/api/connection/restart_estimator', {}); setTimeout(refreshConnection, 3000); }
-    if (b.dataset.act === 'reboot') { b.textContent = 'Rebooting…'; await api('/api/px4/command', { command: 'reboot' }); setTimeout(refreshConnection, 3000); }
-    if (b.dataset.act === 'build_atlas') { b.textContent = 'Building…'; await connCall('/api/firmware/build', { atlas: true }); }
-    if (b.dataset.act === 'upload_atlas') {
-      if (!confirmTwice('upload_atlas', b, 'flash the ATLAS firmware')) return;
-      b.textContent = 'Flashing…'; await connCall('/api/firmware/upload', { atlas: true });
-    }
-    if (b.dataset.act === 'enable_hw') {
-      if (!confirmTwice('enable_hw', b, 'allow motors on the real aircraft')) return;
-      b.textContent = 'Setting…'; await api('/api/params/set', { name: 'NLF_HW_OK', value: 1 }); setTimeout(refreshConnection, 1500);
-    }
-    if (b.dataset.act === 'upload_firmware') {
-      if (!confirmTwice('upload_firmware', b, 'flash the HITL firmware')) return;
-      b.textContent = 'Flashing…'; await connCall('/api/firmware/upload', {});
-    }
-  });
+  // The one interlock worth keeping from the old checklist: the firmware will not run the motors on the
+  // real aircraft until this is set, and nothing else on this page can set it.
+  $('#conn-hw-ok').hidden = !(where === 'real' && nativeModuleActive() && pv('NLF_HW_OK', 1) === 0);
   connTimer = setTimeout(refreshConnection, 2000);
 }
 
+// ------------------------------------------------------------ flight mode
+// The modes a pilot picks by hand. PX4 reports the one it is in; the rest are one click away.
+const FLIGHT_MODES = [['manual', 'Manual'], ['stabilized', 'Stabilized'], ['altitude', 'Altitude'],
+  ['position', 'Position'], ['hold', 'Hold'], ['land', 'Land'], ['rtl', 'Return']];
+function renderModeButtons() {
+  const host = $('#mode-buttons');
+  if (!host) return;
+  if (!host.children.length) {
+    host.innerHTML = FLIGHT_MODES.map(([k, label]) =>
+      `<button class="pill small" data-mode="${k}" title="ask PX4 for ${label} mode">${label}</button>`).join('');
+    $$('#mode-buttons button').forEach(b => b.addEventListener('click', async () => {
+      try { await api('/api/px4/command', { command: 'mode', mode: b.dataset.mode }); }
+      catch (e) { logLine('[mode] ' + e.message); }
+    }));
+  }
+  const now = (status.mode_name || '').toLowerCase();
+  $$('#mode-buttons button').forEach(b => b.classList.toggle('active', now.startsWith(b.dataset.mode.slice(0, 5))));
+  $('#mode-now').textContent = status.connected ? (status.mode_name || '—') + (status.armed ? ' · armed' : '') : 'no link';
+  $$('#mode-buttons button').forEach(b => b.disabled = !status.connected);
+}
 
 // ============================================================ preset versions (GitHub)
 // The version control shows the version this design is at — the newest pushed one, until an older one is
@@ -1828,8 +1877,7 @@ function switchOnAt(f, pos) {          // does this switch function count as ON 
 function renderRcBoard() {
   const el = $('#rc-board');
   const src = rcSource();
-  if (!src && !rcFresh()) { if (el.dataset.mode !== 'none') { el.dataset.mode = 'none'; el.hidden = true; } return; }
-  el.hidden = false;
+  el.hidden = false;                 // mapping is done here, with or without a transmitter switched on
   const n = 18;   // PX4's RC input carries 18 channels at most; rows beyond what the receiver sends stay empty
   const funcs = rcKnownFuncs();
   const names = (airframe && airframe.design && airframe.design.rc_names) || {};
@@ -1897,8 +1945,8 @@ function renderRcBoard() {
     `<a href="#" id="rc-cal-start">${pv('RC_CHAN_CNT', 0) > 0 ? 'Recalibrate' : 'Calibrate'}</a>`].join(' ');
   const cs = $('#rc-cal-start'); if (cs) cs.onclick = (e) => { e.preventDefault(); rcCal = { step: 1, min: [], max: [] }; };
 }
-// The remote (indicator, channel table, mapping) is on the Connect tab, beside the link it comes in on.
-const rcVisible = () => $('#tab-connect').classList.contains('active');
+// The remote (indicator, channel table, mapping) is on the Controller tab, beside the link it comes in on.
+const rcVisible = () => $('#tab-controller').classList.contains('active');
 function renderRcLive() {
   const now = performance.now();
   if (now - rcLastRender < 80) return;
@@ -2342,24 +2390,6 @@ $('#af-takeoff').addEventListener('change', async () => {
 
 $('#motor-test-stop').addEventListener('click', () => { stopMotorTest(); $('#motor-enable').checked=false; });
 
-$('#real-flight-setup').addEventListener('click', async e => {
-  const b = e.currentTarget;
-  if (status.armed || !status.ctl_connected || !hardwareMotors()) { $('#real-flight-result').textContent='Connect a disarmed Pixhawk first.'; return; }
-  if (!confirmTwice('real-flight-setup', b, 'prepare for real flight')) return;
-  stopMotorTest(); $('#motor-enable').checked=false; b.disabled=true;
-  $('#real-flight-result').textContent='Preparing real flight… watch the log. Keep the board connected.';
-  try {
-    const r=await api('/api/firmware/real_flight', {confirmed:true});
-    $('#real-flight-result').textContent=r.ok?r.message:'Setup incomplete: '+r.error;
-    paramsLoaded=false;
-  } catch(err) { $('#real-flight-result').textContent='Setup incomplete: '+err.message; }
-  finally { b.disabled=false; b.textContent='Prepare Pixhawk for real flight'; }
-});
-$('#return-hitl').addEventListener('click', async e => {
-  if (!confirmTwice('return-hitl', e.currentTarget, 'return to HITL')) return;
-  const r=await api('/api/connection/enable_hitl', {});
-  $('#real-flight-result').textContent=r.ok?'Returning to HITL…':r.error;
-});
 
 $('#handover-mode').addEventListener('change', async e => {
   if (status.armed) return;
