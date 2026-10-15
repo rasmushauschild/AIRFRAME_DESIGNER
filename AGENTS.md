@@ -45,6 +45,9 @@ airframes/    schema-2 JSON (docs/SCHEMA.md);  scenarios/  studies/  results/ (g
   light, low-inertia airframe jitters on its legs and the fake gyro noise makes PX4's estimator refuse to arm.
 * `sim/nose_lift.py` is the pre-arm ground sequence (motor floors under PX4's commands); it is a simulator hook,
   not a PX4 feature.
+* The app's tabs are Geometry, Params, Firmware, Batch and Controller. Every section on every tab is a
+  `<details class="sec">`: the white box, its title the handle, its contents directly on it, nothing inside
+  it that is another white box. Which sections are open is the user's and is remembered.
 * Every run is recorded (`sim/recorder.py`) and kept at the next reset if it armed or left the ground, with the
   airframe and the exported parameters inside the same file. The log window plots it and scrubs the 3D view
   through it; `/api/runs/current` is the recording in progress. Adding a column means appending to `COLUMNS`
