@@ -530,7 +530,7 @@ function renderReadout() {
   el.innerHTML = `<b>${esc(r.name || 'Motor ' + (selected + 1))}</b> pos [${r.pos.map(v => fmt(v)).join(', ')}] · axis [${r.axis.map(v => fmt(v, 3)).join(', ')}] (tilt ${tilt.toFixed(1)}°, cant ${cant.toFixed(1)}°) · ${r.km >= 0 ? 'CCW' : 'CW'}${r.enabled === false ? ' · disabled' : ''}`;
 }
 $('#rotor-add').addEventListener('click', () => {
-  const base = airframe.rotors[selected] || airframe.rotors[airframe.rotors.length - 1] || { pos: [0.2, 0, 0], axis: [0, 0, -1], km: 0.05, max_thrust: 8, tau: 0.04, diameter: 0.25, thrust_exponent: 2, kind: 'prop', ram_drag: false, duct_axis: null, turn_loss: 0.1, enabled: true };
+  const base = airframe.rotors[selected] || airframe.rotors[airframe.rotors.length - 1] || { pos: [0.2, 0, 0], axis: [0, 0, -1], km: 0.05, max_thrust: 8, max_power_w: 0, tau: 0.04, diameter: 0.25, thrust_exponent: 2, enabled: true };
   const n = JSON.parse(JSON.stringify(base));
   n.pos = [n.pos[0] + 0.05, n.pos[1] + 0.05, n.pos[2]];
   n.name = 'M' + (airframe.rotors.length + 1); n.enabled = true;
@@ -550,7 +550,9 @@ $('#rotor-mirror-x').addEventListener('click', () => mirror(0));
 $('#rotor-apply-all').addEventListener('click', () => {
   if (selected < 0 || !airframe.rotors[selected]) return;
   const s = airframe.rotors[selected];
-  airframe.rotors.forEach(r => { r.max_power_w = s.max_power_w || 0; r.max_thrust = s.max_thrust; r.tau = s.tau; r.diameter = s.diameter; r.thrust_exponent = s.thrust_exponent; r.kind = s.kind; r.ram_drag = s.ram_drag; r.turn_loss = s.turn_loss; r.km = (r.km >= 0 ? 1 : -1) * Math.abs(s.km); });
+  // the motor, not the placement: thrust, power, spool, size and the strength of the reaction torque.
+  // Each rotor keeps where it is, which way it points and which way it turns.
+  airframe.rotors.forEach(r => { r.max_power_w = s.max_power_w || 0; r.max_thrust = s.max_thrust; r.tau = s.tau; r.diameter = s.diameter; r.thrust_exponent = s.thrust_exponent; r.km = (r.km >= 0 ? 1 : -1) * Math.abs(s.km); });
   setAirframe(airframe); pushAirframe(true);
 });
 
