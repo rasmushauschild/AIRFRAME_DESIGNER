@@ -54,6 +54,8 @@ class Wing:
     tip_chord: float = 0.3
     sweep_deg: float = 0.0
     dihedral_deg: float = 0.0
+    sweep_tip_deg: float | None = None      # sweep at the tip; None = the same all the way out
+    dihedral_tip_deg: float | None = None   # dihedral at the tip; None = flat panel. A real wing is often curved
     incidence_deg: float = 0.0   # section angle about the span line at the root, LE up positive
     twist_deg: float = 0.0
     pitch_deg: float = 0.0       # rigid rotation of the whole wing about the aircraft pitch axis through ``pos``, nose-up positive
@@ -63,6 +65,14 @@ class Wing:
     aero: WingAeroCoefficients = field(default_factory=WingAeroCoefficients)
 
     # ------------------------------------------------------------ planform
+    @property
+    def dih_tip_deg(self) -> float:
+        return self.dihedral_deg if self.dihedral_tip_deg is None else float(self.dihedral_tip_deg)
+
+    @property
+    def swp_tip_deg(self) -> float:
+        return self.sweep_deg if self.sweep_tip_deg is None else float(self.sweep_tip_deg)
+
     @property
     def half_span(self) -> float:
         return self.span / 2.0 if self.symmetric else self.span
@@ -109,6 +119,35 @@ class Wing:
         return w
 
 
+def span_curve(w: Wing, f: float, sd: float) -> tuple[np.ndarray, np.ndarray]:
+    """Where the span line has got to at span fraction `f`, and which way it points there.
+
+    A wing whose dihedral is the same everywhere is a flat panel, and a flat panel cannot follow a surface
+    that curves — on PORTAL's lower wing the anhedral runs from about 20° at the root to 45° at the tip, so
+    a single angle is either right at the root or right at the tip. The dihedral and the sweep therefore
+    run linearly from their root value to their tip value, and the span line is the integral of that:
+    exact closed forms, so the 3D view and the physics place the same wing in the same place.
+
+    Returns (offset from the root leading edge, unit span direction) for one half, structural frame.
+    """
+    hs = w.half_span
+    a0, a1 = math.radians(w.dihedral_deg), math.radians(w.dih_tip_deg)
+    p0, p1 = math.radians(w.sweep_deg), math.radians(w.swp_tip_deg)
+    da, dp = a1 - a0, p1 - p0
+    s = hs * f
+    a = a0 + da * f
+    if abs(da) < 1e-9:
+        y, z = s * math.cos(a0), -s * math.sin(a0)
+    else:
+        y = (hs / da) * (math.sin(a) - math.sin(a0))
+        z = (hs / da) * (math.cos(a) - math.cos(a0))
+    if abs(dp) < 1e-9:
+        x = -s * math.tan(p0)
+    else:                                   # the integral of tan is -ln|cos|
+        x = -(hs / dp) * (math.log(abs(math.cos(p0))) - math.log(abs(math.cos(p0 + dp * f))))
+    return np.array([x, sd * y, z]), np.array([0.0, sd * math.cos(a), -math.sin(a)])
+
+
 def wing_panels(w: Wing) -> dict:
     """Strip geometry of one wing as numpy arrays (all in the structural frame):
     pos (n,3) quarter-chord points, e_c (n,3) chordwise unit vectors (forward, incidence applied),
@@ -116,27 +155,26 @@ def wing_panels(w: Wing) -> dict:
     the axis a nose-up pitching moment acts about, area (n,), chord (n,), side (n,) +1 right / -1 left."""
     halves = [1.0, -1.0] if w.symmetric else [1.0]
     n = max(1, int(w.panels))
-    dih = math.radians(w.dihedral_deg)
-    swp = math.radians(w.sweep_deg)
     hs = w.half_span
     pos, e_c, e_n, e_s, pax, area, chord, side, eta = [], [], [], [], [], [], [], [], []
     root = np.asarray(w.pos, float)
     Rp = rot_y(math.radians(w.pitch_deg)) if abs(w.pitch_deg) > 1e-12 else None
+    ec0 = np.array([1.0, 0.0, 0.0])
     for sd in halves:
-        es = np.array([0.0, sd * math.cos(dih), -math.sin(dih)])
-        en0 = np.array([0.0, -sd * math.sin(dih), -math.cos(dih)])
-        ec0 = np.array([1.0, 0.0, 0.0])
-        pitch_axis = sd * es          # ~ +y for both halves: nose-up positive
         for k in range(n):
             s0, s1 = hs * k / n, hs * (k + 1) / n
             sm = 0.5 * (s0 + s1)
+            fm = sm / hs if hs > 0 else 0.0
+            off, es = span_curve(w, fm, sd)
+            pitch_axis = sd * es          # ~ +y for both halves: nose-up positive
+            en0 = np.cross(pitch_axis, ec0)   # "up" of the panel: pitch axis x chord, -z for a flat wing
             c0 = w.root_chord + (w.tip_chord - w.root_chord) * s0 / hs if hs > 0 else w.root_chord
             c1 = w.root_chord + (w.tip_chord - w.root_chord) * s1 / hs if hs > 0 else w.root_chord
             cm = 0.5 * (c0 + c1)
-            inc = math.radians(w.incidence_deg + w.twist_deg * (sm / hs if hs > 0 else 0.0))
+            inc = math.radians(w.incidence_deg + w.twist_deg * fm)
             R = rodrigues(pitch_axis, inc)
             ec, en = R @ ec0, R @ en0
-            le = root + np.array([0.0, sd * w.root_y, 0.0]) + es * sm - np.array([math.tan(swp) * sm, 0.0, 0.0])
+            le = root + np.array([0.0, sd * w.root_y, 0.0]) + off
             qc = le - ec * (cm / 4.0)
             if Rp is not None:                      # whole-wing pitch about the aircraft y axis through the root point
                 qc = root + Rp @ (qc - root); ec = Rp @ ec; en = Rp @ en
@@ -150,18 +188,15 @@ def wing_panels(w: Wing) -> dict:
 def wing_outline(w: Wing) -> list[list[list[float]]]:
     """Corner points of each half (root LE, tip LE, tip TE, root TE) for drawing, structural frame."""
     out = []
-    dih, swp = math.radians(w.dihedral_deg), math.radians(w.sweep_deg)
-    hs = w.half_span
     root = np.asarray(w.pos, float)
     Rp = rot_y(math.radians(w.pitch_deg))
     for sd in ([1.0, -1.0] if w.symmetric else [1.0]):
-        es = np.array([0.0, sd * math.cos(dih), -math.sin(dih)])
-        pitch_axis = sd * es
         pts = []
-        for s, c, inc in ((0.0, w.root_chord, w.incidence_deg), (hs, w.tip_chord, w.incidence_deg + w.twist_deg)):
-            R = rodrigues(pitch_axis, math.radians(inc))
+        for f, c, inc in ((0.0, w.root_chord, w.incidence_deg), (1.0, w.tip_chord, w.incidence_deg + w.twist_deg)):
+            off, es = span_curve(w, f, sd)
+            R = rodrigues(sd * es, math.radians(inc))
             ec = R @ np.array([1.0, 0.0, 0.0])
-            le = root + np.array([0.0, sd * w.root_y, 0.0]) + es * s - np.array([math.tan(swp) * s, 0.0, 0.0])
+            le = root + np.array([0.0, sd * w.root_y, 0.0]) + off
             le, te = root + Rp @ (le - root), root + Rp @ (le - ec * c - root)
             pts.append((le, te))
         (rle, rte), (tle, tte) = pts

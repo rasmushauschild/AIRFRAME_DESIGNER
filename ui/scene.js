@@ -4,7 +4,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { TransformControls } from 'three/addons/controls/TransformControls.js';
-import { frameOffsetForCg } from './scene_math.js';
+import { frameOffsetForCg, spanCurve, wingOutlinePoints } from './scene_math.js';
 
 export const frdToThree = (v) => new THREE.Vector3(v[0], -v[2], v[1]);
 export const threeToFrd = (v) => [v.x, v.z, -v.y];
@@ -678,22 +678,21 @@ function resampleSection(pts, n) {
 // dihedral applied, root and tip section shapes blended linearly. Returns one BufferGeometry per half (FRD -> three).
 export function wingLoft(w, rootPts, tipPts, nSpan = 10, nPts = 64) {
   const geos = [];
-  const dih = rad(w.dihedral_deg), swp = rad(w.sweep_deg);
   const sym = w.symmetric !== false;
-  const hs = sym ? (+w.span || 0) / 2 : (+w.span || 0);
   const root = new THREE.Vector3(+w.pos[0] || 0, +w.pos[1] || 0, +w.pos[2] || 0);
   const rc = +w.root_chord || 0, tc = +w.tip_chord || 0, inc0 = +w.incidence_deg || 0, tw = +w.twist_deg || 0;
   const R = resampleSection(rootPts, nPts), T = resampleSection(tipPts, nPts);
   for (const sd of (sym ? [1, -1] : [1])) {
-    const es = new THREE.Vector3(0, sd * Math.cos(dih), -Math.sin(dih));
-    const en0 = new THREE.Vector3(0, -sd * Math.sin(dih), -Math.cos(dih));      // "up" of the panel (FRD)
-    const pitchAxis = es.clone().multiplyScalar(sd);
     const verts = [];
     for (let j = 0; j <= nSpan; j++) {
-      const f = j / nSpan, s = hs * f, c = rc + (tc - rc) * f, inc = inc0 + tw * f;
+      const f = j / nSpan, c = rc + (tc - rc) * f, inc = inc0 + tw * f;
+      const sc = spanCurve(w, f, sd);
+      const off = new THREE.Vector3(...sc.off), es = new THREE.Vector3(...sc.es);
+      const pitchAxis = es.clone().multiplyScalar(sd);
+      const en0 = new THREE.Vector3().crossVectors(pitchAxis, new THREE.Vector3(1, 0, 0));   // "up" of the panel
       const ec = new THREE.Vector3(1, 0, 0).applyAxisAngle(pitchAxis, rad(inc));
       const en = en0.clone().applyAxisAngle(pitchAxis, rad(inc));
-      const le = root.clone().add(new THREE.Vector3(0, sd * (+w.root_y || 0), 0)).add(es.clone().multiplyScalar(s)).sub(new THREE.Vector3(Math.tan(swp) * s, 0, 0));
+      const le = root.clone().add(new THREE.Vector3(0, sd * (+w.root_y || 0), 0)).add(off);
       const pr = rad(w.pitch_deg || 0), yAxis = new THREE.Vector3(0, 1, 0);
       for (let k = 0; k < nPts; k++) {
         const x = R[k][0] * (1 - f) + T[k][0] * f, y = R[k][1] * (1 - f) + T[k][1] * f;
@@ -719,25 +718,6 @@ export function wingLoft(w, rootPts, tipPts, nSpan = 10, nPts = 64) {
 }
 
 export function wingOutline(w) {
-  const out = [];
-  const dih = rad(w.dihedral_deg), swp = rad(w.sweep_deg);
-  const sym = w.symmetric !== false;
-  const hs = sym ? (+w.span || 0) / 2 : (+w.span || 0);
-  const root = new THREE.Vector3(+w.pos[0] || 0, +w.pos[1] || 0, +w.pos[2] || 0);
-  const rc = +w.root_chord || 0, tc = +w.tip_chord || 0, inc0 = +w.incidence_deg || 0, tw = +w.twist_deg || 0;
-  for (const sd of (sym ? [1, -1] : [1])) {
-    const es = new THREE.Vector3(0, sd * Math.cos(dih), -Math.sin(dih));
-    const pitchAxis = es.clone().multiplyScalar(sd);
-    const pts = [];
-    for (const [s, c, inc] of [[0, rc, inc0], [hs, tc, inc0 + tw]]) {
-      const ec = new THREE.Vector3(1, 0, 0).applyAxisAngle(pitchAxis, rad(inc));
-      const le = root.clone().add(new THREE.Vector3(0, sd * (+w.root_y || 0), 0)).add(es.clone().multiplyScalar(s)).sub(new THREE.Vector3(Math.tan(swp) * s, 0, 0));
-      pts.push([le, le.clone().sub(ec.multiplyScalar(c))]);
-    }
-    const [[rle, rte], [tle, tte]] = pts;
-    const pr = rad(w.pitch_deg || 0), yAxis = new THREE.Vector3(0, 1, 0);
-    const rot = (v) => v.clone().sub(root).applyAxisAngle(yAxis, pr).add(root);   // whole-wing pitch about the root point
-    out.push([rle, tle, tte, rte].map(rot).map(v => [v.x, v.y, v.z]));
-  }
-  return out;
+  return wingOutlinePoints(w);   // shared with geometry/wings.py through ui/scene_math.js
 }
+
