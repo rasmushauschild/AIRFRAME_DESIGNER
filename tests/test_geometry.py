@@ -379,3 +379,22 @@ def test_estimate_inertia_positive(quad, plane):
         I = af.estimate_inertia()
         assert len(I) == 3 and all(v > 0 for v in I)
         assert I[2] > I[0] and I[2] > I[1]                  # a flat vehicle: yaw inertia is the largest
+
+
+def test_a_blank_design_is_empty_but_still_stands():
+    """`blank()` is what the New design option makes: nothing but a mass and legs.
+
+    The legs are the point. An aircraft with no landing gear falls through the ground as soon as the
+    simulation starts, which is a confusing thing for an empty design to do while its first rotor is being
+    placed, so the one thing a blank design is given is something to stand on.
+    """
+    from airframe_designer.geometry.airframe import blank
+    af = blank()
+    af.resolve_mass()
+    assert af.name == "New design"
+    assert af.rotors == [] and af.wings == []
+    assert len(af.active_legs()) >= 3                       # enough feet to stand on
+    assert af.mass.mass > 0 and all(v > 0 for v in af.mass.inertia)
+    assert blank("Thing").name == "Thing"
+    assert "PX4 supports 1..12 rotors, airframe has 0 enabled" in af.validate()
+    assert "fewer than 3 legs: the vehicle cannot stand" not in af.validate()

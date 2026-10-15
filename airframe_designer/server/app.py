@@ -14,7 +14,7 @@ from fastapi.responses import HTMLResponse, FileResponse, JSONResponse, PlainTex
 from fastapi.staticfiles import StaticFiles
 from starlette.concurrency import run_in_threadpool
 
-from ..geometry.airframe import Airframe, PRESETS
+from ..geometry.airframe import Airframe, PRESETS, blank
 from ..geometry.gear import generate_legs
 from ..geometry import cad as cadmod
 from ..geometry.paths import list_paths, apply_variables
@@ -284,6 +284,23 @@ def build_app(state: AppState) -> FastAPI:
         AIRFRAME_DIR.mkdir(exist_ok=True)
         sim.airframe.save(AIRFRAME_DIR / name)
         return {"ok": True, "path": str(AIRFRAME_DIR / name)}
+
+    @app.post("/api/airframe/new")
+    async def new_airframe(body: dict | None = None):
+        """Start a design from scratch, under a name that is not taken yet."""
+        base = str((body or {}).get("name") or "New design").strip() or "New design"
+        name, n = base, 1
+        while preset_path(Airframe(name=name)).exists():
+            n += 1
+            name = f"{base} {n}"
+        af = blank(name)
+        af.resolve_mass()
+        cancel_live("airframe changed")
+        sim.set_airframe(af)
+        autosave(af)
+        hc = af.hover_check()
+        state.log(f"[preset] new design {name}")
+        return json_safe({"ok": True, "airframe": af.to_dict(), "problems": af.validate() + hc["problems"], "hover": hc})
 
     @app.post("/api/airframe/delete")
     async def delete_airframe(body: dict):

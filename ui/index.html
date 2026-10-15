@@ -69,7 +69,13 @@
       </div>
       <div id="log-body"><pre id="log-pre"></pre></div>
       <div id="graph-body" hidden>
-        <div class="series-picker" id="series-picker"></div>
+        <div class="series-row">
+          <div class="series-menu">
+            <button class="pill small" id="series-btn" title="choose which traces to overlay">Data</button>
+            <div class="series-pop" id="series-pop" hidden></div>
+          </div>
+          <div class="series-legend" id="series-legend"></div>
+        </div>
         <div id="graph-plot"></div>
         <div class="scrub-row"><span class="hint num" id="scrub-label">—</span></div>
       </div>

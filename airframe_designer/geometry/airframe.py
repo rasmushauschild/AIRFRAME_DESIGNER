@@ -447,4 +447,17 @@ def plane_quad(span: float = 1.6) -> Airframe:
     return af
 
 
+def blank(name: str = "New design") -> Airframe:
+    """A design from scratch: a mass, four legs to stand on, and nothing else.
+
+    Not quite nothing, because an aircraft with no landing gear falls through the ground the moment the
+    simulation starts, which is a strange thing for an empty design to do while its first rotor is being
+    placed. The legs are the smallest thing that makes it a vehicle; everything else is for the designer.
+    """
+    af = Airframe(name=name)
+    af.legs = generate_legs(0.12, 0.10, 0.10)
+    af.mass.inertia = af.estimate_inertia()
+    return af
+
+
 PRESETS = {"quad_x": quad_x, "hex_x": hex_x, "plane_quad": plane_quad}

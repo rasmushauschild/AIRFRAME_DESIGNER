@@ -379,8 +379,9 @@ async function loadPresetList() {
   const cur = airframe ? presetFile(airframe.name) : '';
   // The closed control is a bare chevron: the name beside it already says which design is open.
   sel.innerHTML = '<option value="" hidden selected></option>'
-    + presetFiles.map(f => `<option value="${esc(f)}">${esc(f.replace(/\.json$/, ''))}${f === cur ? ' ✓' : ''}</option>`).join('')
-    + (r.presets || []).map(p => `<option value="${esc(p)}">new ${esc(p)}</option>`).join('');
+    + '<option value="__new__">New design (empty)</option>'
+    + (r.presets || []).map(p => `<option value="${esc(p)}">New ${esc(p)}</option>`).join('')
+    + presetFiles.map(f => `<option value="${esc(f)}">${esc(f.replace(/\.json$/, ''))}${f === cur ? ' ✓' : ''}</option>`).join('');
 }
 async function openDesign(name) {
   const r = await api('/api/airframe/load', { name });
@@ -393,7 +394,16 @@ $('#af-preset').addEventListener('change', async (e) => {
   const name = e.target.value;
   e.target.value = '';
   if (!name) return;
-  try { await openDesign(name); } catch (err) { logLine('[ui] load failed: ' + err.message); }
+  try {
+    if (name === '__new__') {
+      const r = await api('/api/airframe/new', {});
+      selected = -1; setAirframe(r.airframe); showProblems(r.problems); showHover(r.hover);
+      currentVersion = '';
+      await loadPresetList(); await loadVersionList();
+      logLine('[preset] new design ' + r.airframe.name + ': no rotors yet, four legs to stand on');
+      $('#af-name').focus(); $('#af-name').select();
+    } else await openDesign(name);
+  } catch (err) { logLine('[ui] load failed: ' + err.message); }
 });
 $('#af-delete').addEventListener('click', async (e) => {
   const b = e.currentTarget, cur = presetFile(airframe && airframe.name);
@@ -429,7 +439,7 @@ const nf = (v, d = 3) => (typeof v === 'number' && isFinite(v)) ? +v.toFixed(d) 
 function renderRotorTable() {
   const el = $('#rotor-table');
   const rows = airframe.rotors.map((r, i) => rotorRowHtml(i, r)).join('');
-  el.innerHTML = `<table class="grid"><thead><tr><th title="Physical PWM port: 1–8 = MAIN 1–8; 9–10 = AUX 1–2">#</th><th title="enabled: takes part in the simulation and the PX4 export">On</th><th>Name</th><th title="position, m, structural frame (FRD like PX4): X forward">X</th><th title="Y right (+)">Y</th><th title="Z DOWN (+): a rotor 10 cm above the reference point has Z = -0.10">Z</th><th title="forward lean of the thrust axis from vertical, degrees; negative = backward">Tilt°</th><th title="sideways lean, degrees; positive = outward from the centreline (right for a rotor on the centreline)">Cant°</th><th title="resulting unit thrust vector = CA_ROTORn_AX / AY / AZ">Axis AX AY AZ</th><th title="ducted fans: the fan along the thrust (jet), or a horizontal fan whose jetfoil bends the jet to the thrust axis (foil)">Duct</th><th>Spin</th><th title="max thrust N">Tmax</th><th title="share of max thrust this rotor needs to hover, as PX4's allocator would solve it">Hover</th><th></th></tr></thead><tbody>${rows || '<tr><td colspan="14" class="hint">No rotors. Add one below.</td></tr>'}</tbody></table>`;
+  el.innerHTML = `<table class="grid"><thead><tr><th title="Physical PWM port: 1–8 = MAIN 1–8; 9–10 = AUX 1–2">#</th><th title="enabled: takes part in the simulation and the PX4 export">On</th><th>Name</th><th title="position, m, structural frame (FRD like PX4): X forward">X</th><th title="Y right (+)">Y</th><th title="Z DOWN (+): a rotor 10 cm above the reference point has Z = -0.10">Z</th><th title="forward lean of the thrust axis from vertical, degrees; negative = backward">Tilt°</th><th title="sideways lean, degrees; positive = outward from the centreline (right for a rotor on the centreline)">Cant°</th><th title="resulting unit thrust vector = CA_ROTORn_AX / AY / AZ">Axis AX AY AZ</th><th title="direction of rotation; click a cell to flip it (the sign of KM)">Spin</th><th title="max thrust N">Tmax</th><th title="share of max thrust this rotor needs to hover, as PX4's allocator would solve it">Hover</th><th></th></tr></thead><tbody>${rows || '<tr><td colspan="13" class="hint">No rotors. Add one below.</td></tr>'}</tbody></table>`;
   api('/api/airframe/hover_check').then(showHover).catch(() => { });
   el.querySelectorAll('tr[data-i]').forEach(tr => {
     const i = +tr.dataset.i;
@@ -1268,11 +1278,12 @@ function drawGraph() {
   const T = 6, B = 14, L = 2, R = 2, ph = H - T - B, pw = W - L - R;
   const cursor = rowAt(data, replayT);
   const chips = {};
-  $$('#series-picker button').forEach(b => chips[b.dataset.key] = b.querySelector('b'));
+  $$('#graph-body [data-v]').forEach(el => (chips[el.dataset.v] = chips[el.dataset.v] || []).push(el));
+  const show = (key, text) => (chips[key] || []).forEach(el => el.textContent = text);
   if (rows.length < 2) {
     host.innerHTML = `<svg viewBox="0 0 ${W} ${H}"><text x="${W / 2}" y="${H / 2}" text-anchor="middle">`
       + `${shownRun ? 'this run has no samples' : 'nothing recorded yet — start the simulation'}</text></svg>`;
-    Object.values(chips).forEach(c => c.textContent = '');
+    Object.keys(chips).forEach(k => show(k, ''));
     return;
   }
   const t0 = rows[0][0], t1 = rows[rows.length - 1][0], span = Math.max(1e-6, t1 - t0);
@@ -1290,11 +1301,9 @@ function drawGraph() {
   let lines = '';
   for (const s of SERIES) {
     const ci = cols.indexOf(s.key);
-    if (ci < 0) { if (chips[s.key]) chips[s.key].textContent = ''; continue; }
-    if (chips[s.key]) {
-      const v = rows[cursor][ci];
-      chips[s.key].textContent = (Math.abs(v) >= 100 ? v.toFixed(0) : Math.abs(v) >= 10 ? v.toFixed(1) : v.toFixed(2)) + (s.unit ? ' ' + s.unit : '');
-    }
+    if (ci < 0) { show(s.key, ''); continue; }
+    const v = rows[cursor][ci];
+    show(s.key, (Math.abs(v) >= 100 ? v.toFixed(0) : Math.abs(v) >= 10 ? v.toFixed(1) : v.toFixed(2)) + (s.unit ? ' ' + s.unit : ''));
     if (!picked.has(s.key)) continue;
     // Each trace gets its own scale, since they share no unit. The scale includes zero unless the trace
     // actually moves through a good part of its own range: without that, a quantity sitting still at 0.35 m
@@ -1320,24 +1329,40 @@ function drawGraph() {
   $('#scrub-resume').hidden = replayT == null;
 }
 
+// The traces are chosen from one dropdown of checkboxes; the ones that are on are listed beside it with
+// their value at the cursor, so the row stays a single line however many are plotted.
 function buildPicker() {
-  const host = $('#series-picker');
-  host.innerHTML = '';
-  for (const s of SERIES) {
-    const b = document.createElement('button');
-    b.dataset.key = s.key;
-    b.style.setProperty('--c', s.c);
-    b.className = picked.has(s.key) ? 'on' : '';
-    b.innerHTML = `<span class="sw"></span>${esc(s.label)} <b class="num"></b>`;
-    b.title = 'show or hide this trace';
-    b.addEventListener('click', () => {
-      if (picked.has(s.key)) picked.delete(s.key); else picked.add(s.key);
-      b.classList.toggle('on', picked.has(s.key));
-      saveGraphPrefs(); drawGraph();
+  const pop = $('#series-pop');
+  pop.innerHTML = SERIES.map(s => `<label data-key="${s.key}" style="--c:${s.c}">`
+    + `<input type="checkbox" ${picked.has(s.key) ? 'checked' : ''}><i class="sw"></i>`
+    + `<span class="nm">${esc(s.label)}</span><b class="num" data-v="${esc(s.key)}"></b></label>`).join('');
+  pop.querySelectorAll('label').forEach(lab => {
+    const key = lab.dataset.key;
+    lab.querySelector('input').addEventListener('change', (e) => {
+      if (e.target.checked) picked.add(key); else picked.delete(key);
+      saveGraphPrefs(); buildLegend(); drawGraph();
     });
-    host.appendChild(b);
-  }
+  });
+  buildLegend();
 }
+function buildLegend() {
+  $('#series-btn').textContent = `Data (${picked.size})`;
+  $('#series-legend').innerHTML = SERIES.filter(s => picked.has(s.key)).map(s =>
+    `<span class="lg" style="--c:${s.c}"><i class="sw"></i>${esc(s.label)} <b class="num" data-v="${esc(s.key)}"></b></span>`).join('')
+    || '<span class="hint">no traces chosen</span>';
+}
+$('#series-btn').addEventListener('click', (e) => {
+  e.stopPropagation();
+  $('#series-pop').hidden = !$('#series-pop').hidden;
+  $('#series-btn').classList.toggle('active', !$('#series-pop').hidden);
+});
+document.addEventListener('click', (e) => {
+  if ($('#series-pop').hidden || e.target.closest('.series-menu')) return;
+  $('#series-pop').hidden = true; $('#series-btn').classList.remove('active');
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && !$('#series-pop').hidden) { $('#series-pop').hidden = true; $('#series-btn').classList.remove('active'); }
+});
 buildPicker();
 
 // Scrubbing: the slider is a clock. Everything the 3D view shows is the recorded pose at that instant.
