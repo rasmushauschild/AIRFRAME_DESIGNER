@@ -598,15 +598,13 @@ function makeAxesInset() {
       // hard into the bottom-right corner, drawn over the main scene without clearing the colour (so no
       // dark square), with the camera just far enough back that the arrows never leave the little frustum
       // whatever the view direction. three.js viewport/scissor coordinates are CSS pixels.
+      // A small box in the bottom-right corner, far enough in that the rounded corner of the panel does not
+      // cut the arrows off, and with the camera back far enough that the triad stays inside the box.
       const sz = renderer.getSize(new THREE.Vector2());
-      const size = 96;
-      const x = sz.x - size, y = 0;
+      const size = 100, margin = 6;
+      const x = sz.x - size - margin, y = margin;
       mainCam.getWorldDirection(dir);
-      cam.position.copy(dir).multiplyScalar(-4.4); cam.up.copy(mainCam.up); cam.lookAt(0, 0, 0);
-      // render the top-left part of a larger frustum, which puts the origin of the triad down in the
-      // corner instead of floating in the middle of its own little box
-      cam.setViewOffset(size * 1.55, size * 1.55, 0, 0, size, size);
-      cam.updateProjectionMatrix();
+      cam.position.copy(dir).multiplyScalar(-6.6); cam.up.copy(mainCam.up); cam.lookAt(0, 0, 0);
       const autoClear = renderer.autoClear;
       renderer.autoClear = false;
       renderer.clearDepth();
