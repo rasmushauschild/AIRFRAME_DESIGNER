@@ -213,7 +213,6 @@ function fillCadCard() {
   $('#cad-use').checked = !!airframe.mass.from_items;
   if (cad && cad.file) {
     for (const b of cad.bodies || []) if (b.pos) cadCentroids[b.id] = b.pos.map((v, i) => v - (b.offset ? b.offset[i] : 0));
-    $('#cad-filename').textContent = cad.file.replace(/^airframes\/cad\//, '');
     $('#cad-show').checked = cad.visible !== false;
     ['rx', 'ry', 'rz'].forEach((k, i) => $('#cad-' + k).value = +(+(cad.rotation_deg || [0, 0, 0])[i]).toFixed(2));
     ['ox', 'oy', 'oz'].forEach((k, i) => $('#cad-' + k).value = +(+(cad.origin || [0, 0, 0])[i]).toFixed(4));
@@ -223,7 +222,6 @@ function fillCadCard() {
     const key = cadKey(cad);
     if (key !== cadMeshKey) loadCadMesh(key);
   } else {
-    $('#cad-filename').textContent = '';
     $('#cad-frame-row').style.display = 'none';
     $('#cad-remove-all').hidden = true;
     if (cadMeshKey) { cadMeshKey = null; scene.setCad(null); }
@@ -253,7 +251,7 @@ function cadRowHtml(b, k) {
 }
 function renderCadTable() {
   const el = $('#cad-table'); const cad = airframe && airframe.cad;
-  if (!cad || !cad.file) { el.innerHTML = '<div class="hint">No CAD file</div>'; $('#cad-totals').innerHTML = ''; $('#cad-summary').textContent = ''; return; }
+  if (!cad || !cad.file) { el.innerHTML = ''; $('#cad-totals').innerHTML = ''; $('#cad-summary').textContent = ''; return; }
   const live = (cad.bodies || []).filter(b => !b.removed);
   el.innerHTML = `<table class="grid cad"><thead><tr><th>#</th><th>Body</th><th class="num" title="litres">Vol L</th><th>Mass kg</th><th title="centroid in the structural frame (x fwd, y right, z down), m: click a row to highlight the body, drag it in the 3D view along its axes">X Y Z</th><th></th></tr></thead><tbody>${live.map(cadRowHtml).join('') || '<tr><td colspan="6" class="hint">All bodies removed.</td></tr>'}</tbody></table>`;
   el.querySelectorAll('tr[data-cad]').forEach(tr => {
@@ -273,9 +271,11 @@ function renderCadTotals() {
   const live = (cad.bodies || []).filter(b => !b.removed && (+b.mass || 0) > 0);
   const removed = (cad.bodies || []).filter(b => b.removed).length;
   const m = live.reduce((a, b) => a + (+b.mass), 0);
-  let cgTxt = 'no masses yet';
-  if (m > 0) { const cg = [0, 0, 0]; for (const b of live) { const p = cadPos(b); for (let i = 0; i < 3; i++) cg[i] += p[i] * b.mass / m; } cgTxt = `CG of bodies x ${cg[0].toFixed(3)}  y ${cg[1].toFixed(3)}  z ${cg[2].toFixed(3)} m`; }
-  el.innerHTML = `<b>${m.toFixed(2)} kg</b> in ${live.length} of ${(cad.bodies || []).length - removed} bodies · ${cgTxt}${airframe.mass.from_items ? ` · <span class="ok">aircraft CG follows the bodies</span>` : ' · tick "Mass, CG & inertia from bodies" to use it'}${removed ? ` · ${removed} removed <a href="#" id="cad-restore">restore</a>` : ''}`;
+  let cgTxt = '';
+  if (m > 0) { const cg = [0, 0, 0]; for (const b of live) { const p = cadPos(b); for (let i = 0; i < 3; i++) cg[i] += p[i] * b.mass / m; } cgTxt = `CG ${cg[0].toFixed(3)}  ${cg[1].toFixed(3)}  ${cg[2].toFixed(3)} m`; }
+  el.innerHTML = `<b>${m.toFixed(2)} kg</b> · ${live.length} of ${(cad.bodies || []).length - removed} bodies${m > 0 ? ' · ' + cgTxt : ''}`
+    + `${airframe.mass.from_items ? ' · <span class="ok">the aircraft follows the bodies</span>' : ''}`
+    + `${removed ? ` · ${removed} removed <a href="#" id="cad-restore">restore</a>` : ''}`;
   const shown = (cad.bodies || []).length - removed;
   $('#cad-summary').textContent = `${cad.file.replace(/^airframes\/cad\//, '')} · ${shown} bodies${live.length ? ` (${live.length} with mass)` : ''} · ${m.toFixed(1)} kg`;
   const rs = $('#cad-restore'); if (rs) rs.addEventListener('click', (e) => { e.preventDefault(); cad.bodies.forEach(b => b.removed = false); scene.syncCad(); renderCadTable(); pushAirframe(true); });

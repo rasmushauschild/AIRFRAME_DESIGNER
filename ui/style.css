@@ -528,6 +528,11 @@ details.sec > summary .sum-spacer { flex: 1; }
 .sec-body { padding: 2px 16px 14px; display: flex; flex-direction: column; gap: 8px; }
 .sec-body > .row { margin: 0; }
 .sec-body > p { margin: 0; }
+/* A block of number fields lines up in even columns instead of wrapping into orphans. */
+.fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(92px, 1fr)); gap: 8px 10px; }
+.fields.cols-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.fields > label { min-width: 0; }
+.fields input { width: 100%; }
 .sec-body > button, .sec-body > a.pill, .sec-body > label.row { align-self: flex-start; }
 /* A container with nothing in it takes no room: an empty status line, an empty problem list and an empty
    device list used to leave a third of the box blank. */
