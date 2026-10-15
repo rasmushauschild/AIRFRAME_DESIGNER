@@ -223,22 +223,63 @@ def _mass_props(shape) -> tuple[float, np.ndarray, np.ndarray]:
     return v, c, Ic
 
 
-def _collect_solids(step_path: Path) -> list[tuple[str, object]]:
-    """[(name, TopoDS_Shape solid)] in file order, names from the STEP product structure when present."""
+def _collect_solids(step_path: Path) -> list[tuple[str, object, bool]]:
+    """[(name, shape, is_solid)] in file order, names from the STEP product structure when present.
+
+    Solids are what can be weighed. A STEP file may also carry loose surfaces — shells and faces that
+    belong to no solid — and in a CAD export of a real aircraft those are usually most of the shape: skins,
+    canopies, anything modelled as a surface. They are collected too, as bodies with no volume, because a
+    model that shows two ribs out of a whole airframe is worse than useless: it is misleading.
+    """
     try:
         from OCP.Interface import Interface_Static
     except ImportError as e:
         raise RuntimeError("STEP import needs OpenCascade: .venv/bin/pip install cadquery-ocp") from e
     from OCP.IFSelect import IFSelect_RetDone
     from OCP.TopExp import TopExp_Explorer
-    from OCP.TopAbs import TopAbs_SOLID
+    from OCP.TopAbs import TopAbs_FACE, TopAbs_SHELL, TopAbs_SOLID
     from OCP.TopoDS import TopoDS
     from OCP.STEPControl import STEPControl_Reader
     STEPControl_Reader()   # constructing a reader registers the STEP statics; only then can the unit be set
     if not Interface_Static.SetCVal_s("xstep.cascade.unit", "M"):   # lengths in metres whatever the file's unit
         raise RuntimeError("cannot set the STEP length unit")
 
-    solids: list[tuple[str, object]] = []
+    solids: list[tuple[str, object, bool]] = []
+
+    def take(shape, name):
+        """Every solid in this shape, then every shell and face that no solid of it contains."""
+        inside = set()
+        ex = TopExp_Explorer(shape, TopAbs_SOLID)
+        n0 = len(solids)
+        while ex.More():
+            sol = TopoDS.Solid(ex.Current())
+            solids.append((name or f"body {len(solids) + 1}", sol, True))
+            for kind in (TopAbs_SHELL, TopAbs_FACE):
+                sub = TopExp_Explorer(sol, kind)
+                while sub.More():
+                    inside.add(sub.Current().TShape())
+                    sub.Next()
+            ex.Next()
+        loose = []
+        ex = TopExp_Explorer(shape, TopAbs_SHELL)
+        while ex.More():
+            sh = ex.Current()
+            if sh.TShape() not in inside:
+                loose.append(TopoDS.Shell(sh))
+                sub = TopExp_Explorer(sh, TopAbs_FACE)
+                while sub.More():
+                    inside.add(sub.Current().TShape())
+                    sub.Next()
+            ex.Next()
+        ex = TopExp_Explorer(shape, TopAbs_FACE)
+        while ex.More():
+            if ex.Current().TShape() not in inside:
+                loose.append(TopoDS.Face(ex.Current()))
+            ex.Next()
+        for k, sh in enumerate(loose):
+            base = name or "surface"
+            solids.append((base if len(loose) == 1 and len(solids) == n0 else f"{base} surface {k + 1}", sh, False))
+
     try:
         from OCP.STEPCAFControl import STEPCAFControl_Reader
         from OCP.TDocStd import TDocStd_Document
@@ -272,13 +313,7 @@ def _collect_solids(step_path: Path) -> list[tuple[str, object]]:
             shape = st.GetShape_s(label)
             if shape.IsNull():
                 return
-            shape = shape.Moved(loc)
-            ex = TopExp_Explorer(shape, TopAbs_SOLID)
-            k = 0
-            while ex.More():
-                k += 1
-                solids.append((name or f"body {len(solids) + 1}", TopoDS.Solid(ex.Current())))
-                ex.Next()
+            take(shape.Moved(loc), name)
 
         from OCP.TopLoc import TopLoc_Location
         free = TDF_LabelSequence()
@@ -295,17 +330,13 @@ def _collect_solids(step_path: Path) -> list[tuple[str, object]]:
         if reader.ReadFile(str(step_path)) != IFSelect_RetDone:
             raise RuntimeError(f"cannot read STEP file {step_path.name}")
         reader.TransferRoots()
-        shape = reader.OneShape()
-        ex = TopExp_Explorer(shape, TopAbs_SOLID)
-        while ex.More():
-            solids.append((f"body {len(solids) + 1}", TopoDS.Solid(ex.Current())))
-            ex.Next()
+        take(reader.OneShape(), "")
     # de-duplicate names so ids stay unique and readable
     seen: dict[str, int] = {}
     out = []
-    for name, s in solids:
+    for name, s, is_solid in solids:
         seen[name] = seen.get(name, 0) + 1
-        out.append((name if seen[name] == 1 else f"{name} ({seen[name]})", s))
+        out.append((name if seen[name] == 1 else f"{name} ({seen[name]})", s, is_solid))
     return out
 
 
@@ -325,28 +356,34 @@ def import_step(step_path: str | Path, log=None) -> dict:
             pass
     solids = _collect_solids(step_path)
     if not solids:
-        raise RuntimeError(f"{step_path.name} contains no solids (surfaces only?)")
+        raise RuntimeError(f"{step_path.name} contains nothing that can be drawn")
     # a common tessellation tolerance: 0.15 % of the whole model's diagonal
     from OCP.Bnd import Bnd_Box
     from OCP.BRepBndLib import BRepBndLib
     box = Bnd_Box()
-    for _, s in solids:
+    for _, s, _solid in solids:
         BRepBndLib.Add_s(s, box, False)
     cmin, cmax = box.CornerMin(), box.CornerMax()
     xmin, ymin, zmin, xmax, ymax, zmax = cmin.X(), cmin.Y(), cmin.Z(), cmax.X(), cmax.Y(), cmax.Z()
     diag = float(np.hypot(np.hypot(xmax - xmin, ymax - ymin), zmax - zmin)) or 1.0
     deflection = max(2e-4, 0.0015 * diag)
     bodies = []
-    for k, (name, s) in enumerate(solids):
-        v, c, Ic = _mass_props(s)
+    for k, (name, s, is_solid) in enumerate(solids):
         verts, tris = _mesh_shape(s, deflection)
+        if is_solid:
+            v, c, Ic = _mass_props(s)
+            inertia = [float(Ic[0, 0]), float(Ic[1, 1]), float(Ic[2, 2]), float(-Ic[0, 1]), float(-Ic[0, 2]), float(-Ic[1, 2])]
+        else:       # a surface encloses nothing: no volume, so no mass, and its centre is the mesh's own
+            v, inertia = 0.0, [0.0] * 6
+            c = (verts.min(axis=0) + verts.max(axis=0)) / 2 if len(verts) else np.zeros(3)
         bodies.append({
             "id": f"{k}:{name}", "name": name, "volume": v, "centroid": [float(x) for x in c],
-            "inertia_unit": [float(Ic[0, 0]), float(Ic[1, 1]), float(Ic[2, 2]), float(-Ic[0, 1]), float(-Ic[0, 2]), float(-Ic[1, 2])],
+            "inertia_unit": inertia,
             "vertices": [round(float(x), 6) for x in verts.ravel()], "indices": [int(x) for x in tris.ravel()],
         })
         if log:
-            log(f"[cad] {name}: {v * 1e3:.3f} L, centroid {np.round(c, 4).tolist()}, {len(tris)} triangles")
+            log(f"[cad] {name}: {f'{v * 1e3:.3f} L' if is_solid else 'surface'}, "
+                f"centre {np.round(c, 4).tolist()}, {len(tris)} triangles")
     out = {"file": step_path.name, "sha1": sha, "bounds": [xmin, ymin, zmin, xmax, ymax, zmax], "bodies": bodies}
     cp.write_text(json.dumps(out))
     return out

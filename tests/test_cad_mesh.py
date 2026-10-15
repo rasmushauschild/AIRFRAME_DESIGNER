@@ -137,3 +137,43 @@ def test_an_empty_mesh_is_refused(tmp_path):
     p.write_text("# nothing here\n")
     with pytest.raises(RuntimeError):
         import_mesh(p)
+
+
+def test_a_step_surface_is_imported_as_a_body_with_no_volume(tmp_path):
+    """A CAD export of an aircraft is mostly surfaces: skins, canopies, anything not modelled as a solid.
+
+    They used to be dropped, so a file with two ribs and three skin surfaces imported as two ribs — a
+    picture of an aircraft with most of the aircraft missing. They come in as bodies with no volume, which
+    is what keeps them out of the mass.
+    """
+    from OCP.BRepBuilderAPI import BRepBuilderAPI_MakeFace
+    from OCP.BRepPrimAPI import BRepPrimAPI_MakeBox
+    from OCP.gp import gp_Pnt, gp_Pln, gp_Dir, gp_Ax3
+    from OCP.STEPControl import STEPControl_Writer, STEPControl_AsIs
+    from OCP.Interface import Interface_Static
+    from airframe_designer.geometry.cad import import_step, model_from_import
+
+    Interface_Static.SetCVal_s("write.step.unit", "M")       # metres in, metres out: the units are not the point here
+    face = BRepBuilderAPI_MakeFace(gp_Pln(gp_Ax3(gp_Pnt(0, 0, 0.5), gp_Dir(0, 0, 1))),
+                                   -0.5, 0.5, -0.25, 0.25).Face()
+    box = BRepPrimAPI_MakeBox(gp_Pnt(-0.1, -0.1, -0.1), gp_Pnt(0.1, 0.1, 0.1)).Shape()
+    w = STEPControl_Writer()
+    for shape in (box, face):
+        w.Transfer(shape, STEPControl_AsIs)
+    p = tmp_path / "solid_and_surface.step"
+    w.Write(str(p))
+
+    d = import_step(p)
+    solid = [b for b in d["bodies"] if b["volume"] > 0]
+    surface = [b for b in d["bodies"] if b["volume"] == 0]
+    assert len(solid) == 1 and len(surface) == 1, [b["name"] for b in d["bodies"]]
+    assert solid[0]["volume"] == pytest.approx(0.008, rel=1e-6)        # a 200 mm cube
+    assert len(surface[0]["indices"]) >= 6                              # it is drawn
+    assert surface[0]["centroid"] == pytest.approx([0.0, 0.0, 0.5], abs=1e-6)
+    assert np.allclose(surface[0]["inertia_unit"], 0.0)
+
+    model = model_from_import(d, "x.step")
+    model.bodies[0].mass = 3.0
+    model.bodies[1].mass = 3.0                                          # a mass typed onto the surface
+    assert len(model.mass_items()) == 1                                 # only the solid carries it
+    assert model.totals()["mass"] == pytest.approx(3.0)
