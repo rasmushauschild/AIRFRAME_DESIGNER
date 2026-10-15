@@ -96,7 +96,7 @@
       <button data-tab="airframe" class="active">Geometry</button>
       <button data-tab="px4">Params</button>
       <button data-tab="firmware">Firmware</button>
-      <button data-tab="batch">Batch</button>
+      <button data-tab="mission">Mission</button>
       <button data-tab="controller">Controller</button>
     </nav>
     <div class="panel-body">
@@ -293,9 +293,43 @@
 
     <!-- ============================ DESIGN / OPTIMIZE ============================ -->
     <!-- ============================ BATCH ============================ -->
-    <section id="tab-batch" class="tab">
+    <section id="tab-mission" class="tab">
+      <details class="sec" id="sec-takeoff-landing" open>
+        <summary>Takeoff and landing <span class="sum-spacer"></span><span class="hint" id="tl-now"></span></summary>
+        <div class="sec-body">
+          <div class="fields cols-4">
+            <label title="what the Takeoff button does">Takeoff
+              <select id="tl-takeoff">
+                <option value="nose_lift">Nose-lift sequence</option>
+                <option value="auto">PX4 auto takeoff</option>
+              </select></label>
+            <label title="MIS_TAKEOFF_ALT: the height PX4 climbs to on an auto takeoff">Height m <input id="tl-alt" type="number" step="0.5" min="0.5"></label>
+            <label title="MPC_TKO_SPEED: how fast it climbs away">Climb m/s <input id="tl-climb" type="number" step="0.1" min="0.1"></label>
+            <label title="NLF_TARGET: the nose-up angle the ground sequence raises to before it lifts off">Nose target° <input id="tl-nose" type="number" step="1"></label>
+          </div>
+          <div class="fields cols-4">
+            <label title="what the Land button does">Landing
+              <select id="tl-land">
+                <option value="nose_lift">Nose-lift sequence</option>
+                <option value="auto">PX4 land</option>
+              </select></label>
+            <label title="MPC_LAND_SPEED: descent rate for the final approach">Descend m/s <input id="tl-descend" type="number" step="0.1" min="0.1"></label>
+            <label title="COM_DISARM_LAND: seconds on the ground before PX4 disarms itself (0 = never)">Disarm after s <input id="tl-disarm" type="number" step="0.5" min="0"></label>
+          </div>
+          <div class="fields cols-4">
+            <label title="NLF_PILOT: who flies once the nose is up">After the nose lift
+              <select id="handover-mode">
+                <option value="0">PX4 position hold (needs GPS)</option>
+                <option value="1">Pilot throttle, Stabilized (no GPS)</option>
+                <option value="2">Pilot throttle, Altitude mode (no GPS)</option>
+              </select></label>
+            <label class="row" style="align-self:end;padding-bottom:6px" title="NLF_RC_THR: the first press raises the nose under RC throttle, the second climbs away"><input id="staged-rc-takeoff" type="checkbox"> Two-stage RC throttle</label>
+          </div>
+          <div class="hint" id="tl-note"></div>
+        </div>
+      </details>
       <details class="sec" id="sec-batch" open>
-        <summary>Batch</summary>
+        <summary>Actions</summary>
         <div class="sec-body">
         <div class="row tight">
           <select id="ba-kind" style="flex:1">
@@ -314,7 +348,7 @@
           <label>Workers <input id="ba-workers" type="number" min="1" max="8" value="4" style="width:60px"></label>
           <div class="panel-spacer"></div>
           <button class="pill small" id="ba-clear">Clear</button>
-          <button class="pill small primary" id="ba-run">Run batch</button>
+          <button class="pill small primary" id="ba-run">Run</button>
         </div>
         </div>
       </details>
@@ -339,20 +373,6 @@
         </div>
       </details>
 
-      <details class="sec" id="sec-ground-sequence" open>
-        <summary>Ground sequence</summary>
-        <div class="sec-body">
-        <div class="row">
-          <label style="flex:1">After the nose lift
-            <select id="handover-mode">
-              <option value="0">PX4 position hold (needs GPS)</option>
-              <option value="1">Pilot throttle, Stabilized (no GPS)</option>
-              <option value="2">Pilot throttle, Altitude mode (no GPS)</option>
-            </select></label>
-          <label class="row" style="align-self:end;padding-bottom:6px"><input id="staged-rc-takeoff" type="checkbox"> Two-stage RC throttle</label>
-        </div>
-        </div>
-      </details>
       <details class="sec" id="sec-modules" open>
         <summary>Modules</summary>
         <div class="sec-body">

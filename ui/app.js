@@ -61,7 +61,7 @@ $$('.tabs button').forEach(b => b.addEventListener('click', () => {
   if (b.dataset.tab === 'airframe') loadExport();
   if (b.dataset.tab === 'px4') { ensureParams(); loadExport(); }
   if (b.dataset.tab === 'controller') { refreshConnection(); ensureParams(); renderRcLive(); renderModeButtons(); }
-  if (b.dataset.tab === 'batch') refreshBatch();
+  if (b.dataset.tab === 'mission') { refreshBatch(); ensureParams().then(fillTakeoffLanding).catch(() => { }); fillTakeoffLanding(); }
   if (b.dataset.tab === 'firmware') refreshFirmware();
 }));
 function openTab(name) { $$('.tabs button').find(b => b.dataset.tab === name)?.click(); }
@@ -168,6 +168,7 @@ function setAirframe(af) {
   renderMotorSliders();
   fillMotorCard();
   fillCadCard();
+  fillTakeoffLanding();
   loadExport();          // fills the edited/affected-parameters section (needs the server's export view)
 }
 function fillMassCard() {
@@ -1082,9 +1083,112 @@ $('#param-meta-fetch').addEventListener('click', async () => {
 });
 
 // ============================================================ flight / sim
+// ============================================================ takeoff and landing
+// What the two buttons do is a choice, kept with the design: the nose-lift ground sequence in the
+// firmware, or PX4's own auto takeoff and land. The numbers beside it are the PX4 parameters those use,
+// edited here as overrides so they travel with the airframe and go out with the next Update PX4.
+const TL_PARAMS = { 'tl-alt': 'MIS_TAKEOFF_ALT', 'tl-climb': 'MPC_TKO_SPEED', 'tl-nose': 'NLF_TARGET',
+                    'tl-descend': 'MPC_LAND_SPEED', 'tl-disarm': 'COM_DISARM_LAND' };
+const flightPlan = () => ((airframe && (airframe.design ||= {})).flight ||= {});
+function takeoffMode() {
+  const f = (airframe && airframe.design && airframe.design.flight) || {};
+  return f.takeoff || (nativeModuleActive() ? 'nose_lift' : 'auto');
+}
+function landMode() {
+  const f = (airframe && airframe.design && airframe.design.flight) || {};
+  return f.land || (nativeModuleActive() ? 'nose_lift' : 'auto');
+}
+function paramNow(name, fallback) {
+  const v = airframe?.px4_overrides?.[name] ?? params[name]?.value;
+  return v === undefined || v === null ? fallback : v;
+}
+// The module is in the firmware (its parameters are there) even when it is switched off; that is a
+// different thing from a firmware that never had it, and the section says which.
+const noseLiftPresent = () => ('NLF_TARGET' in params) || ('NLF_ENABLE' in params)
+  || ('NLF_ENABLE' in ((airframe && airframe.px4_overrides) || {}));
+function fillTakeoffLanding() {
+  if (!airframe || !$('#tl-takeoff')) return;
+  const native = noseLiftPresent();
+  for (const [id, name] of Object.entries(TL_PARAMS)) {
+    const el = $('#' + id);
+    if (document.activeElement !== el) el.value = nf(paramNow(name, ''), 3);
+    el.disabled = !!status.armed;
+  }
+  for (const [id, get] of [['tl-takeoff', takeoffMode], ['tl-land', landMode]]) {
+    const el = $('#' + id);
+    if (document.activeElement !== el) el.value = get();
+    el.querySelector('option[value="nose_lift"]').disabled = !native;
+  }
+  $('#tl-nose').disabled = !!status.armed || takeoffMode() !== 'nose_lift';
+  $('#tl-alt').disabled = $('#tl-climb').disabled = !!status.armed || takeoffMode() !== 'auto';
+  $('#tl-descend').disabled = !!status.armed || landMode() !== 'auto';
+  $('#tl-now').textContent = `${takeoffMode() === 'nose_lift' ? 'nose lift' : 'PX4 auto'} up, `
+    + `${landMode() === 'nose_lift' ? 'nose lift' : 'PX4'} down`;
+  const on = nativeModuleActive();
+  $('#tl-note').textContent = !native
+    ? 'This firmware has no nose-lift module, so only PX4\'s own takeoff and landing are available.'
+    : (takeoffMode() === 'nose_lift' || landMode() === 'nose_lift') && !on
+      ? 'The nose-lift sequence is switched off on the vehicle (NLF_ENABLE = 0). Update PX4 to turn it on.'
+      : 'Saved with the design; Update PX4 writes these to the flight controller.';
+}
+$$('#tl-takeoff, #tl-land').forEach(sel => sel.addEventListener('change', async (e) => {
+  // Write both, so picking one does not quietly move the other when the module's switch changes with it.
+  const plan = flightPlan();
+  plan.takeoff = takeoffMode(); plan.land = landMode();
+  plan[e.target.id === 'tl-takeoff' ? 'takeoff' : 'land'] = e.target.value;
+  // Choosing the sequence is choosing to run it: the module's own switch follows the choice.
+  if (noseLiftPresent()) {
+    const want = (takeoffMode() === 'nose_lift' || landMode() === 'nose_lift') ? 1 : 0;
+    if (+paramNow('NLF_ENABLE', 0) !== want) {
+      try {
+        await api('/api/airframe/override', { name: 'NLF_ENABLE', value: want });
+        airframe.px4_overrides.NLF_ENABLE = want;
+        if (status.ctl_connected && !status.armed) await api('/api/params/set', { name: 'NLF_ENABLE', value: want }).catch(() => { });
+        logLine('[flight] NLF_ENABLE = ' + want);
+      } catch (err) { logLine('[flight] ' + err.message); }
+    }
+  }
+  fillTakeoffLanding(); pushAirframe(true); renderOverrides();
+}));
+$$('#tl-alt, #tl-climb, #tl-nose, #tl-descend, #tl-disarm').forEach(inp => inp.addEventListener('change', async (e) => {
+  const name = TL_PARAMS[e.target.id];
+  const value = parseFloat(e.target.value);
+  if (!isFinite(value)) return;
+  try {
+    await api('/api/airframe/override', { name, value });
+    airframe.px4_overrides[name] = value;
+    if (status.ctl_connected && !status.armed) await api('/api/params/set', { name, value }).catch(() => { });
+    markDirty();
+    logLine(`[flight] ${name} = ${value}`);
+  } catch (err) { logLine('[flight] ' + err.message); }
+  renderOverrides();
+}));
+
+// Arm and Takeoff lost their handlers when the Flight tab went: the footer kept labelling and enabling two
+// buttons that did nothing at all when pressed.
+$('#btn-arm').addEventListener('click', async () => {
+  try { await api('/api/px4/command', status.armed ? { command: 'kill' } : { command: 'arm' }); }
+  catch (e) { logLine('[ui] ' + e.message); }
+});
+$('#btn-takeoff').addEventListener('click', async () => {
+  const b = $('#btn-takeoff');
+  b.disabled = true;
+  try {
+    if (takeoffMode() === 'nose_lift') {
+      await api('/api/px4/command', { command: 'nose_lift_takeoff' });
+      logLine('[ui] takeoff: the nose-lift module has it');
+    } else {
+      if (!status.armed) await api('/api/px4/command', { command: 'arm' });
+      await api('/api/px4/command', { command: 'takeoff' });
+      logLine('[ui] takeoff: PX4 auto takeoff to MIS_TAKEOFF_ALT');
+    }
+  } catch (e) { logLine('[ui] takeoff: ' + e.message); }
+  b.disabled = false;
+});
+
 $$('#btn-land').forEach(b => b.addEventListener('click', async () => {
   try {
-    if (b.dataset.mode === 'land' && nativeModuleActive()) {
+    if (b.dataset.mode === 'land' && landMode() === 'nose_lift') {
       await api('/api/px4/command', { command: 'nose_lift_land' });
       return;
     }
@@ -1263,8 +1367,11 @@ function applyStatus(s) {
   if (s.params_session !== undefined && s.params_session !== paramsSession) {   // board (re)connected or reflashed: forget the old list
     paramsSession = s.params_session; paramsLoaded = false; params = {};
   }
-  if (s.params_loaded && s.param_count && s.params_loaded >= s.param_count && !paramsLoaded && (hardwareMotors() || rcVisible() || $('#tab-px4').classList.contains('active'))) ensureParams();
+  if (s.params_loaded && s.param_count && s.params_loaded >= s.param_count && !paramsLoaded
+      && (hardwareMotors() || rcVisible() || $('#tab-px4').classList.contains('active') || $('#tab-mission').classList.contains('active')))
+    ensureParams().then(fillTakeoffLanding).catch(() => { });
   if (rcVisible()) renderModeButtons();
+  if ($('#tab-mission').classList.contains('active')) fillTakeoffLanding();
   updateFooter();
 }
 const effectiveMax = (r) => (r.enabled === false ? 0 : r.max_thrust);
@@ -2406,7 +2513,7 @@ const jobsOpen = new Set();
 const mnum = (v, d = 2) => (v == null || !isFinite(v)) ? '—' : (+v).toFixed(d);
 async function refreshBatch() {
   clearTimeout(batchTimer);
-  if (!$('#tab-batch').classList.contains('active')) return;
+  if (!$('#tab-mission').classList.contains('active')) return;
   if (!scenariosCache) {
     try { scenariosCache = (await api('/api/scenarios')).scenarios || []; } catch { scenariosCache = []; }
   }
@@ -2415,7 +2522,7 @@ async function refreshBatch() {
 async function pollJobs() {
   try { const r = await api('/api/batch/jobs'); lastJobs = r; renderJobs(r); } catch (e) { }
   clearTimeout(batchTimer);
-  if ($('#tab-batch').classList.contains('active')) batchTimer = setTimeout(pollJobs, 1500);
+  if ($('#tab-mission').classList.contains('active')) batchTimer = setTimeout(pollJobs, 1500);
 }
 function renderJobs(r) {
   const jobs = r.jobs || [];
