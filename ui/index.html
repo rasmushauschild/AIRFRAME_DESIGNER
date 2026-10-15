@@ -18,9 +18,6 @@
     <section class="panel view">
       <div class="panel-head">
         <div class="panel-title">Airframe</div>
-        <input id="af-name" type="text" class="name-input" title="preset name; every change on every tab is saved to it automatically" spellcheck="false">
-        <button class="pill" id="af-push" title="push this preset to GitHub as a new version: geometry, every parameter, and the firmware sources">Push version</button>
-        <span id="af-saved" class="hint saved-mark"></span>
         <div class="panel-spacer"></div>
         <button class="pill" id="btn-reset" title="Start clean: force-disarm, vehicle back on the ground, and PX4 rebooted (HITL) or relaunched (SITL)">Reset</button>
         <button class="pill" id="btn-pause">Pause</button>
@@ -63,6 +60,7 @@
         <span class="panel-spacer"></span>
         <select id="run-pick" class="preset-select" title="a saved run; pick one to scrub through it"><option value="">Live</option></select>
         <input id="run-name" type="text" class="run-name" hidden maxlength="60" placeholder="name this run">
+        <button class="pill small primary" id="scrub-resume" hidden title="leave the recording and let the simulation run again">Resume</button>
         <button class="pill small" id="run-save" title="keep this run with the airframe and parameters that produced it">Keep run</button>
         <button class="pill small" id="run-rename" title="rename the selected run" hidden>Rename</button>
         <button class="pill small danger" id="run-delete" title="delete the selected run" hidden>Delete</button>
@@ -73,10 +71,7 @@
       <div id="graph-body" hidden>
         <div class="series-picker" id="series-picker"></div>
         <div id="graph-plot"></div>
-        <div class="scrub-row">
-          <input type="range" id="scrub" min="0" max="1000" value="1000" step="1" title="drag to move the 3D view through the run">
-          <span class="hint num" id="scrub-label">—</span>
-        </div>
+        <div class="scrub-row"><span class="hint num" id="scrub-label">—</span></div>
       </div>
     </section>
   </div>
@@ -84,8 +79,12 @@
   <div class="vresizer" id="resize-side" title="Drag to resize"></div>
   <aside class="panel side" id="side">
     <div class="preset-bar">
-      <select id="af-preset" class="preset-select" title="load a preset"><option value="">Load…</option></select>
-      <select id="af-version" class="preset-select" title="versions of this preset pushed to GitHub"><option value="">Versions…</option></select>
+      <input id="af-name" type="text" class="name-input" title="the design's name; every change on every tab is saved to it automatically" spellcheck="false">
+      <select id="af-preset" class="preset-select pick" title="open another design"></select>
+      <select id="af-version" class="preset-select" title="versions of this design pushed to GitHub"></select>
+      <button class="pill small" id="af-push" title="push this design to GitHub as a new version: geometry, every parameter, and the firmware sources">Push version</button>
+      <button class="pill small danger" id="af-delete" title="delete this design (the app opens another one first)">Delete</button>
+      <span id="af-saved" class="hint saved-mark"></span>
     </div>
     <nav class="tabs">
       <button data-tab="airframe" class="active">Geometry</button>

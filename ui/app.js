@@ -72,9 +72,11 @@ function confirmArmed(key) { return (confirmArm.get(key) || 0) > Date.now(); }
 function confirmTwice(key, btn, label) {
   if (confirmArmed(key)) { confirmArm.delete(key); btn.classList.remove('confirm'); return true; }
   confirmArm.set(key, Date.now() + 8000);
-  btn.dataset.label = btn.dataset.label || btn.textContent;
-  btn.textContent = 'Really ' + label + '?'; btn.classList.add('confirm');
-  setTimeout(() => { if (!confirmArmed(key)) { confirmArm.delete(key); if (document.body.contains(btn)) { btn.textContent = btn.dataset.label; btn.classList.remove('confirm'); } } }, 8100);
+  if (btn.tagName === 'BUTTON') {
+    btn.dataset.label = btn.dataset.label || btn.textContent;
+    btn.textContent = 'Really ' + label + '?'; btn.classList.add('confirm');
+  } else markSaved('Really ' + label + '? Choose it again', 8000);
+  setTimeout(() => { if (!confirmArmed(key)) { confirmArm.delete(key); if (btn.tagName === 'BUTTON' && document.body.contains(btn)) { btn.textContent = btn.dataset.label; btn.classList.remove('confirm'); } } }, 8100);
   return false;
 }
 
@@ -357,29 +359,54 @@ $('#af-estimate').addEventListener('click', async () => {
 // There is no Save button. Every accepted edit, on any tab, is written straight back to the preset file by
 // the server; this just shows that it happened, so "saved" is a fact on screen rather than a thing to remember.
 let savedMarkTimer = null;
-function markSaved() {
+function markSaved(text = 'saved', ms = 1200) {
   const el = $('#af-saved');
   if (!el) return;
-  el.textContent = 'saved';
+  el.textContent = text;
   el.classList.add('on');
   clearTimeout(savedMarkTimer);
-  savedMarkTimer = setTimeout(() => el.classList.remove('on'), 1200);
+  savedMarkTimer = setTimeout(() => el.classList.remove('on'), ms);
 }
 
+// Which file a design is kept in: the same slug the server uses for autosave (server/app.py preset_path).
+const presetFile = (name) => (String(name || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '')
+  || 'untitled') + '.json';
+let presetFiles = [], currentVersion = '';
 async function loadPresetList() {
   const r = await api('/api/airframes');
+  presetFiles = r.files || [];
   const sel = $('#af-preset');
-  sel.innerHTML = '<option value="">Choose…</option>' +
-    r.files.map(f => `<option value="${f}">${f.replace(/\.json$/, '')}</option>`).join('') +
-    r.presets.map(p => `<option value="${p}">built-in ${p}</option>`).join('');
+  const cur = airframe ? presetFile(airframe.name) : '';
+  // The closed control is a bare chevron: the name beside it already says which design is open.
+  sel.innerHTML = '<option value="" hidden selected></option>'
+    + presetFiles.map(f => `<option value="${esc(f)}">${esc(f.replace(/\.json$/, ''))}${f === cur ? ' ✓' : ''}</option>`).join('')
+    + (r.presets || []).map(p => `<option value="${esc(p)}">new ${esc(p)}</option>`).join('');
+}
+async function openDesign(name) {
+  const r = await api('/api/airframe/load', { name });
+  selected = -1; setAirframe(r.airframe); showProblems(r.problems); showHover(r.hover);
+  currentVersion = '';
+  await loadPresetList(); await loadVersionList();
+  return r;
 }
 $('#af-preset').addEventListener('change', async (e) => {
-  if (!e.target.value) return;
-  try {
-    const r = await api('/api/airframe/load', { name: e.target.value });
-    selected = -1; setAirframe(r.airframe); showProblems(r.problems); showHover(r.hover);
-  } catch (err) { logLine('[ui] load failed: ' + err.message); }
+  const name = e.target.value;
   e.target.value = '';
+  if (!name) return;
+  try { await openDesign(name); } catch (err) { logLine('[ui] load failed: ' + err.message); }
+});
+$('#af-delete').addEventListener('click', async (e) => {
+  const b = e.currentTarget, cur = presetFile(airframe && airframe.name);
+  const next = presetFiles.find(f => f !== cur);
+  if (!next) { logLine('[preset] this is the only design there is; make another one before deleting it.'); return; }
+  if (!presetFiles.includes(cur)) { logLine('[preset] this design has no file of its own yet.'); return; }
+  if (!confirmTwice('af-delete', b, 'delete ' + (airframe.name || cur))) return;
+  try {
+    await openDesign(next);                      // step off it first: autosave would write a deleted file back
+    await api('/api/airframe/delete', { name: cur });
+    logLine('[preset] deleted ' + cur);
+    await loadPresetList();
+  } catch (err) { logLine('[preset] ' + err.message); }
 });
 
 // --- rotor helpers: axis <-> tilt/direction
@@ -1289,7 +1316,8 @@ function drawGraph() {
   const cur = replayT == null ? '' : `<line class="cursor" x1="${cx}" y1="${T}" x2="${cx}" y2="${T + ph}"/>`;
   host.innerHTML = `<svg viewBox="0 0 ${W} ${H}">${g}${lines}${cur}</svg>`;
   $('#scrub-label').textContent = `${pad(rows[cursor][0], 1, 6)} / ${t1.toFixed(1)} s`
-    + (replayT == null ? ' · live' : '');
+    + (replayT == null ? ' · live' : ' · scrubbed, the 3D view is at this instant');
+  $('#scrub-resume').hidden = replayT == null;
 }
 
 function buildPicker() {
@@ -1322,13 +1350,38 @@ function applyReplay() {
   scene.updateState({ pos: [r[i('n')], r[i('e')], r[i('d')]], q: [r[i('qw')], r[i('qx')], r[i('qy')], r[i('qz')]],
                       forces: {}, rotors: [] });
 }
-$('#scrub').addEventListener('input', (e) => {
+// Dragging anywhere on the plot moves the aircraft to that instant. The simulation stops while you are in
+// the recording — a 3D view that is partly a replay and partly live would be a lie — and Resume starts it again.
+let pausedByScrub = false;
+function scrubTo(clientX) {
   const data = runData(), rows = data.rows || [];
   if (rows.length < 2) return;
-  const f = +e.target.value / 1000;
+  const box = $('#graph-plot').getBoundingClientRect();
+  const f = Math.max(0, Math.min(1, (clientX - box.left - 2) / Math.max(1, box.width - 4)));
   const t0 = rows[0][0], t1 = rows[rows.length - 1][0];
-  replayT = f >= 0.999 && !shownRun ? null : t0 + f * (t1 - t0);
+  replayT = t0 + f * (t1 - t0);
   applyReplay(); drawGraph();
+}
+$('#graph-plot').addEventListener('pointerdown', async (e) => {
+  const rows = (runData().rows || []);
+  if (rows.length < 2) return;
+  e.preventDefault();
+  $('#graph-plot').setPointerCapture(e.pointerId);
+  if (!shownRun && !status.paused && !pausedByScrub) {
+    pausedByScrub = true;
+    api('/api/sim/pause', { paused: true }).catch(err => logLine('[ui] ' + err.message));
+  }
+  scrubTo(e.clientX);
+});
+$('#graph-plot').addEventListener('pointermove', (e) => { if (e.buttons & 1) scrubTo(e.clientX); });
+$('#scrub-resume').addEventListener('click', async () => {
+  replayT = null;
+  if (shownRun) await selectRun('');            // a kept run has no "now" to go back to: return to the live one
+  if (pausedByScrub) {
+    pausedByScrub = false;
+    try { await api('/api/sim/pause', { paused: false }); } catch (err) { logLine('[ui] ' + err.message); }
+  }
+  drawGraph();
 });
 
 function showGraph(on) {
@@ -1346,7 +1399,10 @@ function showGraph(on) {
     clearInterval(graphTimer);
     const tick = async () => {
       if (!graphOn) return;
-      if (!shownRun) { await pollLive(); if (replayT == null) $('#scrub').value = 1000; }
+      // Pause was released somewhere else (the button over the 3D view): the recording is no longer where
+      // the aircraft is, so go back to following it.
+      if (replayT != null && pausedByScrub && !status.paused) { replayT = null; pausedByScrub = false; }
+      if (!shownRun) await pollLive();
       drawGraph();
     };
     tick();
@@ -1382,12 +1438,11 @@ function runButtons() {
 }
 async function selectRun(id) {
   if (!id) {
-    shownRun = null; replayT = null; $('#scrub').value = 1000;
+    shownRun = null; replayT = null;
   } else {
     try { shownRun = await api('/api/runs/' + encodeURIComponent(id)); }
     catch (err) { logLine('[runs] ' + err.message); shownRun = null; }
     replayT = shownRun && shownRun.rows.length ? shownRun.rows[0][0] : null;
-    $('#scrub').value = 0;
     applyReplay();
   }
   runButtons();
@@ -1454,6 +1509,7 @@ function connectWs() {
 }
 connectWs();
 loadPresetList();
+loadVersionList();
 api('/api/log?since=0').then(lines => lines.forEach(l => logLine(l[1]))).catch(() => { });
 
 
@@ -1581,33 +1637,40 @@ async function refreshConnection() {
 
 
 // ============================================================ preset versions (GitHub)
+// The version control shows the version this design is at — the newest pushed one, until an older one is
+// opened — rather than a prompt. Picking a different one replaces the design, so it is asked for twice.
 async function loadVersionList() {
   const sel = $('#af-version');
   if (!sel) return;
   try {
     const r = await api_get('/api/preset/versions');
     const rows = r.versions || [];
-    sel.innerHTML = `<option value="">${rows.length ? rows.length + ' version' + (rows.length === 1 ? '' : 's') : 'Versions…'}</option>`
-      + rows.map(v => `<option value="${esc(v.id)}">${fmtDate(v.time)}${v.note ? ' · ' + esc(v.note) : ''}</option>`).join('');
-    sel.title = r.archive && r.archive.web ? 'Versions of this preset on ' + r.archive.web : 'Versions of this preset';
-  } catch (e) { sel.innerHTML = '<option value="">Versions unavailable</option>'; }
+    if (!rows.length) { sel.innerHTML = '<option value="">no versions</option>'; currentVersion = ''; return; }
+    if (!rows.some(v => v.id === currentVersion)) currentVersion = rows[0].id;
+    const when = (t) => { try { return new Date(t).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }); } catch { return String(t); } };
+    sel.innerHTML = rows.map((v, i) =>
+      `<option value="${esc(v.id)}" title="${esc(fmtDate(v.time))}${v.note ? ' · ' + esc(v.note) : ''}">v${rows.length - i} · ${esc(when(v.time))}${v.note ? ' · ' + esc(v.note) : ''}</option>`).join('');
+    sel.value = currentVersion;
+    sel.title = r.archive && r.archive.web ? 'versions of this design on ' + r.archive.web : 'versions of this design';
+  } catch (e) { sel.innerHTML = '<option value="">versions unavailable</option>'; }
 }
 $('#af-version').addEventListener('change', async e => {
   const id = e.target.value;
-  e.target.selectedIndex = 0;
-  if (!id) return;
-  if (!confirmTwice('load-version', e.target, 'load this version')) return;
+  if (!id || id === currentVersion) return;
+  if (!confirmTwice('load-version', e.target, 'open version ' + (e.target.selectedOptions[0] || {}).text)) {
+    e.target.value = currentVersion; return;
+  }
   try {
     const r = await api('/api/archive/load_airframe', { id });
-    if (r.airframe) { setAirframe(r.airframe); logLine('[preset] loaded version ' + id); }
-  } catch (err) { logLine('[preset] ' + err.message); }
+    if (r.airframe) { currentVersion = id; setAirframe(r.airframe); logLine('[preset] opened version ' + id); await loadVersionList(); }
+  } catch (err) { logLine('[preset] ' + err.message); e.target.value = currentVersion; }
 });
 $('#af-push').addEventListener('click', async e => {
   const b = e.currentTarget, label = b.textContent;
   b.disabled = true; b.textContent = 'Pushing…';
   try {
     const r = await api('/api/preset/push', {});
-    if (r.ok) { logLine('[preset] pushed version ' + r.id); loadVersionList(); }
+    if (r.ok) { currentVersion = r.id; logLine('[preset] pushed version ' + r.id); loadVersionList(); }
     else logLine('[preset] push failed: ' + (r.error || 'unknown'));
   } catch (err) { logLine('[preset] push failed: ' + err.message); }
   b.disabled = false; b.textContent = label;

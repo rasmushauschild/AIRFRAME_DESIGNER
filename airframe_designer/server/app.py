@@ -285,6 +285,22 @@ def build_app(state: AppState) -> FastAPI:
         sim.airframe.save(AIRFRAME_DIR / name)
         return {"ok": True, "path": str(AIRFRAME_DIR / name)}
 
+    @app.post("/api/airframe/delete")
+    async def delete_airframe(body: dict):
+        """Delete a saved design. Never the one being flown: autosave would write it straight back, so the
+        app opens another design first and then asks for this."""
+        name = Path(str(body.get("name", ""))).name
+        if not name.endswith(".json"):
+            return JSONResponse({"ok": False, "error": "a design file is required"}, status_code=400)
+        p = AIRFRAME_DIR / name
+        if not p.is_file():
+            return JSONResponse({"ok": False, "error": f"not found: {name}"}, status_code=404)
+        if p.resolve() == preset_path(sim.airframe).resolve():
+            return JSONResponse({"ok": False, "error": "this design is the one being flown"}, status_code=400)
+        p.unlink()
+        state.log(f"[preset] deleted {name}")
+        return {"ok": True}
+
     # ------------------------------------------------------------------ CAD (STEP bodies -> masses, CG)
     CAD_DIR = AIRFRAME_DIR / "cad"
 

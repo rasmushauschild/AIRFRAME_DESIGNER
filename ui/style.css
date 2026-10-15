@@ -488,20 +488,20 @@ select.preset-select:hover { background-color: var(--soft); color: var(--text); 
 .series-picker button .sw { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 5px;
   background: var(--c, var(--text-3)); vertical-align: 1px; }
 .series-picker button.on { color: var(--text); box-shadow: inset 0 0 0 1px var(--c, var(--accent)); }
-#graph-plot { flex: 1; min-height: 0; position: relative; }
+#graph-plot { flex: 1; min-height: 0; position: relative; cursor: crosshair; touch-action: none; }
 #graph-plot svg { width: 100%; height: 100%; display: block; }
 #graph-plot .grid { stroke: var(--line); stroke-width: 1; }
 #graph-plot .ln { fill: none; stroke-width: 1.6; stroke-linejoin: round; }
-#graph-plot .cursor { stroke: var(--today, #ff3b30); stroke-width: 1.5; }
+#graph-plot .cursor { stroke: var(--red, #ff3b30); stroke-width: 1.5; }
 #graph-plot text { fill: var(--text-3); font-size: 10px; font-variant-numeric: tabular-nums; }
-.scrub-row { display: flex; align-items: center; gap: 10px; }
-.scrub-row input { flex: 1; }
-#scrub-label { min-width: 150px; text-align: right; }
+.scrub-row { display: flex; align-items: center; justify-content: flex-end; }
 input.run-name { width: 190px; flex: 0 0 auto; padding: 3px 9px; border-radius: 999px; font-size: 11.5px;
   box-shadow: inset 0 0 0 1px var(--accent); background: var(--panel); color: var(--text); }
 
 /* ---- preset row above the tabs: load a preset, or a version of this one */
-.preset-bar { display: flex; gap: 6px; align-items: center; padding: 14px 22px 0; flex: none; }
-.preset-bar select.preset-select { flex: 1 1 0; max-width: none; background-color: var(--panel);
-  box-shadow: inset 0 0 0 1px var(--line); }
+.preset-bar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 14px 22px 0; flex: none; }
+.preset-bar input.name-input { flex: 1 1 120px; width: auto; min-width: 110px; font-size: 14px;
+  background: var(--panel); box-shadow: inset 0 0 0 1px var(--line); padding: 5px 9px; }
+.preset-bar select.preset-select { background-color: var(--panel); box-shadow: inset 0 0 0 1px var(--line); max-width: 150px; }
 .preset-bar select.preset-select:hover { background-color: var(--soft); }
+.preset-bar select.pick { flex: 0 0 auto; min-width: 0; width: 30px; padding: 5px 20px 5px 2px; }
