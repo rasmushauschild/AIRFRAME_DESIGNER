@@ -1055,7 +1055,8 @@ function renderMotorSliders() {
   let output = 0;
   el.innerHTML = airframe.rotors.map((r, i) => {
     const motor = r.enabled === false ? 0 : ++output;
-    return `<label><b title="${esc(r.name)}">M${motor || '–'} ${esc(r.name)}</b> <input type="range" min="0" max="${hardware ? .15 : 1}" step="0.005" value="0" data-i="${i}" data-motor="${motor}" disabled><span class="mv num">0%</span></label>`;
+    const label = r.name === `M${motor}` ? r.name : `M${motor || '–'} ${r.name}`;   // not "M1 M1"
+    return `<label><b title="${esc(r.name)}">${esc(label)}</b> <input type="range" min="0" max="${hardware ? .15 : 1}" step="0.005" value="0" data-i="${i}" data-motor="${motor}" disabled><span class="mv num">0%</span></label>`;
   }).join('');
   updateMotorPorts();
   el.querySelectorAll('input').forEach(inp => {
@@ -1668,20 +1669,20 @@ async function refreshConnection() {
   try { c = await api('/api/connection'); } catch (e) { $('#conn-error').textContent = e.message; return; }
   const L = c.link, where = linkNow(c);
   $$('#conn-modes button').forEach(b => b.classList.toggle('active', b.dataset.link === where));
-  if (!c.mode) $('#conn-current').innerHTML = '<div class="hint">Not connected. Choose where PX4 runs.</div>';
+  if (!c.mode) $('#conn-current').innerHTML = '';
   else if (c.mode === 'sitl') $('#conn-current').innerHTML =
-    `<b>PX4 SITL</b> <span class="${L.connected ? 'ok' : 'muted'}">${L.connected ? '● connected' : (c.px4_running ? '○ starting…' : '○ waiting for PX4')}</span>`
-    + `<div class="hint">instance ${c.px4_instance ?? 0} · simulator tcp ${L.address} · control ${L.ctl_address}</div>`;
+    `<span class="hint">instance ${c.px4_instance ?? 0} · tcp ${esc(L.address)} · ${esc(L.ctl_address)}</span>`;
   else $('#conn-current').innerHTML =
-    `<b>${where === 'real' ? 'Pixhawk, real flight' : 'Pixhawk, HITL'}</b> <span class="${L.connected ? 'ok' : 'muted'}">${L.connected ? '● link up' : '○ no data yet'}</span>`
-    + `<div class="dev">${esc(c.serial)} @ ${c.baud}</div><div class="hint">QGroundControl: connect over UDP ${esc(c.qgc)}</div>`;
-  $('#conn-head').textContent = c.mode ? `${LINK_LABEL[where] || ''}${L.connected ? ' · connected' : ' · waiting'}` : 'not connected';
+    `<span class="hint"><span class="dev">${esc(c.serial)}</span> @ ${c.baud} · QGroundControl over UDP ${esc(c.qgc)}</span>`;
+  $('#conn-head').innerHTML = c.mode
+    ? `${esc(LINK_LABEL[where] || '')} <span class="${L.connected ? 'ok' : 'muted'}">${L.connected ? '● connected'
+        : (c.mode === 'sitl' && c.px4_running ? '○ starting…' : '○ waiting')}</span>`
+    : '<span class="muted">not connected</span>';
   $('#conn-error').textContent = c.error || '';
   lastPorts = c.ports || [];
-  $('#conn-ports').innerHTML = lastPorts.length
-    ? lastPorts.map(p => `<div class="conn-row"><div><b>${p.likely_px4 ? 'Pixhawk' : 'Serial device'}</b> <span class="hint">${esc(p.description || '')}</span><div class="dev">${esc(p.device)}</div></div>
-        <button class="pill small ${p.likely_px4 ? 'primary' : ''}" data-dev="${esc(p.device)}">${c.mode === 'hitl' && c.serial === p.device ? 'Reconnect' : 'Connect'}</button></div>`).join('')
-    : '<div class="hint">No flight controller on USB. Plug the Pixhawk in and click Rescan; if QGroundControl is open, close it or disable its serial auto-connect.</div>';
+  $('#conn-ports').innerHTML = lastPorts.map(p =>
+    `<div class="conn-row"><div><b>${p.likely_px4 ? 'Pixhawk' : 'Serial device'}</b> <span class="hint">${esc(p.description || '')}</span> <span class="dev">${esc(p.device)}</span></div>
+      <button class="pill small ${p.likely_px4 ? 'primary' : ''}" data-dev="${esc(p.device)}">${c.mode === 'hitl' && c.serial === p.device ? 'Reconnect' : 'Connect'}</button></div>`).join('');
   $$('#conn-ports button[data-dev]').forEach(b => b.addEventListener('click', () => connectHitl(b.dataset.dev)));
   // The one interlock worth keeping from the old checklist: the firmware will not run the motors on the
   // real aircraft until this is set, and nothing else on this page can set it.

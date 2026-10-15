@@ -385,11 +385,12 @@
           <div id="conn-current"></div>
           <div id="conn-ports"></div>
           <div class="row tight">
-            <button class="pill small" id="conn-rescan">Rescan USB</button>
-            <label class="row">Baud <input id="conn-baud" type="number" value="921600" style="width:96px"></label>
+            <button class="pill small" id="conn-rescan" title="look for a flight controller on USB again">Rescan</button>
             <button class="pill small" id="conn-disconnect">Disconnect</button>
             <button class="pill small" id="conn-reboot" title="Reboot the flight controller; the link reconnects by itself">Reboot board</button>
-            <button class="pill small danger" id="conn-hw-ok" hidden title="NLF_HW_OK: let the ground sequence run the motors on the real aircraft">Allow motors on the aircraft</button>
+            <button class="pill small danger" id="conn-hw-ok" hidden title="NLF_HW_OK: let the ground sequence run the motors on the real aircraft">Allow motors</button>
+            <span class="panel-spacer"></span>
+            <label class="row hint" title="serial speed for the USB link to the board">Baud <input id="conn-baud" type="number" value="921600" style="width:84px"></label>
           </div>
           <div id="conn-error" class="problems"></div>
           <p id="real-flight-result" class="hint"></p>

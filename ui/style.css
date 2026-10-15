@@ -223,6 +223,8 @@ button.pill.small { padding: 5px 11px; }
 
 /* motor sliders / live */
 #motor-sliders label { flex-direction: row; align-items: center; gap: 10px; font-variant-numeric: tabular-nums; margin: 3px 0; color: var(--text-2); }
+#motor-sliders label b { flex: 0 0 96px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#motor-sliders label input[type=range] { flex: 1; }
 #motor-sliders input[type=range] { flex: 1; }
 #motor-sliders .mv { width: 36px; text-align: right; }
 #rotor-live { font-size: 13px; font-variant-numeric: tabular-nums; }
@@ -525,4 +527,11 @@ details.sec > summary .hint { font-weight: 500; }
 details.sec > summary .sum-spacer { flex: 1; }
 .sec-body { padding: 2px 16px 14px; display: flex; flex-direction: column; gap: 8px; }
 .sec-body > .row { margin: 0; }
+.sec-body > p { margin: 0; }
+.sec-body > button, .sec-body > a.pill, .sec-body > label.row { align-self: flex-start; }
+/* A container with nothing in it takes no room: an empty status line, an empty problem list and an empty
+   device list used to leave a third of the box blank. */
+.sec-body > :empty { display: none; }
+.sec-body .conn-row + .conn-row { margin-top: 4px; }
+.sec-body label.row { gap: 6px; }
 .sec-body .card { background: transparent; box-shadow: none; padding: 0; border-radius: 0; }
