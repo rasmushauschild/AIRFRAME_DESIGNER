@@ -6,7 +6,8 @@ import math
 import numpy as np
 import pytest
 
-from airframe_designer.dynamics import RigidBody, q_from_euler
+from airframe_designer.dynamics import q_from_euler
+from airframe_designer.dynamics.jsbsim_backend import JSBSimBody
 from airframe_designer.geometry.airframe import quad_x
 from airframe_designer.sim import MetricsRecorder, Scenario, ScenarioRunner, Simulator, load_scenario
 from airframe_designer.sim.scenario import SCENARIO_DIR
@@ -20,7 +21,7 @@ G = 9.80665
 class FakeSim:
     """The attributes MetricsRecorder reads from a Simulator."""
 
-    def __init__(self, sim: RigidBody, sensor_rate: float = 250.0):
+    def __init__(self, sim: JSBSimBody, sensor_rate: float = 250.0):
         self.sim = sim
         self.t = 0.0
         self.step_count = 0
@@ -102,7 +103,7 @@ def advance(simr: Simulator, runner: ScenarioRunner, seconds: float, physics: bo
 
 # ------------------------------------------------------------- metrics
 def test_metrics_recorder_rows_and_summary(quad):
-    rb = RigidBody(quad)
+    rb = JSBSimBody(quad)
     fs = FakeSim(rb, sensor_rate=250.0)
     m = MetricsRecorder(sample_hz=50.0)
     m.begin_phase("init", 0.0)
@@ -119,7 +120,7 @@ def test_metrics_recorder_rows_and_summary(quad):
     assert len(m.rows) == 100 and len(m.phase_of_row) == 100
     assert m.array().shape == (100, len(MetricsRecorder.COLS))
     assert m.steps == 500 and m.saturation_steps == 0
-    assert m.max_tilt_deg == pytest.approx(0.0, abs=1e-6)
+    assert m.max_tilt_deg == pytest.approx(0.0, abs=1e-3)   # JSBSim settles on its springs
     assert m.max_alt == pytest.approx(0.12, abs=0.01)
     s = m.summary(quad.mass.mass, {"hover": {"alt": 0.12}})
     assert set(s) >= {"crashed", "crash_reason", "max_tilt_deg", "max_alt_m", "energy_wh", "saturation_fraction",
@@ -143,7 +144,7 @@ def test_metrics_recorder_rows_and_summary(quad):
 
 
 def test_metrics_recorder_tracks_tilt_saturation_and_touchdown(quad):
-    rb = RigidBody(quad)
+    rb = JSBSimBody(quad)
     fs = FakeSim(rb, sensor_rate=100.0)
     m = MetricsRecorder(sample_hz=50.0)
     m.begin_phase("air", 0.0)
@@ -176,7 +177,7 @@ def test_metrics_summary_empty():
 
 
 def test_no_spurious_touchdown_with_single_physics_step(quad):
-    rb = RigidBody(quad)
+    rb = JSBSimBody(quad)
     fs = FakeSim(rb, sensor_rate=250.0)
     m = MetricsRecorder()
     dt = 1.0 / fs.sensor_rate
@@ -344,7 +345,7 @@ def test_hold_phase_sets_mode_and_target():
     advance(simr, runner, 1.0, physics=False)
     assert runner.done and runner.ok
     assert ("mode", "hold") in link.calls and link.mode_is("hold")
-    assert runner.targets["hover"]["pos"] == pytest.approx([0.0, 0.0, -0.12])
+    assert runner.targets["hover"]["pos"] == pytest.approx([0.0, 0.0, -0.12], abs=5e-3)
     r = runner.result(simr.airframe.mass.mass)
     assert r["metrics"]["phases"]["hover"]["pos_err_rms"] == pytest.approx(0.0, abs=1e-6)
 
@@ -357,11 +358,10 @@ def test_abort_on_tilt_marks_crash():
     advance(simr, runner, 0.2)                              # on the ground: tilt checks are off
     assert not runner.done
     rb = simr.sim
-    rb.reset(pos_ned=[0.0, 0.0, -3.0])                      # in the air, no thrust
-    rb.q = q_from_euler(math.radians(30.0), 0.0, 0.0)
+    rb.reset(pos_ned=[0.0, 0.0, -3.0], roll_deg=30.0)       # in the air, banked, no thrust
     advance(simr, runner, 0.1)
     assert not runner.done and runner.metrics.crashed is False   # 30 degrees is within the limit
-    rb.q = q_from_euler(math.radians(100.0), 0.0, 0.0)
+    rb.reset(pos_ned=[0.0, 0.0, -3.0], roll_deg=100.0)      # past the 60 degree abort limit
     advance(simr, runner, 0.1)
     assert runner.done and runner.status == "aborted" and runner.ok is False
     assert runner.metrics.crashed is True and runner.metrics.crash_reason.startswith("tilt")

@@ -1,7 +1,7 @@
 [project]
 name = "airframe-designer"
 version = "0.1.0"
-description = "PX4-in-the-loop aircraft design simulator: wings, ducted fans, jetfoils, legs, CG - real time with a remote, or headless in batch for automated optimisation"
+description = "PX4-in-the-loop aircraft design simulator: wings, ducted jets, legs, CG - real time with a remote, or headless in batch for automated optimisation"
 requires-python = ">=3.11"
 dependencies = [
   "numpy>=1.26",
@@ -10,6 +10,7 @@ dependencies = [
   "uvicorn[standard]>=0.27",
   "websockets>=12",
   "pyserial>=3.5",
+  "jsbsim>=1.2",          # the physics engine; there is only one and it is not optional
 ]
 
 [project.optional-dependencies]

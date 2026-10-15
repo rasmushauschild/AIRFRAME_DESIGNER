@@ -69,27 +69,30 @@ def test_rotor_virtual_tilt_cant_setters(y):
     assert abs(np.linalg.norm(r.axis) - 1.0) < 1e-5
 
 
-def test_rotor_effective_max_thrust_with_jetfoil():
-    r = Rotor(max_thrust=36.0, kind="ducted", turn_loss=0.1)
-    assert r.deflection_deg() == 0.0
-    assert r.effective_max_thrust() == 36.0
-    r.duct_axis = [1.0, 0.0, 0.0]                  # fan along x, jet bent to the thrust axis (0,0,-1): 90 degrees
-    assert r.deflection_deg() == pytest.approx(90.0)
+def test_a_jetfoil_rotor_from_an_older_file_keeps_exactly_the_thrust_it_had():
+    """Jetfoils are gone. A file that had one is migrated by folding the bend's thrust penalty into
+    max_thrust, so the aircraft flies identically; the direction was already the jet's and does not move."""
+    old = {"name": "M1", "pos": [0.1, 0.2, 0.0], "axis": [0.0, 0.0, -1.0], "km": 0.01,
+           "max_thrust": 36.0, "kind": "ducted", "duct_axis": [1.0, 0.0, 0.0], "turn_loss": 0.1,
+           "ram_drag": True, "intake_pos": [0.1, 0.2, 0.3], "diameter": 0.16}
+    r = Rotor.from_dict(old)
+    assert r.max_thrust == pytest.approx(36.0 * 0.9)      # a 90 degree bend cost ten per cent
     assert r.effective_max_thrust() == pytest.approx(36.0 * 0.9)
-    r.axis = tilt_cant_to_axis(45.0, 0.0)          # 45 degrees of turning: half the loss
-    assert r.deflection_deg() == pytest.approx(45.0, abs=1e-3)
-    assert r.effective_max_thrust() == pytest.approx(36.0 * 0.95, rel=1e-4)
+    assert r.axis == pytest.approx([0.0, 0.0, -1.0])      # the thrust still points where it did
+    assert not hasattr(r, "duct_axis") and not hasattr(r, "kind")
+
+    half = dict(old, axis=list(tilt_cant_to_axis(45.0, 0.0)))
+    assert Rotor.from_dict(half).max_thrust == pytest.approx(36.0 * 0.95, rel=1e-3)
+
+    straight = dict(old, duct_axis=None)
+    assert Rotor.from_dict(straight).max_thrust == pytest.approx(36.0)
+
+
+def test_a_disabled_rotor_produces_nothing():
+    r = Rotor(max_thrust=36.0)
+    assert r.effective_max_thrust() == 36.0
     r.enabled = False
     assert r.effective_max_thrust() == 0.0
-
-
-def test_rotor_set_kind_keeps_spin_direction():
-    r = Rotor(km=-0.05)
-    r.set_kind("ducted")
-    assert r.kind == "ducted" and r.km == pytest.approx(-0.01) and r.ram_drag is True
-    r.duct_axis = [1, 0, 0]
-    r.set_kind("prop")
-    assert r.duct_axis is None and r.km == pytest.approx(-0.05) and r.ram_drag is False
 
 
 def test_rotor_from_dict_accepts_schema1_prop_diameter():

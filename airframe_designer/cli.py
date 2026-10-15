@@ -40,7 +40,7 @@ def cmd_run(a) -> int:
     r = run_once(a.airframe, a.scenario, variables=_parse_set(a.set), px4_dir=a.px4_dir, instance=a.instance, speed=a.speed,
                  rate=a.rate, substeps=a.substeps, noise=not a.no_noise, seed=a.seed, timeout_wall=a.timeout,
                  log=(print if a.verbose else None), quiet=not a.verbose, extra_params=_parse_set(a.param),
-                 timeseries_path=a.timeseries, physics=a.physics)
+                 timeseries_path=a.timeseries)
     if not a.keep_airframe:
         r.pop("airframe", None)
     text = json.dumps(r, indent=2)
@@ -75,7 +75,7 @@ def cmd_batch(a) -> int:
 
     instances = [int(x) for x in a.instances.split(",")] if a.instances else None
     results = run_many(tasks, workers=a.workers, instances=instances, progress=progress, px4_dir=a.px4_dir, speed=a.speed,
-                       rate=a.rate, substeps=a.substeps, noise=not a.no_noise, timeout_wall=a.timeout, physics=a.physics)
+                       rate=a.rate, substeps=a.substeps, noise=not a.no_noise, timeout_wall=a.timeout)
     if out:
         out.close()
     else:
@@ -83,16 +83,6 @@ def cmd_batch(a) -> int:
             r.pop("airframe", None)
         print(json.dumps(results, indent=2))
     return 0 if all(r.get("ok") for r in results) else 1
-
-
-def cmd_compare(a) -> int:
-    """Run the same flight on both physics engines and report the differences."""
-    from .batch.compare import compare_physics
-    r = compare_physics(a.airframe, a.scenario, variables=_parse_set(a.set), px4_dir=a.px4_dir, rate=a.rate, substeps=a.substeps,
-                        noise=not a.no_noise, timeout_wall=a.timeout, instances=[int(x) for x in a.instances.split(",")] if a.instances else None,
-                        out_path=a.out)
-    print(r["report"])
-    return 0 if r["ok"] else 1
 
 
 def cmd_study(a) -> int:
@@ -189,7 +179,6 @@ def main(argv=None) -> int:
         p.add_argument("--no-noise", action="store_true")
         p.add_argument("--timeout", type=float, default=600.0, help="wall-clock limit per run, s")
         p.add_argument("--keep-airframe", action="store_true", help="include the full airframe dict in the output")
-        p.add_argument("--physics", choices=["python", "jsbsim"], default="python", help="physics engine (default python)")
 
     p = sub.add_parser("run", help="one headless simulation"); sim_args(p)
     p.add_argument("--airframe", required=True); p.add_argument("--scenario", required=True)
@@ -202,11 +191,6 @@ def main(argv=None) -> int:
     p = sub.add_parser("batch", help="many runs in parallel from a tasks file"); sim_args(p)
     p.add_argument("--tasks", required=True); p.add_argument("--workers", type=int, default=4); p.add_argument("--out", default=None)
     p.add_argument("--instances", default=None, help="comma-separated PX4 instance numbers to use (default: free ones in 1..9)")
-
-    p = sub.add_parser("compare", help="fly a scenario on the Python and JSBSim physics and diff the results"); sim_args(p)
-    p.add_argument("--airframe", required=True); p.add_argument("--scenario", required=True)
-    p.add_argument("--set", action="append", metavar="PATH=VALUE"); p.add_argument("--instances", default=None)
-    p.add_argument("--out", default=None, help="write the full comparison (both results + time series diffs) as JSON")
 
     p = sub.add_parser("study", help="simulation-driven optimisation study")
     p.add_argument("--spec", required=True); p.add_argument("--workers", type=int, default=None); p.add_argument("--out", default=None)
@@ -230,7 +214,7 @@ def main(argv=None) -> int:
         argv = ["ui"]
         return cmd_ui(None, [])
     a = ap.parse_args(argv)
-    return {"run": cmd_run, "batch": cmd_batch, "compare": cmd_compare, "study": cmd_study, "analyse": cmd_analyse, "optimise": cmd_optimise,
+    return {"run": cmd_run, "batch": cmd_batch, "study": cmd_study, "analyse": cmd_analyse, "optimise": cmd_optimise,
             "export": cmd_export, "paths": cmd_paths, "scenarios": cmd_scenarios, "migrate": cmd_migrate}[a.cmd](a)
 
 

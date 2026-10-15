@@ -97,12 +97,17 @@ the metrics, constraints and an algorithm (random / grid / CMA-ES / Nelder-Mead)
 [docs/AI_GUIDE.md](docs/AI_GUIDE.md) is the full contract for scripts and AI agents;
 [docs/SCHEMA.md](docs/SCHEMA.md) documents the airframe file and the parameter-path syntax.
 
-## Two physics engines
 
-The default is the project's own rigid body. Any run can instead use **JSBSim** (`--physics jsbsim`, or the Physics
-selector on the Flight tab): the same airframe is exported as a JSBSim aircraft (mass, feet, one force per rotor,
-wing/body coefficient tables) so the two engines can be compared on the same flight with
-`airframe-designer compare` or the Batch tab's Compare physics button. See docs/AI_GUIDE.md.
+## One physics engine
+
+JSBSim. It does the 6-DOF integration, gravity, the moment arms and the ground contact at the feet. This
+project supplies the rotor model (spool, thrust curve, reaction torque, duct momentum drag), the wing and
+body aerodynamics as coefficient tables sampled from its own strip theory, and the sensors PX4 reads.
+
+There used to be a second, simpler engine written in Python, and a mode that flew both and diffed them. Both
+are gone. Two engines meant every result carried a question about which one produced it, and two engines can
+agree and still be wrong; the tests now check the engine against analytic free fall, Hooke's law on the
+landing gear, and the hover solve, which is a stricter standard than agreement was.
 
 ## Physics
 

@@ -11,12 +11,13 @@ import math
 
 import numpy as np
 
-G = 9.80665
+from ..constants import G
 
 
 class MetricsRecorder:
     def __init__(self, sample_hz: float = 50.0):
         self.sample_hz = sample_hz
+        self.motion: list[list[float]] = []
         self.rows: list[list[float]] = []      # decimated time series
         self.phase_of_row: list[str] = []
         self.phases: dict[str, dict] = {}       # name -> {"t0", "t1", ...}
@@ -74,6 +75,7 @@ class MetricsRecorder:
             self.touchdown_speed = float(np.linalg.norm(s.vel))
             self.note(t, f"touchdown at {self.touchdown_speed:.2f} m/s")
         if simr.step_count % self._every == 0:
+            self.motion.append([float(t), *s.pos.tolist(), *s.q.tolist()])
             r, p, y = s.hover_frame_euler()
             util = float((s.thrust / np.maximum(s.rotors.tmax * s.rotors.scale, 1e-9)).max()) if len(s.thrust) else 0.0
             self.rows.append([t, *s.pos.tolist(), *s.vel.tolist(), r, p, y, *s.rates.tolist(), tilt,

@@ -31,7 +31,11 @@ def test_analyse_quad():
     assert r.returncode == 0, r.stderr
     out = json.loads(r.stdout)
     assert out["hover"]["ok"] is True and out["hover_check"]["ok"] is True and out["validate"] == []
-    assert out["cruise"]["converged"] is True
+    # The default cruise speed is 50 km/h. Every rotor is a ducted jet now, and a duct of this size swallows
+    # enough air at that speed that the momentum drag exceeds the weight, so the trim correctly fails. The
+    # same aircraft trims fine at a walking pace; see test_analysis.
+    assert out["cruise"]["converged"] is False
+    assert out["cruise"]["problems"]
 
 
 def test_analyse_with_set_and_speed():

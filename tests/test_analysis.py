@@ -25,16 +25,23 @@ def test_analyse_quad_x(quad):
     assert h["max_util"] < 1.0 and h["max_util"] == pytest.approx(quad.mass.mass * G / 4 / 8.0)
     assert h["total_thrust"] == pytest.approx(quad.mass.mass * G) and h["waste"] == pytest.approx(0.0, abs=1e-9)
     assert h["power"] > 0 and set(h["authority"]) == {"roll", "pitch", "yaw"} and all(v > 0 for v in h["authority"].values())
+    # 50 km/h is past what this aircraft can do: every rotor is a ducted jet, and the momentum drag of four
+    # 250 mm ducts at that speed is larger than the whole weight. The trim says so rather than inventing one.
     c = r["cruise"]
     assert set(c) == CRUISE_KEYS
-    assert c["converged"] is True and c["ok"] is True
-    assert c["airspeed"] == r["airspeed"]
-    assert c["pitch_deg"] < 0 and c["px4_pitch_deg"] == c["pitch_deg"]   # a plain quad noses down to cruise
-    assert c["lift"] == 0.0 and c["lift_share"] == 0.0 and c["alpha_deg"] is None
-    assert c["body_drag"] > 0 and c["ram_drag"] == 0.0
-    assert c["power_ratio"] == pytest.approx(c["power"] / h["power"])
-    assert c["power"] > h["power"]                               # tilting to push against drag costs power
-    assert len(c["thrust"]) == 4 and c["saturated"] == [] and c["negative"] == []
+    assert c["converged"] is False and c["ok"] is False and c["problems"]
+    assert c["ram_drag"] > 0
+
+    # at a speed it can actually hold, everything trims and the readouts are consistent
+    slow = analyse(quad, airspeed=5.0)["cruise"]
+    assert slow["converged"] is True and slow["ok"] is True
+    assert slow["airspeed"] == 5.0
+    assert slow["pitch_deg"] < 0 and slow["px4_pitch_deg"] == slow["pitch_deg"]   # a plain quad noses down to cruise
+    assert slow["lift"] == 0.0 and slow["lift_share"] == 0.0 and slow["alpha_deg"] is None
+    assert slow["body_drag"] > 0 and slow["ram_drag"] > 0
+    assert slow["power_ratio"] == pytest.approx(slow["power"] / h["power"])
+    assert slow["power"] > h["power"]                            # tilting to push against drag costs power
+    assert len(slow["thrust"]) == 4 and slow["saturated"] == [] and slow["negative"] == []
 
 
 def test_analyse_explicit_speed_and_tilt_limit(quad):
@@ -45,15 +52,14 @@ def test_analyse_explicit_speed_and_tilt_limit(quad):
 
 
 def test_analyse_plane_quad_reports_wing_and_infeasible_cruise(plane):
-    """The wing quad has vertical rotors only: at 18 m/s the drag can only be met by pitching far nose-down, so the
-    wing works at negative alpha and the motors saturate. The trim reports that instead of pretending."""
+    """The wing quad has vertical rotors only, so at 18 m/s the drag has to be met by tilting the whole
+    aircraft, and with ducted rotors the momentum drag rises with the tilt faster than the thrust can answer.
+    No trim exists. The analysis reports that instead of pretending, which is the point of the check."""
     r = analyse(plane, airspeed=18.0)
     c = r["cruise"]
     assert c["alpha_deg"] is not None and c["wing_drag"] > 0 and c["lift"] != 0.0
     assert c["lift_share"] == pytest.approx(c["lift"] / (plane.mass.mass * G))
     assert c["ok"] is False and c["problems"]
-    assert c["saturated"] == [1, 2, 3, 4]
-    assert c["pitch_deg"] < 0
     # at a gentle speed the same vehicle trims cleanly
     slow = analyse(plane, airspeed=5.0)["cruise"]
     assert slow["converged"] and slow["saturated"] == []

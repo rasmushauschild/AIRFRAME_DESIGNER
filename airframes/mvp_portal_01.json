@@ -1,0 +1,1131 @@
+{
+  "schema": 2,
+  "name": "MVP_PORTAL_01",
+  "mass": {
+    "mass": 120,
+    "cg": [
+      0.6117256042214196,
+      0,
+      0.4490374404804436
+    ],
+    "inertia": [
+      96.36756989568188,
+      153.23700721325616,
+      214.50311184305806
+    ],
+    "inertia_products": [
+      0,
+      0,
+      0
+    ],
+    "items": [],
+    "from_items": false,
+    "manual": null
+  },
+  "body": {
+    "size": [
+      0.1,
+      0.1,
+      0.1
+    ],
+    "drag_quadratic": [
+      0.12,
+      0.3,
+      0.3
+    ],
+    "drag_angular": [
+      0.005,
+      0.005,
+      0.005
+    ],
+    "drag_center": [
+      0,
+      0,
+      0
+    ]
+  },
+  "rotors": [
+    {
+      "name": "Portal wing 1",
+      "pos": [
+        -0.9906720361113548,
+        -0.7,
+        0.4369992828369139
+      ],
+      "axis": [
+        0.08719920300292681,
+        0.0,
+        -0.9961908948568314
+      ],
+      "km": -0.01,
+      "max_thrust": 353.0394,
+      "max_power_w": 15600,
+      "tau": 0.12,
+      "diameter": 0.25,
+      "thrust_exponent": 2,
+      "kind": "ducted",
+      "ram_drag": true,
+      "duct_axis": [
+        1.0,
+        0.0,
+        0.0
+      ],
+      "turn_loss": 0.1,
+      "enabled": true,
+      "intake_pos": [
+        0.16097724914550782,
+        -0.7,
+        0.3029656028747557
+      ]
+    },
+    {
+      "name": "Portal wing 2",
+      "pos": [
+        -0.9906720361113548,
+        0.7,
+        0.4369992828369139
+      ],
+      "axis": [
+        0.08719920300292681,
+        0.0,
+        -0.9961908948568314
+      ],
+      "km": 0.01,
+      "max_thrust": 353.0394,
+      "max_power_w": 15600,
+      "tau": 0.12,
+      "diameter": 0.25,
+      "thrust_exponent": 2,
+      "kind": "ducted",
+      "ram_drag": true,
+      "duct_axis": [
+        1.0,
+        0.0,
+        0.0
+      ],
+      "turn_loss": 0.1,
+      "enabled": true,
+      "intake_pos": [
+        0.16097724914550782,
+        0.7,
+        0.3029656028747557
+      ]
+    },
+    {
+      "name": "Portal wing 3",
+      "pos": [
+        -0.8480810861786205,
+        -1.1,
+        0.772729517618815
+      ],
+      "axis": [
+        0.08719920300292681,
+        0.0,
+        -0.9961908948568314
+      ],
+      "km": -0.01,
+      "max_thrust": 353.0394,
+      "max_power_w": 15600,
+      "tau": 0.12,
+      "diameter": 0.25,
+      "thrust_exponent": 2,
+      "kind": "ducted",
+      "ram_drag": true,
+      "duct_axis": [
+        1.0,
+        0.0,
+        0.0
+      ],
+      "turn_loss": 0.1,
+      "enabled": true,
+      "intake_pos": [
+        0.0806637652715047,
+        -1.1,
+        0.6574136034647623
+      ]
+    },
+    {
+      "name": "Portal wing 4",
+      "pos": [
+        -0.8480810861786205,
+        1.1,
+        0.772729517618815
+      ],
+      "axis": [
+        0.08719920300292681,
+        0.0,
+        -0.9961908948568314
+      ],
+      "km": 0.01,
+      "max_thrust": 353.0394,
+      "max_power_w": 15600,
+      "tau": 0.12,
+      "diameter": 0.25,
+      "thrust_exponent": 2,
+      "kind": "ducted",
+      "ram_drag": true,
+      "duct_axis": [
+        1.0,
+        0.0,
+        0.0
+      ],
+      "turn_loss": 0.1,
+      "enabled": true,
+      "intake_pos": [
+        0.0806637652715047,
+        1.1,
+        0.6574136034647623
+      ]
+    },
+    {
+      "name": "Portal wing 5",
+      "pos": [
+        -0.7525718824068706,
+        -1.5,
+        1.1237902259826658
+      ],
+      "axis": [
+        0.6018225085827393,
+        0.0,
+        -0.798629869315679
+      ],
+      "km": -0.01,
+      "max_thrust": 353.0394,
+      "max_power_w": 15600,
+      "tau": 0.12,
+      "diameter": 0.25,
+      "thrust_exponent": 2,
+      "kind": "ducted",
+      "ram_drag": true,
+      "duct_axis": [
+        1.0,
+        0.0,
+        0.0
+      ],
+      "turn_loss": 0.1,
+      "enabled": true,
+      "intake_pos": [
+        0.030846044222513858,
+        -1.5,
+        1.0407905197143552
+      ]
+    },
+    {
+      "name": "Portal wing 6",
+      "pos": [
+        -0.7525718824068706,
+        1.5,
+        1.1237902259826658
+      ],
+      "axis": [
+        0.6018225085827393,
+        0.0,
+        -0.798629869315679
+      ],
+      "km": 0.01,
+      "max_thrust": 353.0394,
+      "max_power_w": 15600,
+      "tau": 0.12,
+      "diameter": 0.25,
+      "thrust_exponent": 2,
+      "kind": "ducted",
+      "ram_drag": true,
+      "duct_axis": [
+        1.0,
+        0.0,
+        0.0
+      ],
+      "turn_loss": 0.1,
+      "enabled": true,
+      "intake_pos": [
+        0.030846044222513858,
+        1.5,
+        1.0407905197143552
+      ]
+    },
+    {
+      "name": "Portal nose 1",
+      "pos": [
+        1.62,
+        -0.18,
+        0.15
+      ],
+      "axis": [
+        0.0,
+        -0.11914522061843064,
+        -0.9928768384869221
+      ],
+      "km": 0.01,
+      "max_thrust": 353.0394,
+      "max_power_w": 15600,
+      "tau": 0.12,
+      "diameter": 0.25,
+      "thrust_exponent": 2,
+      "kind": "ducted",
+      "ram_drag": true,
+      "duct_axis": [
+        0.0,
+        0.0,
+        -1.0
+      ],
+      "turn_loss": 0.1,
+      "enabled": true,
+      "intake_pos": [
+        1.7000000000000002,
+        -0.18,
+        0.12
+      ]
+    },
+    {
+      "name": "Portal nose 2",
+      "pos": [
+        1.62,
+        0.18,
+        0.15
+      ],
+      "axis": [
+        0.0,
+        0.11914522061843064,
+        -0.9928768384869221
+      ],
+      "km": -0.01,
+      "max_thrust": 353.0394,
+      "max_power_w": 15600,
+      "tau": 0.12,
+      "diameter": 0.25,
+      "thrust_exponent": 2,
+      "kind": "ducted",
+      "ram_drag": true,
+      "duct_axis": [
+        0.0,
+        0.0,
+        -1.0
+      ],
+      "turn_loss": 0.1,
+      "enabled": true,
+      "intake_pos": [
+        1.7000000000000002,
+        0.18,
+        0.12
+      ]
+    },
+    {
+      "name": "Portal nose 3",
+      "pos": [
+        1.95,
+        0,
+        0.15
+      ],
+      "axis": [
+        0.0,
+        0.0,
+        -1.0
+      ],
+      "km": 0.01,
+      "max_thrust": 353.0394,
+      "max_power_w": 15600,
+      "tau": 0.12,
+      "diameter": 0.25,
+      "thrust_exponent": 2,
+      "kind": "ducted",
+      "ram_drag": true,
+      "duct_axis": [
+        0.0,
+        0.0,
+        -1.0
+      ],
+      "turn_loss": 0.1,
+      "enabled": true,
+      "intake_pos": [
+        2.03,
+        0,
+        0.12
+      ]
+    }
+  ],
+  "wings": [
+    {
+      "name": "Portal centrebody 01",
+      "enabled": true,
+      "pos": [
+        2.228855848312378,
+        0,
+        -0.006791305541992365
+      ],
+      "root_y": 0,
+      "span": 0.20070385307813599,
+      "root_chord": 3.8181258424332882,
+      "tip_chord": 3.7657119313233918,
+      "sweep_deg": 15.96525448257494,
+      "dihedral_deg": 4.799851307861548,
+      "incidence_deg": 0,
+      "twist_deg": 0,
+      "pitch_deg": -0.15352947519810184,
+      "symmetric": true,
+      "panels": 3,
+      "aspect_ratio": 2.4,
+      "aero": {
+        "model": "polar",
+        "airfoil_root": "naca66-018",
+        "airfoil_tip": "naca66-018",
+        "polar_source": "neuralfoil",
+        "ncrit": 9,
+        "cl_alpha": 6.2832,
+        "cl0": 0,
+        "cd0": 0.02,
+        "oswald": 0.85,
+        "stall_deg": 15,
+        "stall_blend_deg": 15,
+        "cd_flat": 1.2,
+        "cm0": 0,
+        "vortex_lift": true
+      }
+    },
+    {
+      "name": "Portal centrebody 02",
+      "enabled": true,
+      "pos": [
+        2.2001688480377197,
+        0,
+        -0.0152651786804201
+      ],
+      "root_y": 0.1,
+      "span": 0.20000008121811536,
+      "root_chord": 3.7657119313233918,
+      "tip_chord": 3.587173622489665,
+      "sweep_deg": 45.25284210157122,
+      "dihedral_deg": 0.05163557441403941,
+      "incidence_deg": 0,
+      "twist_deg": 0,
+      "pitch_deg": 0.05984763756381965,
+      "symmetric": true,
+      "panels": 3,
+      "aspect_ratio": 2.4,
+      "aero": {
+        "model": "polar",
+        "airfoil_root": "naca66-018",
+        "airfoil_tip": "naca66-018",
+        "polar_source": "neuralfoil",
+        "ncrit": 9,
+        "cl_alpha": 6.2832,
+        "cl0": 0,
+        "cd0": 0.02,
+        "oswald": 0.85,
+        "stall_deg": 15,
+        "stall_blend_deg": 15,
+        "cd_flat": 1.2,
+        "cm0": 0,
+        "vortex_lift": true
+      }
+    },
+    {
+      "name": "Portal centrebody 03",
+      "enabled": true,
+      "pos": [
+        2.0992822647094727,
+        0,
+        -0.0152499198913576
+      ],
+      "root_y": 0.2,
+      "span": 0.20022543442537105,
+      "root_chord": 3.587173622489665,
+      "tip_chord": 3.269903560391083,
+      "sweep_deg": 64.48259115780249,
+      "dihedral_deg": -2.7191231813628414,
+      "incidence_deg": 0,
+      "twist_deg": 0,
+      "pitch_deg": 0.33467449398026866,
+      "symmetric": true,
+      "panels": 3,
+      "aspect_ratio": 2.4,
+      "aero": {
+        "model": "polar",
+        "airfoil_root": "naca66-018",
+        "airfoil_tip": "naca66-018",
+        "polar_source": "neuralfoil",
+        "ncrit": 9,
+        "cl_alpha": 6.2832,
+        "cl0": 0,
+        "cd0": 0.02,
+        "oswald": 0.85,
+        "stall_deg": 15,
+        "stall_blend_deg": 15,
+        "cd_flat": 1.2,
+        "cm0": 0,
+        "vortex_lift": true
+      }
+    },
+    {
+      "name": "Portal centrebody 04",
+      "enabled": true,
+      "pos": [
+        1.8895869255065918,
+        0,
+        -0.009275627136230646
+      ],
+      "root_y": 0.3,
+      "span": 0.20193496639067382,
+      "root_chord": 3.269903560391083,
+      "tip_chord": 2.7499091025748394,
+      "sweep_deg": 76.16416008280976,
+      "dihedral_deg": 7.938089287619977,
+      "incidence_deg": 0,
+      "twist_deg": 0,
+      "pitch_deg": 0.7032512805612332,
+      "symmetric": true,
+      "panels": 3,
+      "aspect_ratio": 2.4,
+      "aero": {
+        "model": "polar",
+        "airfoil_root": "naca66-018",
+        "airfoil_tip": "naca66-018",
+        "polar_source": "neuralfoil",
+        "ncrit": 9,
+        "cl_alpha": 6.2832,
+        "cl0": 0,
+        "cd0": 0.02,
+        "oswald": 0.85,
+        "stall_deg": 15,
+        "stall_blend_deg": 15,
+        "cd_flat": 1.2,
+        "cm0": 0,
+        "vortex_lift": true
+      }
+    },
+    {
+      "name": "Portal centrebody 05",
+      "enabled": true,
+      "pos": [
+        1.4794878959655762,
+        0,
+        -0.018186759948730646
+      ],
+      "root_y": 0.4,
+      "span": 0.16471022056003767,
+      "root_chord": 2.7499091025748394,
+      "tip_chord": 2.0852855627148865,
+      "sweep_deg": 82.0259550488741,
+      "dihedral_deg": 13.735308158676334,
+      "incidence_deg": 0,
+      "twist_deg": 0,
+      "pitch_deg": 1.9271961092212841,
+      "symmetric": true,
+      "panels": 3,
+      "aspect_ratio": 2.4,
+      "aero": {
+        "model": "polar",
+        "airfoil_root": "naca66-018",
+        "airfoil_tip": "naca66-018",
+        "polar_source": "neuralfoil",
+        "ncrit": 9,
+        "cl_alpha": 6.2832,
+        "cl0": 0,
+        "cd0": 0.02,
+        "oswald": 0.85,
+        "stall_deg": 15,
+        "stall_blend_deg": 15,
+        "cd_flat": 1.2,
+        "cm0": 0,
+        "vortex_lift": true
+      }
+    },
+    {
+      "name": "Portal centrebody 06",
+      "enabled": true,
+      "pos": [
+        0.8912434577941895,
+        0,
+        -0.01795835494995135
+      ],
+      "root_y": 0.48,
+      "span": 0.1405461079078844,
+      "root_chord": 2.0852855627148865,
+      "tip_chord": 1.5774487786902305,
+      "sweep_deg": 81.1552320775716,
+      "dihedral_deg": -5.052521573738848,
+      "incidence_deg": 0,
+      "twist_deg": 0,
+      "pitch_deg": 3.7841591491987505,
+      "symmetric": true,
+      "panels": 3,
+      "aspect_ratio": 2.4,
+      "aero": {
+        "model": "polar",
+        "airfoil_root": "naca66-018",
+        "airfoil_tip": "s1210",
+        "polar_source": "neuralfoil",
+        "ncrit": 9,
+        "cl_alpha": 6.2832,
+        "cl0": 0,
+        "cd0": 0.02,
+        "oswald": 0.85,
+        "stall_deg": 15,
+        "stall_blend_deg": 15,
+        "cd_flat": 1.2,
+        "cm0": 0,
+        "vortex_lift": true
+      }
+    },
+    {
+      "name": "Portal wing 07",
+      "enabled": true,
+      "pos": [
+        0.4410344362258911,
+        0,
+        0.01802186965942365
+      ],
+      "root_y": 0.55,
+      "span": 0.3712699639317982,
+      "root_chord": 1.5774487786902305,
+      "tip_chord": 1.3184797589948194,
+      "sweep_deg": 42.66372285373727,
+      "dihedral_deg": -36.095383374980734,
+      "incidence_deg": 0,
+      "twist_deg": 0,
+      "pitch_deg": 5.387658778327264,
+      "symmetric": true,
+      "panels": 3,
+      "aspect_ratio": 2.4,
+      "aero": {
+        "model": "polar",
+        "airfoil_root": "s1210",
+        "airfoil_tip": "s1210",
+        "polar_source": "neuralfoil",
+        "ncrit": 9,
+        "cl_alpha": 6.2832,
+        "cl0": 0,
+        "cd0": 0.02,
+        "oswald": 0.85,
+        "stall_deg": 15,
+        "stall_blend_deg": 15,
+        "cd_flat": 1.2,
+        "cm0": 0,
+        "vortex_lift": true
+      }
+    },
+    {
+      "name": "Portal wing 08",
+      "enabled": true,
+      "pos": [
+        0.2809772491455078,
+        0,
+        0.14296560287475568
+      ],
+      "root_y": 0.7,
+      "span": 0.3858026042554323,
+      "root_chord": 1.3184797589948194,
+      "tip_chord": 1.2058740850065357,
+      "sweep_deg": 17.211319025169736,
+      "dihedral_deg": -38.95866894479055,
+      "incidence_deg": 0,
+      "twist_deg": 0,
+      "pitch_deg": 5.8346388443385235,
+      "symmetric": true,
+      "panels": 3,
+      "aspect_ratio": 2.4,
+      "aero": {
+        "model": "polar",
+        "airfoil_root": "s1210",
+        "airfoil_tip": "s1210",
+        "polar_source": "neuralfoil",
+        "ncrit": 9,
+        "cl_alpha": 6.2832,
+        "cl0": 0,
+        "cd0": 0.02,
+        "oswald": 0.85,
+        "stall_deg": 15,
+        "stall_blend_deg": 15,
+        "cd_flat": 1.2,
+        "cm0": 0,
+        "vortex_lift": true
+      }
+    },
+    {
+      "name": "Portal wing 09",
+      "enabled": true,
+      "pos": [
+        0.233862042427063,
+        0,
+        0.26970033645629865
+      ],
+      "root_y": 0.85,
+      "span": 0.4005208106064246,
+      "root_chord": 1.2058740850065357,
+      "tip_chord": 1.1325573017602821,
+      "sweep_deg": 10.738492004312183,
+      "dihedral_deg": -41.49403080173954,
+      "incidence_deg": 0,
+      "twist_deg": 0,
+      "pitch_deg": 6.290831485842693,
+      "symmetric": true,
+      "panels": 3,
+      "aspect_ratio": 2.4,
+      "aero": {
+        "model": "polar",
+        "airfoil_root": "s1210",
+        "airfoil_tip": "s1210",
+        "polar_source": "neuralfoil",
+        "ncrit": 9,
+        "cl_alpha": 6.2832,
+        "cl0": 0,
+        "cd0": 0.02,
+        "oswald": 0.85,
+        "stall_deg": 15,
+        "stall_blend_deg": 15,
+        "cd_flat": 1.2,
+        "cm0": 0,
+        "vortex_lift": true
+      }
+    },
+    {
+      "name": "Portal wing 10",
+      "enabled": true,
+      "pos": [
+        0.21065032482147217,
+        0,
+        0.405743885040283
+      ],
+      "root_y": 1,
+      "span": 0.4037730135616059,
+      "root_chord": 1.1325573017602821,
+      "tip_chord": 1.0759742253258024,
+      "sweep_deg": 8.329755404413804,
+      "dihedral_deg": -42.013109565185275,
+      "incidence_deg": 0,
+      "twist_deg": 0,
+      "pitch_deg": 6.122185227618466,
+      "symmetric": true,
+      "panels": 3,
+      "aspect_ratio": 2.4,
+      "aero": {
+        "model": "polar",
+        "airfoil_root": "s1210",
+        "airfoil_tip": "s1210",
+        "polar_source": "neuralfoil",
+        "ncrit": 9,
+        "cl_alpha": 6.2832,
+        "cl0": 0,
+        "cd0": 0.02,
+        "oswald": 0.85,
+        "stall_deg": 15,
+        "stall_blend_deg": 15,
+        "cd_flat": 1.2,
+        "cm0": 0,
+        "vortex_lift": true
+      }
+    },
+    {
+      "name": "Portal wing 11",
+      "enabled": true,
+      "pos": [
+        0.195670485496521,
+        0,
+        0.5432484626770018
+      ],
+      "root_y": 1.15,
+      "span": 0.4123412463508136,
+      "root_chord": 1.0759742253258024,
+      "tip_chord": 1.0262711535437397,
+      "sweep_deg": 7.48790855591667,
+      "dihedral_deg": -43.318378682935865,
+      "incidence_deg": 0,
+      "twist_deg": 0,
+      "pitch_deg": 6.005934999392232,
+      "symmetric": true,
+      "panels": 3,
+      "aspect_ratio": 2.4,
+      "aero": {
+        "model": "polar",
+        "airfoil_root": "s1210",
+        "airfoil_tip": "s1210",
+        "polar_source": "neuralfoil",
+        "ncrit": 9,
+        "cl_alpha": 6.2832,
+        "cl0": 0,
+        "cd0": 0.02,
+        "oswald": 0.85,
+        "stall_deg": 15,
+        "stall_blend_deg": 15,
+        "cd_flat": 1.2,
+        "cm0": 0,
+        "vortex_lift": true
+      }
+    },
+    {
+      "name": "Portal wing 12",
+      "enabled": true,
+      "pos": [
+        0.18352007865905762,
+        0,
+        0.6867511749267576
+      ],
+      "root_y": 1.3,
+      "span": 0.41328554834230796,
+      "root_chord": 1.0262711535437397,
+      "tip_chord": 0.9780079223889858,
+      "sweep_deg": 7.5405465103539635,
+      "dihedral_deg": -43.45703332346946,
+      "incidence_deg": 0,
+      "twist_deg": 0,
+      "pitch_deg": 5.666489499596256,
+      "symmetric": true,
+      "panels": 3,
+      "aspect_ratio": 2.4,
+      "aero": {
+        "model": "polar",
+        "airfoil_root": "s1210",
+        "airfoil_tip": "s1210",
+        "polar_source": "neuralfoil",
+        "ncrit": 9,
+        "cl_alpha": 6.2832,
+        "cl0": 0,
+        "cd0": 0.02,
+        "oswald": 0.85,
+        "stall_deg": 15,
+        "stall_blend_deg": 15,
+        "cd_flat": 1.2,
+        "cm0": 0,
+        "vortex_lift": true
+      }
+    },
+    {
+      "name": "Portal wing 13",
+      "enabled": true,
+      "pos": [
+        0.1703336238861084,
+        0,
+        0.8308885574340819
+      ],
+      "root_y": 1.45,
+      "span": 0.4155234284335164,
+      "root_chord": 0.9780079223889858,
+      "tip_chord": 0.8852092512960718,
+      "sweep_deg": 19.080962779596437,
+      "dihedral_deg": -43.78172547003289,
+      "incidence_deg": 0,
+      "twist_deg": 0,
+      "pitch_deg": 5.230400350492044,
+      "symmetric": true,
+      "panels": 3,
+      "aspect_ratio": 2.4,
+      "aero": {
+        "model": "polar",
+        "airfoil_root": "s1210",
+        "airfoil_tip": "s1210",
+        "polar_source": "neuralfoil",
+        "ncrit": 9,
+        "cl_alpha": 6.2832,
+        "cl0": 0,
+        "cd0": 0.02,
+        "oswald": 0.85,
+        "stall_deg": 15,
+        "stall_blend_deg": 15,
+        "cd_flat": 1.2,
+        "cm0": 0,
+        "vortex_lift": true
+      }
+    },
+    {
+      "name": "Portal wing 14",
+      "enabled": true,
+      "pos": [
+        0.11187088489532471,
+        0,
+        0.9805944442749022
+      ],
+      "root_y": 1.6,
+      "span": 0.32297291383486415,
+      "root_chord": 0.8852092512960718,
+      "tip_chord": 0.6283343739857404,
+      "sweep_deg": 56.32281511579024,
+      "dihedral_deg": -42.00414890789544,
+      "incidence_deg": 0,
+      "twist_deg": 0,
+      "pitch_deg": 4.580129394245393,
+      "symmetric": true,
+      "panels": 3,
+      "aspect_ratio": 2.4,
+      "aero": {
+        "model": "polar",
+        "airfoil_root": "s1210",
+        "airfoil_tip": "s1210",
+        "polar_source": "neuralfoil",
+        "ncrit": 9,
+        "cl_alpha": 6.2832,
+        "cl0": 0,
+        "cd0": 0.02,
+        "oswald": 0.85,
+        "stall_deg": 15,
+        "stall_blend_deg": 15,
+        "cd_flat": 1.2,
+        "cm0": 0,
+        "vortex_lift": true
+      }
+    },
+    {
+      "name": "Portal wing 15",
+      "enabled": true,
+      "pos": [
+        -0.1210736632347107,
+        0,
+        1.1076658248901365
+      ],
+      "root_y": 1.72,
+      "span": 0.2709223749713793,
+      "root_chord": 0.6283343739857404,
+      "tip_chord": 0.36221254891802673,
+      "sweep_deg": 61.321468591423105,
+      "dihedral_deg": -42.42009214098733,
+      "incidence_deg": 0,
+      "twist_deg": 0,
+      "pitch_deg": 4.524488616173446,
+      "symmetric": true,
+      "panels": 3,
+      "aspect_ratio": 2.4,
+      "aero": {
+        "model": "polar",
+        "airfoil_root": "s1210",
+        "airfoil_tip": "s1210",
+        "polar_source": "neuralfoil",
+        "ncrit": 9,
+        "cl_alpha": 6.2832,
+        "cl0": 0,
+        "cd0": 0.02,
+        "oswald": 0.85,
+        "stall_deg": 15,
+        "stall_blend_deg": 15,
+        "cd_flat": 1.2,
+        "cm0": 0,
+        "vortex_lift": true
+      }
+    },
+    {
+      "name": "Portal wing 16",
+      "enabled": true,
+      "pos": [
+        -0.3607388138771057,
+        0,
+        1.2182934761047362
+      ],
+      "root_y": 1.82,
+      "span": 0.16261902335310488,
+      "root_chord": 0.36221254891802673,
+      "tip_chord": 0.15794727718221982,
+      "sweep_deg": 65.41250452475605,
+      "dihedral_deg": -42.44537948267556,
+      "incidence_deg": 0,
+      "twist_deg": 0,
+      "pitch_deg": 4.351743652277156,
+      "symmetric": true,
+      "panels": 3,
+      "aspect_ratio": 2.4,
+      "aero": {
+        "model": "polar",
+        "airfoil_root": "s1210",
+        "airfoil_tip": "s1210",
+        "polar_source": "neuralfoil",
+        "ncrit": 9,
+        "cl_alpha": 6.2832,
+        "cl0": 0,
+        "cd0": 0.02,
+        "oswald": 0.85,
+        "stall_deg": 15,
+        "stall_blend_deg": 15,
+        "cd_flat": 1.2,
+        "cm0": 0,
+        "vortex_lift": true
+      }
+    },
+    {
+      "name": "Portal underside keel",
+      "enabled": true,
+      "pos": [
+        0.55,
+        0,
+        0.25
+      ],
+      "root_y": 0,
+      "span": 1,
+      "root_chord": 1.3,
+      "tip_chord": 0.7,
+      "sweep_deg": 12,
+      "dihedral_deg": -90,
+      "incidence_deg": 0,
+      "twist_deg": 0,
+      "pitch_deg": 0,
+      "symmetric": false,
+      "panels": 5,
+      "aspect_ratio": null,
+      "aero": {
+        "model": "linear",
+        "airfoil_root": "",
+        "airfoil_tip": "",
+        "polar_source": "auto",
+        "ncrit": 9,
+        "cl_alpha": 6.2832,
+        "cl0": 0,
+        "cd0": 0.018,
+        "oswald": 0.85,
+        "stall_deg": 15,
+        "stall_blend_deg": 15,
+        "cd_flat": 1.2,
+        "cm0": 0,
+        "vortex_lift": true
+      }
+    }
+  ],
+  "legs": [
+    {
+      "name": "Portal nose skid",
+      "attach": [
+        1.7,
+        0,
+        0.1
+      ],
+      "length": 0.2,
+      "tilt_deg": 0,
+      "cant_deg": 0,
+      "foot_radius": 0.025,
+      "stiffness": 50000,
+      "damping": 1800,
+      "friction": 0.8,
+      "enabled": true
+    },
+    {
+      "name": "Portal left wing skid",
+      "attach": [
+        0,
+        -1.78,
+        0.8
+      ],
+      "length": 0.27,
+      "tilt_deg": 0,
+      "cant_deg": 0,
+      "foot_radius": 0.025,
+      "stiffness": 50000,
+      "damping": 1800,
+      "friction": 0.8,
+      "enabled": true
+    },
+    {
+      "name": "Portal right wing skid",
+      "attach": [
+        0,
+        1.78,
+        0.8
+      ],
+      "length": 0.27,
+      "tilt_deg": 0,
+      "cant_deg": 0,
+      "foot_radius": 0.025,
+      "stiffness": 50000,
+      "damping": 1800,
+      "friction": 0.8,
+      "enabled": true
+    }
+  ],
+  "hover_pitch_deg": 10.0,
+  "landed_pitch_deg": -24.37,
+  "px4_overrides": {
+    "MIS_TAKEOFF_ALT": 10,
+    "MPC_TKO_RAMP_T": 1,
+    "MPC_THR_HOVER": 0.4,
+    "MC_AIRMODE": 1,
+    "MPC_MAN_Y_MAX": 150,
+    "MC_YAWRATE_I": 0.03,
+    "IMU_INTEG_RATE": 250,
+    "SENS_MAG_AUTOCAL": 0,
+    "MC_PITCH_P": 3,
+    "MC_PITCHRATE_P": 0.5,
+    "MC_PITCHRATE_D": 0.035,
+    "MC_PITCHRATE_I": 0.1,
+    "MC_ROLL_P": 3,
+    "MC_ROLLRATE_P": 0.55,
+    "MC_ROLLRATE_D": 0.04,
+    "MPC_XY_VEL_MAX": 35,
+    "MPC_VEL_MANUAL": 31,
+    "MPC_XY_CRUISE": 30,
+    "MPC_TILTMAX_AIR": 80,
+    "THR_MDL_FAC": 1,
+    "MC_YAW_P": 2,
+    "MC_ROLLRATE_I": 0.06,
+    "MC_YAWRATE_P": 0.5,
+    "MC_YAWRATE_D": 0.01,
+    "MPC_XY_VEL_P_ACC": 1.2,
+    "MC_YAWRATE_K": 3,
+    "MC_YAW_WEIGHT": 1,
+    "NLF_LAND_ANG": -24.37,
+    "CA_ROTOR0_CT": 5.980676,
+    "CA_ROTOR1_CT": 5.980676,
+    "CA_ROTOR2_CT": 5.839845,
+    "CA_ROTOR3_CT": 5.839845,
+    "CA_ROTOR4_CT": 6.228489,
+    "CA_ROTOR5_CT": 6.228489,
+    "CA_ROTOR6_CT": 6.333889,
+    "CA_ROTOR7_CT": 5.910261,
+    "CA_ROTOR8_CT": 5.910261
+  },
+  "design": {
+    "cruise_speed_kmh": 50,
+    "battery_wh": 20000,
+    "nose_lift": {
+      "enabled": true,
+      "motors": [
+        6,
+        7,
+        8
+      ],
+      "target_pitch_deg": 10,
+      "rate_deg_s": 5,
+      "assist_cmd": 0
+    },
+    "stl_reference": {
+      "file": "Portal_SurfaceWrap_Watertight.stl",
+      "units": "mm",
+      "frd_transform": "x=-Y/1000-1, y=X/1000, z=5.3-Z/1000",
+      "stations_m": [
+        0,
+        0.1,
+        0.2,
+        0.3,
+        0.4,
+        0.48,
+        0.55,
+        0.7,
+        0.85,
+        1,
+        1.15,
+        1.3,
+        1.45,
+        1.6,
+        1.72,
+        1.82,
+        1.88
+      ]
+    },
+    "visual": {
+      "wing_colors": [
+        "#233849",
+        "#233849",
+        "#233849",
+        "#233849",
+        "#233849",
+        "#233849",
+        "#c9d9de",
+        "#c9d9de",
+        "#c9d9de",
+        "#c9d9de",
+        "#c9d9de",
+        "#c9d9de",
+        "#c9d9de",
+        "#c9d9de",
+        "#c9d9de",
+        "#c9d9de",
+        "#233849"
+      ]
+    },
+    "mass_assumptions": "120kg; diagonal inertia estimated from uniform-area STL shell; CG chosen for static hover trim, not measured."
+  },
+  "notes": "STL-fitted Portal concept. Millimetres, long narrow end is nose. 16 mirrored UIUC section pairs approximate planform and anhedral; underside keel model is simplified. Six wing jetfoils and three nose fans; fan rating inherited: 353.0394N, 15600W each. Static hover trim only; flight and aerodynamic stability unvalidated. CG is a proposed mass-distribution target. Short nose and wing skids are provisional; parked nose-down pitch follows the skid contact plane. User revision: hover and nose-lift target 10 degrees; paired wing jetfoil tilt inboard to outboard 57.5/85/85 degrees. CG and fan positions retained; previous hover trim no longer applies.",
+  "cad": null
+}

@@ -29,7 +29,7 @@ from ..geometry.airframe import Airframe
 from ..geometry.frames import unit
 from .quaternion import q_from_euler, q_to_rotmat, q_to_euler, q_normalize
 
-G = 9.80665
+from ..constants import G
 FT = 3.28084          # ft per m
 IN = 39.37008         # in per m
 LBF = 0.2248089       # lbf per N
@@ -194,6 +194,7 @@ class JSBSimBody:
         self.rotors = RotorSet(rotors, cg)          # thrust curve / spool / torque / ram drag: the project's model
         self.wings = WingSet(airframe.active_wings(), cg)   # only for the breakdown readout (lift, alpha)
         self.body = BodyAero(airframe.body, cg)
+        self._pos_offset = np.zeros(3)   # north/east of the reset point, added back in _read_state
         self.legs = LegContacts(airframe.active_legs(), cg)   # geometry only (feet relative to the CG); JSBSim does the contact
         n = len(rotors)
         if not hasattr(self, "omega") or len(self.omega) != n:
@@ -226,7 +227,20 @@ class JSBSimBody:
             s[i] = float(v)
         self.rotors.scale = s
 
-    def reset(self, yaw: float = 0.0, pos_ned=None) -> None:
+    def reset(self, yaw: float = 0.0, pos_ned=None, roll_deg: float | None = None,
+              pitch_deg: float | None = None) -> None:
+        """Put the vehicle back at the start, or at ``pos_ned`` (north, east, down in metres from home).
+
+        ``roll_deg`` / ``pitch_deg`` start it at an attitude instead of level on its legs; JSBSim owns the
+        attitude once it is running, so this is the only way to set one, and poking the quaternion afterwards
+        is silently undone on the next step.
+
+        A height above the ground is honoured, so a scenario can begin in the air. JSBSim reports horizontal
+        motion as a distance from wherever it was initialised, so the requested north and east are kept as an
+        offset and added back in `_read_state`; that keeps `pos` meaning the same thing on every engine and
+        in every log. A requested height below the resting height is raised to it rather than started inside
+        the ground.
+        """
         self.t = 0.0
         fdm = self.fdm
         pitch = float(self.af.landed_pitch_deg)
@@ -234,10 +248,18 @@ class JSBSimBody:
         R = q_to_rotmat(q_from_euler(0.0, math.radians(pitch), yaw))
         feet = np.array([l.foot() for l in self.af.active_legs()], float).reshape(-1, 3) - self.af.cg
         h = float(np.max((feet @ R.T)[:, 2])) if len(feet) else 0.0
+        self._pos_offset = np.zeros(3)
+        if pos_ned is not None:
+            want = np.asarray(pos_ned, float).reshape(3)
+            self._pos_offset = np.array([want[0], want[1], 0.0])
+            h = max(h, float(-want[2]))
         fdm["ic/lat-gc-deg"] = self.lat; fdm["ic/long-gc-deg"] = self.lon
         fdm["ic/terrain-elevation-ft"] = self.home_alt * FT
         fdm["ic/h-agl-ft"] = (h + 0.002) * FT
-        fdm["ic/phi-deg"] = 0.0; fdm["ic/theta-deg"] = pitch; fdm["ic/psi-true-deg"] = math.degrees(yaw) % 360.0
+        if pitch_deg is not None:
+            pitch = float(pitch_deg)
+        fdm["ic/phi-deg"] = 0.0 if roll_deg is None else float(roll_deg)
+        fdm["ic/theta-deg"] = pitch; fdm["ic/psi-true-deg"] = math.degrees(yaw) % 360.0
         for k in ("ic/u-fps", "ic/v-fps", "ic/w-fps", "ic/p-rad_sec", "ic/q-rad_sec", "ic/r-rad_sec"):
             fdm[k] = 0.0
         for i in range(self.rotors.n):
@@ -251,8 +273,7 @@ class JSBSimBody:
         self.accel_body = np.array([0.0, 0.0, -G])
         self.breakdown = {"thrust": 0.0, "lift": 0.0, "wing_drag": 0.0, "ram_drag": 0.0, "body_drag": 0.0, "power": 0.0,
                           "alpha": [], "stalled": False, "airspeed": 0.0, "wing_forces": []}
-        if pos_ned is not None:
-            self.log("[jsbsim] reset to an arbitrary position is not supported; started on the ground")
+
 
     def set_motor_commands(self, cmd) -> None:
         c = np.asarray(cmd, dtype=float)[: len(self.cmd)]
@@ -266,7 +287,7 @@ class JSBSimBody:
         n = f["position/from-start-neu-n-ft"] / FT
         e = f["position/from-start-neu-e-ft"] / FT
         d = -(f["position/h-agl-ft"] / FT)
-        self.pos = np.array([n, e, d])
+        self.pos = np.array([n, e, d]) + self._pos_offset
         self.vel = np.array([f["velocities/v-north-fps"], f["velocities/v-east-fps"], f["velocities/v-down-fps"]]) / FT
         phi, theta, psi = f["attitude/phi-rad"], f["attitude/theta-rad"], f["attitude/psi-rad"]
         self.q = q_from_euler(phi, theta, psi)
@@ -287,6 +308,13 @@ class JSBSimBody:
                     feet = 1
             except Exception:
                 pass
+        # JSBSim's contacts carry no load for the first steps after the initial conditions, and none at all
+        # while a foot is resting with the spring exactly relaxed, so its flags alone flicker on and off at
+        # touchdown. The geometry does not: if the lowest foot is at or under the ground, the aircraft is on
+        # it. Taking either as contact removes a whole class of false touchdown and false liftoff events,
+        # which matter because the land detector and the metrics both count transitions.
+        if feet == 0 and self.legs.n and (self.pos[2] + self.legs.rest_height(q_to_rotmat(self.q))) > -0.005:
+            feet = self.legs.n
         self.feet_down = feet
         self.on_ground = feet > 0
 

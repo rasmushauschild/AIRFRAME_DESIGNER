@@ -28,7 +28,7 @@ from .wings import Wing, wing_panels
 
 SCHEMA_VERSION = 2
 MAX_PX4_ROTORS = 12  # CA_ROTOR0 .. CA_ROTOR11
-G = 9.80665
+from ..constants import G
 
 
 @dataclass
@@ -397,27 +397,33 @@ def migrate(d: dict) -> dict:
 
 
 # ------------------------------------------------------------------- presets
-def quad_x(arm: float = 0.25, max_thrust: float = 8.0) -> Airframe:
-    """PX4 Quad X numbering: 1 front-right CCW, 2 rear-left CCW, 3 front-left CW, 4 rear-right CW."""
+def quad_x(arm: float = 0.25, max_thrust: float = 8.0, diameter: float = 0.25) -> Airframe:
+    """PX4 Quad X numbering: 1 front-right CCW, 2 rear-left CCW, 3 front-left CW, 4 rear-right CW.
+
+    Every number a rotor needs is written here rather than left to the dataclass default. The default is for
+    a small ducted fan, and a quarter-metre-arm quadcopter is not that; relying on it once silently shrank
+    this aircraft's discs to 120 mm, which quadrupled its ram drag and stopped it cruising.
+    """
     a = arm / math.sqrt(2)
     af = Airframe(name="Quad X")
-    af.rotors = [Rotor(name="M1", pos=[a, a, 0.0], km=0.05, max_thrust=max_thrust),
-                 Rotor(name="M2", pos=[-a, -a, 0.0], km=0.05, max_thrust=max_thrust),
-                 Rotor(name="M3", pos=[a, -a, 0.0], km=-0.05, max_thrust=max_thrust),
-                 Rotor(name="M4", pos=[-a, a, 0.0], km=-0.05, max_thrust=max_thrust)]
+    af.rotors = [Rotor(name="M1", pos=[a, a, 0.0], km=0.05, max_thrust=max_thrust, diameter=diameter, tau=0.04),
+                 Rotor(name="M2", pos=[-a, -a, 0.0], km=0.05, max_thrust=max_thrust, diameter=diameter, tau=0.04),
+                 Rotor(name="M3", pos=[a, -a, 0.0], km=-0.05, max_thrust=max_thrust, diameter=diameter, tau=0.04),
+                 Rotor(name="M4", pos=[-a, a, 0.0], km=-0.05, max_thrust=max_thrust, diameter=diameter, tau=0.04)]
     af.legs = generate_legs(0.12, 0.10, 0.10)
     af.mass.inertia = af.estimate_inertia()
     return af
 
 
-def hex_x(arm: float = 0.30, max_thrust: float = 7.0) -> Airframe:
+def hex_x(arm: float = 0.30, max_thrust: float = 7.0, diameter: float = 0.28) -> Airframe:
     af = Airframe(name="Hex X")
     af.mass.mass = 2.2
     layout = [(30, True), (210, True), (-30, False), (150, False), (90, False), (-90, True)]
     for i, (ang, ccw) in enumerate(layout):
         rad = math.radians(ang)
         af.rotors.append(Rotor(name=f"M{i + 1}", pos=[arm * math.cos(rad), arm * math.sin(rad), 0.0],
-                               km=0.05 if ccw else -0.05, max_thrust=max_thrust))
+                               km=0.05 if ccw else -0.05, max_thrust=max_thrust,
+                               diameter=diameter, tau=0.04))
     af.legs = generate_legs(0.14, 0.15, 0.15)
     af.mass.inertia = af.estimate_inertia()
     return af
@@ -425,7 +431,7 @@ def hex_x(arm: float = 0.30, max_thrust: float = 7.0) -> Airframe:
 
 def plane_quad(span: float = 1.6) -> Airframe:
     """A quad with a conventional wing and tail: exercises the strip-theory surfaces (fin, tailplane, dihedral)."""
-    af = quad_x(arm=0.35, max_thrust=12.0)
+    af = quad_x(arm=0.35, max_thrust=12.0, diameter=0.30)
     af.name = "Wing Quad"
     af.mass.mass = 3.0
     af.wings = [

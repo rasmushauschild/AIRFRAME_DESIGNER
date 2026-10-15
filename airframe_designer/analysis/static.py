@@ -10,7 +10,7 @@ import numpy as np
 from ..aero import RotorSet, WingSet, BodyAero
 from ..geometry.airframe import Airframe
 
-G = 9.80665
+from ..constants import G
 
 
 def pitch_rotation(theta: float) -> np.ndarray:

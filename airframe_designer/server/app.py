@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
-from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
+from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, Response
 from fastapi.staticfiles import StaticFiles
 from starlette.concurrency import run_in_threadpool
 
@@ -178,7 +178,6 @@ def build_app(state: AppState) -> FastAPI:
         s["lockstep"] = sim.lockstep
         s["noise"] = sim.sensors.noise.enabled
         s["paused"] = sim.paused
-        s["physics"] = sim.physics
         return s
 
     @app.get("/api/status")
@@ -216,13 +215,12 @@ def build_app(state: AppState) -> FastAPI:
             af = Airframe.from_dict(body.get("airframe", body))
         except Exception as e:
             return JSONResponse({"ok": False, "error": f"invalid airframe ({type(e).__name__}: {e}); an empty number field?"}, status_code=400)
-        keep = bool(body.get("keep_state", True))
         af.resolve_mass()
         try:
             await run_in_threadpool(airfoils.ensure_polars, af, state.log)   # polar wings: section tables ready before the physics
         except Exception as e:
             return JSONResponse({"ok": False, "error": f"airfoil polar: {e}"}, status_code=400)
-        sim.set_airframe(af, keep_state=keep)
+        sim.set_airframe(af)
         autosave(af)
         hc = af.hover_check()
         return json_safe({"ok": True, "airframe": af.to_dict(), "problems": af.validate() + hc["problems"], "hover": hc})
@@ -251,7 +249,7 @@ def build_app(state: AppState) -> FastAPI:
         except Exception as e:
             return JSONResponse({"ok": False, "error": f"airfoil polar: {e}"}, status_code=400)
         cancel_live("airframe changed")
-        sim.set_airframe(af, keep_state=False)
+        sim.set_airframe(af)
         hc = af.hover_check()
         return json_safe({"ok": True, "airframe": af.to_dict(), "problems": af.validate() + hc["problems"], "hover": hc})
 
@@ -293,7 +291,7 @@ def build_app(state: AppState) -> FastAPI:
         af = sim.airframe.copy()
         af.cad = cadmod.model_from_import(imported, str(dst.relative_to(PROJECT_DIR)), af.cad)
         af.resolve_mass()
-        sim.set_airframe(af, keep_state=True)
+        sim.set_airframe(af)
         autosave(af)
         return {"ok": True, "airframe": json_safe(af.to_dict()), "bodies": len(af.cad.bodies),
                 "mesh": cadmod.mesh_payload(af.cad, imported)}
@@ -343,7 +341,7 @@ def build_app(state: AppState) -> FastAPI:
         body = body or {}
         af = sim.airframe
         af.auto_leg_constants(float(body.get("compression_m", 0.02)), float(body.get("zeta", 0.8)))
-        sim.set_airframe(af, keep_state=True)
+        sim.set_airframe(af)
         autosave(af)
         return {"ok": True, "legs": [l.to_dict() for l in af.legs], "static": af.leg_static()}
 
@@ -549,7 +547,7 @@ def build_app(state: AppState) -> FastAPI:
         if not v or not v.get("airframe"):
             return JSONResponse({"ok": False, "error": "no airframe in this version"}, status_code=404)
         af = Airframe.from_dict(v["airframe"])
-        sim.set_airframe(af, keep_state=True)
+        sim.set_airframe(af)
         autosave(af)
         return {"ok": True, "airframe": json_safe(af.to_dict())}
 
@@ -864,19 +862,6 @@ def build_app(state: AppState) -> FastAPI:
         sim.motor_override = None if v is None else [float(x) for x in v]
         return {"ok": True}
 
-    @app.post("/api/sim/physics")
-    async def sim_physics(body: dict):
-        """Switch the live physics engine: {"physics": "python" | "jsbsim"}. The vehicle restarts on the ground."""
-        name = str(body.get("physics", "python")).lower()
-        if name not in sim.BACKENDS:
-            return JSONResponse({"ok": False, "error": f"unknown physics '{name}'"}, status_code=400)
-        if link.armed:
-            return JSONResponse({"ok": False, "error": "disarm first"}, status_code=409)
-        try:
-            await run_in_threadpool(sim.set_physics, name)
-        except Exception as e:
-            return JSONResponse({"ok": False, "error": f"{type(e).__name__}: {e}"}, status_code=500)
-        return {"ok": True, "physics": sim.physics}
 
     @app.post("/api/sim/nose_lift")
     async def sim_nose_lift(body: dict):
@@ -980,7 +965,7 @@ def build_app(state: AppState) -> FastAPI:
                     simr.hooks.remove(step_live)
                     if not runner.ok:
                         simr.paused = True
-            live.update(runner=runner, hook=step_live)
+            live.update(runner=runner, hook=step_live, animation_cg=list(sim.airframe.mass.cg), animation_name=sim.airframe.name)
             sim.hooks.append(step_live)
             sim.speed = 1.0
             sim.paused = False
@@ -1000,6 +985,27 @@ def build_app(state: AppState) -> FastAPI:
         with sim.lock:
             r = live["runner"]
             return r.metrics.timeseries() if r else {"columns": [], "rows": [], "phase": []}
+
+    @app.get("/api/sim/scenario/animation")
+    async def live_animation():
+        from ..sim.animation import animation_zip
+        with sim.lock:
+            r = live["runner"]
+            if not r or not r.metrics.motion:
+                return JSONResponse({"error": "Run a scenario first to record motion"}, status_code=404)
+            rows = [row[:] for row in r.metrics.motion]
+            cg = list(live["animation_cg"])
+            name = live["animation_name"]
+        data = await run_in_threadpool(animation_zip, rows, cg, name)
+        return Response(data, media_type="application/zip", headers={"Content-Disposition": 'attachment; filename="aircraft-animation.zip"'})
+
+    @app.get("/api/batch/jobs/{job_id}/animation")
+    async def batch_animation(job_id: str):
+        job = state.batch_jobs.get(job_id)
+        path = (job.get("result") or {}).get("animation_path") if job else None
+        if not path or not Path(path).is_file():
+            return JSONResponse({"error": "No recorded animation available for this job"}, status_code=404)
+        return FileResponse(path, media_type="application/zip", filename=job_id + "-animation.zip")
 
     @app.post("/api/sim/scenario/stop")
     async def live_scenario_stop():
@@ -1044,7 +1050,7 @@ def build_app(state: AppState) -> FastAPI:
         variables = body.get("variables") or {}
         opts = dict(body.get("options") or {})
         job_id = f"job{int(time.time() * 1000) % 100000000}"
-        job = {"id": job_id, "scenario": scenario, "variables": variables, "physics": str(opts.get("physics", "python")), "running": True,
+        job = {"id": job_id, "scenario": scenario, "variables": variables,  "running": True,
                "t0": time.time(), "result": None, "log": []}
         state.batch_jobs[job_id] = job
         if len(state.batch_jobs) > 50:
@@ -1054,6 +1060,7 @@ def build_app(state: AppState) -> FastAPI:
         def run():
             try:
                 r = run_once(af, scenario, variables=variables, px4_dir=state.args.px4_dir, log=lambda s: job["log"].append(s),
+                             animation_path=str(RESULTS_DIR / "animations" / (job_id + ".zip")),
                              quiet=True, **{k: v for k, v in opts.items() if k in ("speed", "rate", "substeps", "noise", "seed", "timeout_wall", "physics")})
                 r.pop("airframe", None)
                 job["result"] = r
@@ -1111,7 +1118,7 @@ def build_app(state: AppState) -> FastAPI:
             af = apply_variables(sim.airframe, body.get("variables") or {})
         except Exception as e:
             return JSONResponse({"ok": False, "error": str(e)}, status_code=400)
-        sim.set_airframe(af, keep_state=True)
+        sim.set_airframe(af)
         return {"ok": True, "airframe": af.to_dict()}
 
     # ------------------------------------------------------------ websocket

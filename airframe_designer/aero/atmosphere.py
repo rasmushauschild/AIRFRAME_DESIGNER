@@ -1,6 +1,6 @@
 """Standard atmosphere constants (sea level values; the vehicles here fly low)."""
 RHO = 1.225      # kg/m^3
-G = 9.80665      # m/s^2
+from ..constants import G
 
 
 def isa_temperature_c(alt_m: float) -> float:

@@ -93,8 +93,6 @@ def run_study(spec, workers: int | None = None, out_dir: str | Path | None = Non
     opt = make_optimizer(alg_name, lo, hi, budget, seed=seed, x0=x0, **alg)
     sim_kw = dict(st.get("sim") or {})
     instances = sim_kw.pop("instances", None) or st.get("instances")
-    if st.get("physics"):
-        sim_kw["physics"] = st["physics"]
     objective = st.get("objective", "metrics.energy_wh")
     constraints = list(st.get("constraints") or [])
     penalty = float(st.get("penalty", 1000.0)); maximize = bool(st.get("maximize", False))

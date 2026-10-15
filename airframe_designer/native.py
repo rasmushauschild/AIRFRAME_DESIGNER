@@ -11,12 +11,12 @@ class NativeSimulator(Simulator):
     def __init__(self,*args,**kwargs):
         frame = args[0] if args else kwargs['airframe']
         apply_landed_pitch(frame)
-        kwargs.update(physics='jsbsim',physics_substeps=4,seed=1)
+        kwargs.update(physics_substeps=4,seed=1)
         super().__init__(*args,**kwargs)
-    def set_airframe(self, airframe, keep_state=True):
+    def set_airframe(self, airframe):
         before = self.airframe.px4_params_sitl()
         apply_landed_pitch(airframe)
-        result = super().set_airframe(airframe, keep_state=keep_state)
+        result = super().set_airframe(airframe)
         if before != self.airframe.px4_params_sitl():
             callback = getattr(self, "on_model_parameters_changed", None)
             if callback: callback()

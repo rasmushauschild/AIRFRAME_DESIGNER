@@ -22,20 +22,19 @@ class RotorSet:
         self.tau = np.array([max(r.tau, 1e-3) for r in rotors], float)
         self.exponent = np.array([r.thrust_exponent for r in rotors], float)
         self.square = bool(self.n and np.all(np.abs(self.exponent - 2.0) < 1e-9))
-        self.ram = np.array([bool(r.ram_drag) for r in rotors], bool)
+        self.ram = np.ones(self.n, bool)          # every rotor is a ducted jet: the duct always swallows a mass flow
         self.area = np.array([r.disc_area for r in rotors], float)
-        self.ducted = np.array([r.kind == "ducted" for r in rotors], bool)
         self.mdot_coef = np.sqrt(RHO * self.area) * self.ram          # mdot = coef * sqrt(thrust)
         self.any_ram = bool(self.ram.any())
         self.scale = np.ones(self.n)                                  # per-rotor health (1 = fine, 0 = dead)
         self.S = skew_stack(self.r)                                   # r x (.)
-        self.intake_S = skew_stack(np.array([r.intake_position() for r in rotors], float).reshape(self.n, 3) - cg)
+        self.intake_S = skew_stack(np.array([r.pos for r in rotors], float).reshape(self.n, 3) - cg)
         self.MA = np.cross(self.r, self.axis) - self.km[:, None] * self.axis   # moment per unit thrust
-        self.power_coef = np.where(self.ducted, 1.0 / (2 * np.sqrt(RHO * np.maximum(self.area, 1e-9))),
-                                   1.0 / np.sqrt(2 * RHO * np.maximum(self.area, 1e-9)))
+        # Ducted jet: the duct holds the slipstream's area, so the induced power is half an open rotor's for
+        # the same disc. Every rotor here is ducted, so there is one coefficient and no branch.
+        self.power_coef = 1.0 / (2 * np.sqrt(RHO * np.maximum(self.area, 1e-9)))
 
-        # Calibrate the T^1.5 curve to electrical input at effective full thrust.
-        # Turning loss reduces thrust, not full-command electrical consumption.
+        # Calibrate the T^1.5 curve to electrical input at full thrust.
         for i, rotor in enumerate(rotors):
             if np.isfinite(rotor.max_power_w) and rotor.max_power_w > 0 and self.tmax[i] > 0:
                 self.power_coef[i] = rotor.max_power_w / self.tmax[i] ** 1.5

@@ -1,4 +1,4 @@
-/* Exponential design language: flat light theme, near-white ground, frosted white panels with a hairline
+/* Exponential design language: flat light theme, near-white ground, solid white panels with a hairline
    edge ring and a soft drop shadow, pill controls, SF Pro, blue accent. Dark via [data-theme='dark']. */
 :root {
   --bg: #f1f1f4;
@@ -31,7 +31,7 @@
 [data-theme='dark'] {
   --bg: #0c0d11;
   --panel: #121317;
-  --frost: rgba(19, 20, 25, 0.85);
+  --frost: #131419;
   --text: #fafafa;
   --text-2: #a0a0a0;
   --text-3: #707070;
@@ -86,7 +86,7 @@ body.resizing-x { cursor: col-resize; } body.resizing-y { cursor: row-resize; }
 .resizer:hover::after, .resizer.dragging::after { background: var(--soft-2); }
 
 .panel {
-  background: var(--frost); -webkit-backdrop-filter: blur(30px); backdrop-filter: blur(30px);
+  background: var(--frost);
   border-radius: var(--radius-xl); box-shadow: 0 0 0 1.5px var(--edge), var(--shadow);
   display: flex; flex-direction: column; min-height: 0; overflow: hidden; position: relative;
 }

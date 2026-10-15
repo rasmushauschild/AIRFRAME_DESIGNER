@@ -173,32 +173,38 @@ def test_rotorset_thrust_moment_about_cg():
     assert np.allclose(M2, 0.0)                       # the CG under the rotor: no moment
 
 
-def test_rotorset_ram_drag_ducted_only():
-    duct = Rotor(pos=[0, 0, 0], max_thrust=36.0, diameter=0.08).set_kind("ducted")
-    prop = Rotor(pos=[0, 0, 0], max_thrust=36.0, diameter=0.25)
+def test_rotorset_ram_drag_is_momentum_drag_on_every_rotor():
+    """Every rotor is a ducted jet, so every rotor pays momentum drag for the air it turns. The magnitude is
+    the mass flow through the disc times the crossflow, and the direction opposes the airflow exactly."""
+    duct = Rotor(pos=[0, 0, 0], max_thrust=36.0, diameter=0.08)
     v = np.array([12.0, -3.0, 0.0])
-    F_d, _, T_d, ram_d = RotorSet([duct], [0, 0, 0]).forces(np.array([1.0]), v, np.zeros(3))
-    F_p, _, T_p, ram_p = RotorSet([prop], [0, 0, 0]).forces(np.array([1.0]), v, np.zeros(3))
-    assert ram_p == 0.0 and F_p == pytest.approx([0.0, 0.0, -36.0])
-    assert ram_d > 0
-    drag = F_d - np.array([0.0, 0.0, -36.0])
+    F, _, _, ram = RotorSet([duct], [0, 0, 0]).forces(np.array([1.0]), v, np.zeros(3))
+    assert ram > 0
+    drag = F - np.array([0.0, 0.0, -36.0])
     assert np.dot(drag, v) < 0                          # opposes the airspeed
     assert abs(np.cross(drag, v)).max() < 1e-9          # and is parallel to it
     mdot = math.sqrt(RHO * duct.disc_area * 36.0)
     assert np.linalg.norm(drag) == pytest.approx(mdot * np.linalg.norm(v))
+
+    # a bigger disc at the same thrust moves more air more slowly, so it drags more in crossflow
+    big = Rotor(pos=[0, 0, 0], max_thrust=36.0, diameter=0.25)
+    _, _, _, ram_big = RotorSet([big], [0, 0, 0]).forces(np.array([1.0]), v, np.zeros(3))
+    assert ram_big > ram
+
     # no thrust, no mass flow, no ram drag
     _, _, _, ram0 = RotorSet([duct], [0, 0, 0]).forces(np.array([0.0]), v, np.zeros(3))
     assert ram0 == 0.0
 
 
 def test_rotorset_health_scale_and_power():
-    rotors = [Rotor(pos=[0, 0, 0], max_thrust=8.0), Rotor(pos=[0, 0, 0], max_thrust=8.0).set_kind("ducted")]
+    rotors = [Rotor(pos=[0, 0, 0], max_thrust=8.0), Rotor(pos=[0, 0, 0], max_thrust=8.0, diameter=0.12)]
     rs = RotorSet(rotors, [0, 0, 0])
     rs.scale = np.array([0.5, 1.0])
     assert rs.thrust(np.array([1.0, 1.0])) == pytest.approx([4.0, 8.0])
     p = rs.ideal_power(np.array([4.0, 8.0]))
     assert p > 0
-    expected = 4.0 ** 1.5 / math.sqrt(2 * RHO * rotors[0].disc_area) + 8.0 ** 1.5 / (2 * math.sqrt(RHO * rotors[1].disc_area))
+    # both are ducted jets, so both use the duct's induced power: the slipstream keeps the disc's area
+    expected = sum(t ** 1.5 / (2 * math.sqrt(RHO * r.disc_area)) for t, r in zip((4.0, 8.0), rotors))
     assert p == pytest.approx(expected)
     assert rs.ideal_power(np.zeros(2)) == 0.0
     empty = RotorSet([], [0, 0, 0])

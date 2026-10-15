@@ -291,7 +291,6 @@
 
       <h3>Jobs</h3>
       <div id="batch-jobs"><div class="hint">No jobs yet.</div></div>
-      <div id="batch-compare"></div>
 
       <h3>Studies</h3>
       <div id="study-list"></div>
@@ -329,7 +328,6 @@
 
       <h3>Simulation</h3>
       <div class="row">
-        <label title="physics engine for the live simulation: the project's Python rigid body, or JSBSim (the flight dynamics model behind FlightGear/ArduPilot SITL) driven with the same geometry and coefficient tables. Switching restarts the vehicle on the ground.">Physics <select id="sim-physics"><option value="python">Python (built-in)</option><option value="jsbsim">JSBSim</option></select></label>
         <label>Speed <input id="sim-speed" type="number" step="0.5" min="0" value="1" title="0 = as fast as PX4 allows (SITL lockstep)"></label>
         <label class="row" style="align-self:end;padding-bottom:6px"><input id="sim-noise" type="checkbox" checked> Sensor noise</label>
         <label class="row" style="align-self:end;padding-bottom:6px" title="Indoor sensor set: PX4 ignores the GPS (EKF2_GPS_CTRL 0, SYS_HAS_GPS 0) and holds height on the barometer (EKF2_HGT_REF 0). Position modes become unavailable, exactly as on the real aircraft indoors. Update PX4 to apply."><input id="sim-nogps" type="checkbox"> No GPS (indoor)</label>

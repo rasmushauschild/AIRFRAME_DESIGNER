@@ -60,9 +60,9 @@ def schema() -> str:
 # ----------------------------------------------------------------- live app
 @server.tool()
 def get_status() -> dict:
-    """Live app: PX4 connection, armed state, flight mode, physics engine, paused flag."""
+    """Live app: PX4 connection, armed state, flight mode, paused flag."""
     s = _api("/api/status")
-    return {k: s.get(k) for k in ("connected", "ctl_connected", "armed", "mode_name", "physics", "paused", "arm_ready",
+    return {k: s.get(k) for k in ("connected", "ctl_connected", "armed", "mode_name", "paused", "arm_ready",
                                   "arm_block_reason", "px4_running", "speed", "home")}
 
 
@@ -121,10 +121,10 @@ def px4_command(command: str, mode: str | None = None) -> dict:
 
 
 @server.tool()
-def sim_control(reset: bool = False, paused: bool | None = None, speed: float | None = None, physics: str | None = None,
+def sim_control(reset: bool = False, paused: bool | None = None, speed: float | None = None,
                 wind_ned: list[float] | None = None) -> dict:
     """Control the live simulation: reset the vehicle to the ground, pause/resume, real-time factor (0 = as fast
-    as possible), physics engine ('python' | 'jsbsim'), wind vector [north, east, down] m/s."""
+    as possible), wind vector [north, east, down] m/s."""
     out = {}
     if reset:
         out["reset"] = _api("/api/sim/reset", {})
@@ -132,8 +132,6 @@ def sim_control(reset: bool = False, paused: bool | None = None, speed: float | 
         out["paused"] = _api("/api/sim/pause", {"paused": paused})
     if speed is not None:
         out["speed"] = _api("/api/sim/speed", {"speed": speed})
-    if physics is not None:
-        out["physics"] = _api("/api/sim/physics", {"physics": physics})
     if wind_ned is not None:
         out["wind"] = _api("/api/sim/wind", {"north": wind_ned[0], "east": wind_ned[1], "down": wind_ned[2] if len(wind_ned) > 2 else 0})
     return out
@@ -187,25 +185,15 @@ def _load(airframe):
 
 @server.tool()
 def run_scenario(scenario: str = "hover", airframe: str | dict | None = None, variables: dict | None = None,
-                 physics: str = "python", timeout_s: float = 600.0) -> dict:
+                 timeout_s: float = 600.0) -> dict:
     """Fly a scenario headless with PX4 in the loop (own PX4 instance, unthrottled) and return the metrics.
     airframe: file name, dict, or None for the live design. variables: {path: value} applied first."""
     from .batch.worker import run_once
     af = _load(airframe)
-    r = run_once(af, scenario, variables=variables or {}, physics=physics, timeout_wall=timeout_s, quiet=True)
+    r = run_once(af, scenario, variables=variables or {}, timeout_wall=timeout_s, quiet=True)
     return {k: v for k, v in r.items() if k not in ("airframe", "log", "traceback")}
 
 
-@server.tool()
-def compare_physics(scenario: str = "hover", airframe: str | dict | None = None, variables: dict | None = None) -> dict:
-    """Fly a scenario on both physics engines (Python rigid body and JSBSim) and return the per-phase deltas."""
-    from .batch.compare import compare_physics as _cmp
-    af = _load(airframe)
-    r = _cmp(af.to_dict(), scenario, variables=variables or {})
-    return {"ok": r["ok"], "report": r["report"], "phases": r["phases"], "series": r["series"]}
-
-
-@server.tool()
 def run_study(spec: dict | str, workers: int = 4) -> dict:
     """Optimisation study: spec dict (or a file name in studies/) with airframe, scenario, variables (paths +
     ranges), objective expression, constraints, algorithm (random|grid|cmaes|nelder_mead, budget). Returns the
