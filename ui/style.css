@@ -441,3 +441,35 @@ table.grid.rc-map td.rc-state { color: var(--text-3); min-width: 56px; }
 .rc-line input.rc-name:hover, .rc-line input.rc-name:focus { background: var(--soft-2); }
 .rc-tag { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 6px; background: var(--soft-2); color: var(--text-3); }
 .rc-tag.on { background: var(--green); color: #fff; }
+
+/* ---- preset in the title bar: the name, what to load, its versions, and the push */
+.name-input { background: transparent; border: 0; font-size: 15px; font-weight: 700; letter-spacing: -0.01em;
+  color: var(--text); padding: 3px 8px; border-radius: 8px; width: 180px; min-width: 90px; }
+.name-input:hover { background: var(--soft); }
+.name-input:focus { background: var(--panel); box-shadow: inset 0 0 0 1px var(--line); }
+.preset-select { background: transparent; border: 0; border-radius: 999px; padding: 4px 8px; font-size: 12.5px;
+  color: var(--text-2); max-width: 150px; cursor: pointer; }
+.preset-select:hover { background: var(--soft); color: var(--text); }
+.saved-mark { opacity: 0; transition: opacity .2s; font-size: 12px; }
+.saved-mark.on { opacity: 1; }
+
+/* ---- firmware tab: the module source editor */
+#fw-text { width: 100%; height: 420px; resize: vertical; background: var(--panel); color: var(--text);
+  border: 0; border-radius: 12px; box-shadow: inset 0 0 0 1px var(--line); padding: 10px 12px;
+  font: 12px/1.55 ui-monospace, "SF Mono", Menlo, Consolas, monospace; white-space: pre; overflow: auto; }
+#fw-text:focus { box-shadow: inset 0 0 0 1px var(--accent); }
+
+/* ---- the 3D overlay: seven readouts that never jump */
+.status .ro { display: inline-flex; align-items: baseline; gap: 6px; font-variant-numeric: tabular-nums; }
+.status .ro .k { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em;
+  color: var(--text-3); }
+.status .ro b { font-weight: 700; display: inline-block; text-align: right; }
+#ro-fc-v  { min-width: 124px; text-align: left; }
+#ro-power { min-width: 88px; }
+#ro-batt-v{ min-width: 84px; }
+#ro-lift  { min-width: 82px; }
+#ro-speed { min-width: 58px; }
+#ro-alt   { min-width: 54px; }
+#ro-wind  { min-width: 76px; }
+.status .ro.warn b { color: var(--warn); }
+.status .ro.crit b { color: var(--crit); }

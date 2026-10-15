@@ -75,19 +75,11 @@
         -0.9063133908792761
       ],
       "km": 0.01,
-      "max_thrust": 36,
+      "max_thrust": 33.399969610296026,
       "max_power_w": 3000,
       "tau": 0.12,
       "diameter": 0.08,
       "thrust_exponent": 2,
-      "kind": "ducted",
-      "ram_drag": true,
-      "duct_axis": [
-        1.0,
-        0.0,
-        0.0
-      ],
-      "turn_loss": 0.1,
       "enabled": true
     },
     {
@@ -103,19 +95,11 @@
         -0.9063133908792761
       ],
       "km": 0.01,
-      "max_thrust": 36,
+      "max_thrust": 33.399969610296026,
       "max_power_w": 3000,
       "tau": 0.12,
       "diameter": 0.08,
       "thrust_exponent": 2,
-      "kind": "ducted",
-      "ram_drag": true,
-      "duct_axis": [
-        1.0,
-        0.0,
-        0.0
-      ],
-      "turn_loss": 0.1,
       "enabled": true
     },
     {
@@ -131,19 +115,11 @@
         -0.8660190526287391
       ],
       "km": 0.01,
-      "max_thrust": 36,
+      "max_thrust": 33.6000291112331,
       "max_power_w": 3000,
       "tau": 0.12,
       "diameter": 0.08,
       "thrust_exponent": 2,
-      "kind": "ducted",
-      "ram_drag": true,
-      "duct_axis": [
-        1.0,
-        0.0,
-        0.0
-      ],
-      "turn_loss": 0.1,
       "enabled": true
     },
     {
@@ -159,19 +135,11 @@
         -0.8660190526287391
       ],
       "km": 0.01,
-      "max_thrust": 36,
+      "max_thrust": 33.6000291112331,
       "max_power_w": 3000,
       "tau": 0.12,
       "diameter": 0.08,
       "thrust_exponent": 2,
-      "kind": "ducted",
-      "ram_drag": true,
-      "duct_axis": [
-        1.0,
-        0.0,
-        0.0
-      ],
-      "turn_loss": 0.1,
       "enabled": true
     },
     {
@@ -187,19 +155,11 @@
         -0.8191567496653964
       ],
       "km": 0.01,
-      "max_thrust": 36,
+      "max_thrust": 33.79998119868452,
       "max_power_w": 3000,
       "tau": 0.12,
       "diameter": 0.08,
       "thrust_exponent": 2,
-      "kind": "ducted",
-      "ram_drag": true,
-      "duct_axis": [
-        1.0,
-        0.0,
-        0.0
-      ],
-      "turn_loss": 0.1,
       "enabled": true
     },
     {
@@ -215,19 +175,11 @@
         -0.8191567496653964
       ],
       "km": 0.01,
-      "max_thrust": 36,
+      "max_thrust": 33.79998119868452,
       "max_power_w": 3000,
       "tau": 0.12,
       "diameter": 0.08,
       "thrust_exponent": 2,
-      "kind": "ducted",
-      "ram_drag": true,
-      "duct_axis": [
-        1.0,
-        0.0,
-        0.0
-      ],
-      "turn_loss": 0.1,
       "enabled": true
     },
     {
@@ -243,19 +195,11 @@
         -0.8660190526287391
       ],
       "km": 0.01,
-      "max_thrust": 36,
+      "max_thrust": 33.6000291112331,
       "max_power_w": 3000,
       "tau": 0.12,
       "diameter": 0.08,
       "thrust_exponent": 2,
-      "kind": "ducted",
-      "ram_drag": true,
-      "duct_axis": [
-        1.0,
-        0.0,
-        0.0
-      ],
-      "turn_loss": 0.1,
       "enabled": true
     },
     {
@@ -271,19 +215,11 @@
         -0.7660199780615452
       ],
       "km": 0.01,
-      "max_thrust": 36,
+      "max_thrust": 34.00008722711677,
       "max_power_w": 3000,
       "tau": 0.12,
       "diameter": 0.08,
       "thrust_exponent": 2,
-      "kind": "ducted",
-      "ram_drag": true,
-      "duct_axis": [
-        1.0,
-        0.0,
-        0.0
-      ],
-      "turn_loss": 0.1,
       "enabled": true
     },
     {
@@ -304,10 +240,6 @@
       "tau": 0.12,
       "diameter": 0.08,
       "thrust_exponent": 2,
-      "kind": "ducted",
-      "ram_drag": true,
-      "duct_axis": null,
-      "turn_loss": 0.1,
       "enabled": true
     },
     {
@@ -328,10 +260,6 @@
       "tau": 0.12,
       "diameter": 0.08,
       "thrust_exponent": 2,
-      "kind": "ducted",
-      "ram_drag": true,
-      "duct_axis": null,
-      "turn_loss": 0.1,
       "enabled": true
     }
   ],

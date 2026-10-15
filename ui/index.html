@@ -17,31 +17,40 @@
   <div class="main">
     <section class="panel view">
       <div class="panel-head">
-        <div class="panel-title">Airframe<span id="title-name"></span></div>
+        <div class="panel-title">Airframe</div>
+        <input id="af-name" type="text" class="name-input" title="preset name; every change on every tab is saved to it automatically" spellcheck="false">
+        <select id="af-preset" class="preset-select" title="load a preset"><option value="">Load…</option></select>
+        <select id="af-version" class="preset-select" title="versions of this preset pushed to GitHub"><option value="">Versions…</option></select>
+        <button class="pill" id="af-push" title="push this preset to GitHub as a new version: geometry, every parameter, and the firmware sources">Push version</button>
+        <span id="af-saved" class="hint saved-mark"></span>
         <div class="panel-spacer"></div>
         <button class="pill" id="btn-reset" title="Start clean: force-disarm, vehicle back on the ground, and PX4 rebooted (HITL) or relaunched (SITL)">Reset</button>
         <button class="pill" id="btn-pause">Pause</button>
         <button class="pill toggle" id="btn-follow" title="Camera: static → track (looks at the drone) → follow (moves with it)">Static</button>
         <button class="pill theme-btn" id="btn-theme" title="Toggle dark mode">◐</button>
       </div>
-      <div class="status">
-        <button class="pill st" id="st-link" title="Open the Connect tab"><i class="dot"></i><b id="st-mode">—</b>&nbsp;<span id="st-conn">not connected</span></button>
-        <button class="pill st detected hidden" id="st-detected" title="A flight controller is plugged in — click to connect">Pixhawk detected · connect</button>
-        <span class="pill st" id="st-armed">Disarmed</span>
-        <span class="pill st" id="st-flightmode">—</span>
-        <span class="pill st num" id="st-thrust" title="collective thrust: sum of all motor thrusts as a share of the sum of their (jetfoil-corrected) maximum thrusts">Thrust —</span>
-        <span class="pill st num" id="st-lift" title="wing lift as a share of the weight, and in newtons (red = a wing is stalled)">Lift —</span>
-        <button class="pill st num" id="st-battery" title="battery: charge left and minutes at the current power (5 s average). Resets with the simulation. Click to set the capacity">Battery —</button>
-        <span id="pitch-indicator" class="pill st num" title="Aircraft body pitch relative to the horizon. Positive is nose up; negative is nose down.">Pitch <span id="pitch-value">—</span><span id="pitch-direction" hidden>Waiting for attitude</span></span>
-        <span class="pill st num" id="st-time">0.0 s</span>
-        <span class="pill st num" id="st-rtf">RTF —</span>
+      <!-- The overlay: the seven numbers worth watching while it flies, and nothing else. Fixed widths and
+           tabular figures, so a digit changing never moves anything on screen. -->
+      <div class="status" id="overlay">
+        <button class="pill st ro" id="ro-fc" title="flight controller: link, mode and armed state">
+          <i class="dot"></i><span class="k">Controller</span><b id="ro-fc-v">—</b></button>
+        <span class="pill st ro" title="electrical power into the motors now, and as a share of what they can draw">
+          <span class="k">Power</span><b id="ro-power">—</b></span>
+        <button class="pill st ro" id="ro-batt" title="charge left, and minutes at the current draw. Click to set the capacity">
+          <span class="k">Battery</span><b id="ro-batt-v">—</b></button>
+        <span class="pill st ro" title="lift from the wings, and as a share of the weight">
+          <span class="k">Wing lift</span><b id="ro-lift">—</b></span>
+        <span class="pill st ro" title="speed through the air">
+          <span class="k">Speed</span><b id="ro-speed">—</b></span>
+        <span class="pill st ro" title="height above the ground">
+          <span class="k">Height</span><b id="ro-alt">—</b></span>
+        <span class="pill st ro" title="wind speed, and the direction it comes from">
+          <span class="k">Wind</span><b id="ro-wind">—</b></span>
       </div>
       <div id="viewport">
         <canvas id="c"></canvas>
         <div id="hud">
           <div id="rotor-readout"></div>
-          <div class="hint"><span id="st-pose" class="num"></span></div>
-          <div class="hint"><span id="st-aero" class="num"></span></div>
         </div>
       </div>
     </section>
@@ -61,22 +70,15 @@
   <aside class="panel side" id="side">
     <nav class="tabs">
       <button data-tab="airframe" class="active">Geometry</button>
-      <button data-tab="px4">PX4</button>
-      <button data-tab="design">Optimize</button>
+      <button data-tab="px4">Params</button>
+      <button data-tab="firmware">Firmware</button>
       <button data-tab="batch">Batch</button>
-      <button data-tab="sim">Flight</button>
       <button data-tab="connect">Connect</button>
-      <button data-tab="versions" title="every flash to a board is archived on GitHub: firmware image, all parameters, airframe, module sources">Versions</button>
     </nav>
     <div class="panel-body">
 
     <!-- ============================ GEOMETRY ============================ -->
     <section id="tab-airframe" class="tab active">
-      <div class="row">
-        <label style="flex:1">Name <input id="af-name" type="text"></label>
-        <button id="af-save" class="pill small" title="Save this airframe under its name in airframes/">Save</button>
-        <label>Load <select id="af-preset" style="width:150px"><option value="">Choose…</option></select></label>
-      </div>
 
       <div class="card">
       <h3>Mass &amp; CG</h3>
@@ -134,12 +136,10 @@
         <label>Y m <input id="imu-y" type="number" step="0.001"></label>
         <label>Z m <input id="imu-z" type="number" step="0.001"></label>
       </div>
-      <p class="hint">Use the Pixhawk IMU location. Changes apply to PX4 automatically while disarmed.</p>
       </div>
 
       <div class="card">
       <h3>Rotors</h3>
-      <p class="hint"># = PWM port: 1–8 are MAIN 1–8; 9–10 are AUX 1–2. Choosing an occupied motor port swaps assignments. Geometry and nose-lift roles stay unchanged.</p>
       <div id="rotor-table"></div>
 
       <div class="row tight">
@@ -153,15 +153,12 @@
       <div class="card">
       <h3>Motors</h3>
       <div class="row">
-        <label>Type <select id="m-kind" style="width:130px"><option value="prop">Propeller</option><option value="ducted">Ducted fan</option></select></label>
         <label title="Electrical watts per motor at maximum thrust. Applies to all motors. Partial power scales with thrust to the power 1.5; 0 uses the ideal estimate.">Max power W <input id="m-power" type="number" step="100" min="0"></label>
         <label title="max thrust per rotor, N">Tmax N <input id="m-tmax" type="number" step="0.5" min="0"></label>
         <label title="spool-up time constant, s">τ s <input id="m-tau" type="number" step="0.01" min="0.005"></label>
         <label title="reaction torque per unit thrust (CA_ROTORn_KM magnitude; spin sign is set per rotor)">|KM| <input id="m-km" type="number" step="0.005" min="0"></label>
         <label title="fan / prop diameter, m">Ø m <input id="m-dia" type="number" step="0.01" min="0.02"></label>
         <label title="thrust = Tmax · ω^n">n <input id="m-exp" type="number" step="0.1" min="1" max="3"></label>
-        <label class="row" style="align-self:end;padding-bottom:6px" title="momentum drag of the inlet mass flow"><input id="m-ram" type="checkbox"> ram drag</label>
-        <label title="thrust lost when a jetfoil bends the jet by 90°, %">Jetfoil loss % <input id="m-turnloss" type="number" step="1" min="0" max="60"></label>
       </div>
       </div>
 
@@ -180,15 +177,7 @@
       <div class="row tight">
         <button id="leg-add" class="pill small">+ Leg</button>
         <button id="leg-mirror" class="pill small" title="Duplicate the last leg mirrored left/right">Mirror L/R</button>
-      </div>
-      <div class="row tight" id="leg-generate" title="Replace all legs with four legs whose feet lie on a plane perpendicular to gravity when the airframe stands at the landed pitch">
-        <span class="hint" style="align-self:center">Generate 4 legs:</span>
-        <label title="distance from the CG down to the feet, along gravity when landed">height <input id="lg-height" type="number" step="0.01" min="0.01" value="0.2"></label>
-        <label title="half-size of the foot rectangle, forward/back">spread x <input id="lg-sx" type="number" step="0.01" min="0" value="0.2"></label>
-        <label title="half-size of the foot rectangle, left/right">spread y <input id="lg-sy" type="number" step="0.01" min="0" value="0.2"></label>
-        <label title="z of the attachment points relative to the CG (down positive)">attach z <input id="lg-az" type="number" step="0.01" value="0"></label>
-        <button id="leg-generate-btn" class="pill small">Generate</button>
-        <button id="leg-auto-btn" class="pill small" title="size every leg's spring and damper from the aircraft mass: 2 cm of static sink under the weight and a damping ratio of 0.8, so it settles without bouncing and the feet stay at the ground">Auto k/c</button>
+        <button id="leg-auto-btn" class="pill small" title="Size every spring and damper from the aircraft mass: 2 cm of static sink and no bouncing">Size springs</button>
         <span id="leg-static" class="hint"></span>
       </div>
       </div>
@@ -256,128 +245,61 @@
     </section>
 
     <!-- ============================ DESIGN / OPTIMIZE ============================ -->
-    <section id="tab-design" class="tab">
-      <h3>Cruise</h3>
-      <div class="row">
-        <label>Speed km/h <input id="d-speed" type="number" step="1" min="1"></label>
-        <span class="hint" id="d-notes"></span>
-      </div>
-      <div id="d-now" class="card"></div>
-
-      <h3>Variables</h3>
-      <div id="d-groups"></div>
-      <div class="row tight">
-        <label class="row"><input id="d-hp-on" type="checkbox" checked> Hover pitch</label>
-        <label>from <input id="d-hp-lo" type="number" step="1" value="0" style="width:60px"></label>
-        <label>to <input id="d-hp-hi" type="number" step="1" value="60" style="width:60px"></label>
-      </div>
-
-      <h3>Objective</h3>
-      <div class="row">
-        <span class="hint">Hover margin</span>
-        <input id="d-weight" type="range" min="0" max="100" value="50" style="flex:1">
-        <span class="hint">Cruise power</span>
-        <label>Samples <input id="d-samples" type="number" step="50" min="50" max="1000" value="300" style="width:70px"></label>
-        <button id="d-run" class="pill small primary">Optimize</button>
-      </div>
-      <div id="d-progress" class="hint"></div>
-      <div id="d-results"></div>
-    </section>
-
     <!-- ============================ BATCH ============================ -->
     <section id="tab-batch" class="tab">
-      <h3>Scenarios <small>· headless runs of the current airframe in a private PX4 instance; the interactive sim keeps running</small></h3>
-      <div id="scenario-list"></div>
-
-      <h3>Jobs</h3>
-      <div id="batch-jobs"><div class="hint">No jobs yet.</div></div>
-
-      <h3>Studies</h3>
-      <div id="study-list"></div>
-      <div id="study-status"></div>
-    </section>
-
-    <!-- ============================ VERSIONS (firmware archive) ============================ -->
-    <section id="tab-versions" class="tab">
-      <h3>Firmware archive <small>· every flash to a physical board is saved here and pushed to GitHub: the image, every board parameter, the exported parameters, the airframe and the module sources</small></h3>
-      <div id="arch-status" class="card"><div class="hint">Loading…</div></div>
+      <h3>Batch</h3>
       <div class="row tight">
-        <input id="arch-note" type="text" placeholder="note for the snapshot (optional)" style="flex:1">
-        <button id="arch-snapshot" class="pill small primary" title="save the connected board's current parameters (and the airframe) as a version without flashing">Snapshot board now</button>
-        <button id="arch-pull" class="pill small" title="fetch versions saved from another machine">Pull</button>
+        <select id="ba-kind" style="flex:1">
+          <option value="scenario">Run a scenario</option>
+          <option value="param">Set a PX4 parameter</option>
+          <option value="geometry">Set a geometry value</option>
+          <option value="wind">Set the wind</option>
+          <option value="reset">Reset the aircraft</option>
+        </select>
+        <button class="pill small primary" id="ba-add">Add</button>
       </div>
-      <div id="arch-restore" class="hint"></div>
-      <h3>Versions</h3>
-      <div id="arch-list"><div class="hint">No versions yet.</div></div>
+      <div class="row tight" id="ba-fields"></div>
+      <div id="ba-list" class="card"><div class="hint">No actions yet. Add one above; they run in order.</div></div>
+      <div class="row tight">
+        <label>Repeat <input id="ba-repeat" type="number" min="1" value="1" style="width:60px" title="run the whole list this many times"></label>
+        <label>Workers <input id="ba-workers" type="number" min="1" max="8" value="4" style="width:60px"></label>
+        <div class="panel-spacer"></div>
+        <button class="pill small" id="ba-clear">Clear</button>
+        <button class="pill small primary" id="ba-run">Run batch</button>
+      </div>
+
+      <h3>Runs</h3>
+      <div id="batch-jobs"><div class="hint">No runs yet.</div></div>
     </section>
 
-    <!-- ============================ FLIGHT / SIM ============================ -->
-    <section id="tab-sim" class="tab">
-      <h3>Flight mode</h3>
-      <div class="row tight" id="mode-pills">
-        <button class="pill small" data-cmd="mode" data-mode="manual">Manual</button>
-        <button class="pill small" data-cmd="mode" data-mode="stabilized">Stabilized</button>
-        <button class="pill small" data-cmd="mode" data-mode="acro">Acro</button>
-        <button class="pill small" data-cmd="mode" data-mode="altitude">Altitude</button>
-        <button class="pill small" data-cmd="mode" data-mode="position">Position</button>
-        <button class="pill small" data-cmd="mode" data-mode="hold">Hold</button>
-        <button class="pill small" data-cmd="mode" data-mode="rtl">RTL</button>
-        <button class="pill small" data-cmd="mode" data-mode="mission">Mission</button>
+    <!-- ============================ FIRMWARE ============================ -->
+    <section id="tab-firmware" class="tab">
+      <div class="row tight">
+        <span class="pill st" id="fw-state"><i class="dot"></i><b id="fw-state-text">—</b></span>
+        <div class="panel-spacer"></div>
+        <button class="pill small primary" id="fw-build">Build</button>
+        <button class="pill small" id="fw-flash" title="build if needed, flash the board, archive the result">Flash board</button>
       </div>
-      <div id="px4-messages" class="card"></div>
 
-      <h3>Simulation</h3>
+      <h3>Ground sequence</h3>
       <div class="row">
-        <label>Speed <input id="sim-speed" type="number" step="0.5" min="0" value="1" title="0 = as fast as PX4 allows (SITL lockstep)"></label>
-        <label class="row" style="align-self:end;padding-bottom:6px"><input id="sim-noise" type="checkbox" checked> Sensor noise</label>
-        <label class="row" style="align-self:end;padding-bottom:6px" title="Indoor sensor set: PX4 ignores the GPS (EKF2_GPS_CTRL 0, SYS_HAS_GPS 0) and holds height on the barometer (EKF2_HGT_REF 0). Position modes become unavailable, exactly as on the real aircraft indoors. Update PX4 to apply."><input id="sim-nogps" type="checkbox"> No GPS (indoor)</label>
-      </div>
-      <div class="row">
-        <label title="velocity of the air, m/s, positive toward north: air moving north is a TAILWIND for a vehicle facing north. Enter a negative N for a headwind.">Air vel N <input id="wind-n" type="number" step="0.5" value="0"></label>
-        <label title="velocity of the air toward east, m/s">Air vel E <input id="wind-e" type="number" step="0.5" value="0"></label>
-        <label title="velocity of the air downward, m/s (negative = updraft)">Air vel D <input id="wind-d" type="number" step="0.5" value="0"></label>
-        <span class="hint" style="align-self:end;padding-bottom:6px">headwind for a nose-north vehicle: N &lt; 0</span>
-        <button id="wind-apply" class="pill small">Apply</button>
-      </div>
-      <div class="row">
-        <label>Home lat <input id="home-lat" type="number" step="0.0001"></label>
-        <label>Lon <input id="home-lon" type="number" step="0.0001"></label>
-        <label>Alt <input id="home-alt" type="number" step="1"></label>
-        <button id="home-apply" class="pill small">Apply</button>
+        <label style="flex:1">After the nose lift
+          <select id="handover-mode">
+            <option value="0">PX4 position hold (needs GPS)</option>
+            <option value="1">Pilot throttle, Stabilized (no GPS)</option>
+            <option value="2">Pilot throttle, Altitude mode (no GPS)</option>
+          </select></label>
+        <label class="row" style="align-self:end;padding-bottom:6px"><input id="staged-rc-takeoff" type="checkbox"> Two-stage RC throttle</label>
       </div>
 
-      <label class="row" title="What happens after the nose is up. Position hold: PX4 climbs and hovers by itself (needs a position estimate). Pilot: on a second Takeoff press PX4 goes to the chosen manual mode and you lift off by raising the throttle slowly; no GPS needed. Update PX4 to apply.">Handover after nose lift
-        <select id="handover-mode">
-          <option value="0">PX4 position hold (needs GPS)</option>
-          <option value="1">Pilot throttle, Stabilized (no GPS)</option>
-          <option value="2">Pilot throttle, Altitude mode (no GPS)</option>
-        </select></label>
-      <p id="handover-hint" class="hint">Pilot handover: throttle at minimum, press Takeoff. The nose rises to level and settles ("nose ready"). Press Takeoff again: you have the throttle (centre = hover). Raise it slowly until it lifts off; once airborne PX4 takes the sticks. To land, hover low and press Land, or just descend below 0.4 m with the throttle at or below centre: the module takes the motors back, the rear legs touch, the nose is lowered and it disarms. Land before liftoff lowers the nose again. Keep the attitude sticks still while on the ground.</p>
-      <label class="row"><input id="staged-rc-takeoff" type="checkbox"> Two-stage takeoff with RC throttle (1 m)</label>
-      <p id="staged-rc-hint" class="hint">Requires updated firmware. Start with physical throttle fully low. First Takeoff: slowly raise throttle to lift the nose. Wait for “nose ready”, then press Takeoff again to climb to 1 m. Holding throttle fully low for 0.4 seconds requests controlled lowering/landing, not an immediate power cut. RC loss also requests abort; kill remains separate.</p>
-      <h3>Nose lift <span class="hint">ground sequence for nose-up hoverers</span></h3>
-      <div id="nl-card" class="card">
-        <div class="hint">Raises the nose with the chosen motors to the hover pitch while PX4 is disarmed, holds it while PX4 arms and spools up, then hands over. Saved with the airframe.</div>
-        <div id="nl-motors" class="row tight"></div>
-        <div class="row">
-          <label title="structural pitch to reach before arming (default: hover pitch)">Target° <input id="nl-target" type="number" step="1" style="width:64px"></label>
-          <label title="how fast the nose rises">Rate °/s <input id="nl-rate" type="number" step="1" value="8" style="width:56px"></label>
-          <label title="idle command for all other motors during the lift, % (0 = off); helps when the front motors alone are marginal">Others idle % <input id="nl-assist" type="number" step="5" min="0" max="60" value="0" style="width:56px"></label>
-          <label class="row" style="align-self:end;padding-bottom:6px" title="the Takeoff button runs the nose lift first"><input id="nl-use" type="checkbox"> Use for Takeoff</label>
-        </div>
-        <div class="row tight">
-          <button id="nl-start" class="pill small primary">Lift nose</button>
-          <button id="nl-stop" class="pill small">Stop</button>
-          <span id="nl-status" class="hint"></span>
-        </div>
+      <h3>Modules</h3>
+      <div class="row tight">
+        <select id="fw-file" style="flex:1"><option value="">Loading…</option></select>
+        <button class="pill small" id="fw-revert" title="discard edits and reload from disk">Revert</button>
+        <button class="pill small primary" id="fw-save" title="write this file">Save</button>
       </div>
-
-
-      <h3>Motor testing</h3>
-      <label class="row"><input id="motor-enable" type="checkbox"> Enable motor sliders</label>
-      <p id="motor-test-help" class="hint"></p>
-      <button id="motor-test-stop" type="button" class="pill">Stop motor test</button>
-      <div id="motor-sliders"></div>
+      <textarea id="fw-text" spellcheck="false" wrap="off"></textarea>
+      <div class="hint" id="fw-note"></div>
     </section>
 
     <!-- ============================ CONNECT ============================ -->
@@ -410,7 +332,13 @@
       </div>
 
       <h3>Remote</h3>
-      <div class="hint" style="margin:6px 0 12px">Radio and channel mapping live on the <a href="#" id="conn-goto-rc">PX4 tab</a>.</div>
+      <div class="hint" style="margin:6px 0 12px">Radio and channel mapping live on the <a href="#" id="conn-goto-rc">Params tab</a>.</div>
+
+      <h3>Motor testing</h3>
+      <label class="row"><input id="motor-enable" type="checkbox"> Enable motor sliders</label>
+      <p id="motor-test-help" class="hint"></p>
+      <button id="motor-test-stop" type="button" class="pill">Stop motor test</button>
+      <div id="motor-sliders"></div>
 
       <h3>HITL checklist</h3>
       <div id="conn-checklist" class="card"></div>
@@ -427,6 +355,6 @@
   </aside>
 </div>
 
-<script type="module" src="/static/app.js"></script>
+<script type="module" src="/static/app.js?v=__UIV__"></script>
 </body>
 </html>

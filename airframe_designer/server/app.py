@@ -3,13 +3,14 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 import time
 from collections import deque
 from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
-from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, Response
+from fastapi.responses import HTMLResponse, FileResponse, JSONResponse, PlainTextResponse, Response
 from fastapi.staticfiles import StaticFiles
 from starlette.concurrency import run_in_threadpool
 
@@ -121,9 +122,18 @@ def build_app(state: AppState) -> FastAPI:
     link = _LinkProxy()   # always resolves to the current link
 
     # -------------------------------------------------------------- pages
+    def ui_token() -> str:
+        """The newest change time anywhere in the UI, in milliseconds."""
+        files = (f for f in UI_DIR.rglob("*") if f.is_file() and "vendor" not in f.parts)
+        return str(max((f.stat().st_mtime_ns // 1_000_000 for f in files), default=0))
+
     @app.get("/")
     async def index():
-        return FileResponse(str(UI_DIR / "index.html"))
+        # A browser holds an ES module by URL, and no-store alone does not always dislodge it: an edited
+        # app.js or scene.js could still be served from cache after a reload. The token in the script URL
+        # changes whenever any UI file changes, which does.
+        html = (UI_DIR / "index.html").read_text().replace("__UIV__", ui_token())
+        return HTMLResponse(html, headers={"Cache-Control": "no-store"})
 
     # ------------------------------------------------------------- status
     def status_dict() -> dict:
@@ -192,16 +202,25 @@ def build_app(state: AppState) -> FastAPI:
     AUTOSAVE = AIRFRAME_DIR / "_autosave.json"
     _autosave_t = [0.0]
 
+    def preset_path(af: Airframe) -> Path:
+        """Where a preset lives: airframes/<its name, slugged>.json, or the scratch file when it has no name."""
+        slug = re.sub(r"[^a-z0-9]+", "_", (af.name or "").strip().lower()).strip("_")
+        return AIRFRAME_DIR / f"{slug}.json" if slug else AUTOSAVE
+
     def autosave(af: Airframe) -> None:
-        """Every accepted edit is written to airframes/_autosave.json (at most twice a second), so a design
-        survives a closed terminal or a crash even if it was never saved by name."""
+        """Every accepted edit, from any tab, is written straight back to the preset (at most twice a second).
+
+        There is no Save button and no unsaved state: the file on disk is always what the app is flying. A
+        version is a different thing entirely, taken on purpose and pushed to GitHub, and never overwritten
+        by this.
+        """
         now = time.time()
         if now - _autosave_t[0] < 0.5:
             return
         _autosave_t[0] = now
         try:
             AIRFRAME_DIR.mkdir(exist_ok=True)
-            af.save(AUTOSAVE)
+            af.save(preset_path(af))
         except Exception as e:
             state.log(f"[ui] autosave failed: {e}")
 
@@ -497,6 +516,57 @@ def build_app(state: AppState) -> FastAPI:
 
     real_flight_lock = asyncio.Lock()
 
+    # ------------------------------------------------------------------ custom firmware modules
+    FW_ROOT = (PROJECT_DIR / "firmware" / "atlas").resolve()
+    FW_EDITABLE = (".cpp", ".hpp", ".h", ".c", ".yaml", ".msg", ".txt", ".md", ".cmake")
+
+    def fw_files() -> list[str]:
+        """Every source file of the custom modules, as paths relative to firmware/atlas."""
+        if not FW_ROOT.is_dir():
+            return []
+        out = []
+        for f in sorted(FW_ROOT.rglob("*")):
+            if not f.is_file() or f.suffix.lower() not in FW_EDITABLE:
+                continue
+            rel = f.relative_to(FW_ROOT)
+            if rel.parts and rel.parts[0] in ("build", "results"):
+                continue
+            out.append(str(rel))
+        return out
+
+    def fw_resolve(rel: str) -> Path | None:
+        """Resolve a path inside firmware/atlas, or None. Anything that escapes the tree is None."""
+        try:
+            p = (FW_ROOT / rel).resolve()
+        except (OSError, ValueError):
+            return None
+        if FW_ROOT not in p.parents or p.suffix.lower() not in FW_EDITABLE:
+            return None
+        return p
+
+    @app.get("/api/firmware/files")
+    async def firmware_files():
+        return {"root": str(FW_ROOT), "files": fw_files()}
+
+    @app.get("/api/firmware/file")
+    async def firmware_file(path: str):
+        p = fw_resolve(path)
+        if p is None or not p.is_file():
+            return JSONResponse({"ok": False, "error": "no such module file"}, status_code=404)
+        return {"ok": True, "path": path, "text": p.read_text(errors="replace")}
+
+    @app.post("/api/firmware/file")
+    async def firmware_file_write(body: dict):
+        p = fw_resolve(str(body.get("path", "")))
+        if p is None or not p.is_file():
+            return JSONResponse({"ok": False, "error": "no such module file"}, status_code=404)
+        text = body.get("text")
+        if not isinstance(text, str):
+            return JSONResponse({"ok": False, "error": "text required"}, status_code=400)
+        p.write_text(text)
+        state.log(f"[firmware] wrote {p.relative_to(FW_ROOT)} ({len(text)} bytes). Build to compile it.")
+        return {"ok": True, "path": str(p.relative_to(FW_ROOT))}
+
     @app.post("/api/firmware/real_flight")
     async def prepare_real_flight(body: dict):
         if body.get("confirmed") is not True:
@@ -530,6 +600,24 @@ def build_app(state: AppState) -> FastAPI:
     @app.post("/api/archive/pull")
     async def archive_pull():
         return await run_in_threadpool(state.conn.archive.pull)
+
+    @app.get("/api/preset/versions")
+    async def preset_versions():
+        """Versions of the preset currently loaded, newest first."""
+        a = state.conn.archive
+        await run_in_threadpool(a.ensure)
+        name = (sim.airframe.name or "").strip()
+        rows = [v for v in a.versions() if (v.get("airframe") or "") == name]
+        return {"name": name, "versions": rows, "archive": a.status()}
+
+    @app.post("/api/preset/push")
+    async def preset_push(body: dict | None = None):
+        """Push this preset to GitHub as a new version: geometry, every parameter, and the firmware sources."""
+        body = body or {}
+        af = sim.airframe
+        af.resolve_mass()
+        autosave(af)                                    # the working file first, so the version matches disk
+        return await run_in_threadpool(state.conn.preset_snapshot, str(body.get("note", "")))
 
     @app.post("/api/archive/snapshot")
     async def archive_snapshot(body: dict | None = None):
@@ -1039,6 +1127,22 @@ def build_app(state: AppState) -> FastAPI:
             except Exception:
                 pass
         return {"studies": out}
+
+    @app.post("/api/airframe/path")
+    async def airframe_set_path(body: dict):
+        """Set one geometry value by its parameter path, e.g. rotors[*].tilt_deg. Used by the batch list."""
+        from ..geometry.paths import set_path
+        path, value = str(body.get("path", "")), body.get("value")
+        if not path:
+            return JSONResponse({"ok": False, "error": "path required"}, status_code=400)
+        try:
+            set_path(sim.airframe, path, value)
+            sim.airframe.resolve_mass()
+            sim.set_airframe(sim.airframe)
+            autosave(sim.airframe)
+        except Exception as e:
+            return JSONResponse({"ok": False, "error": f"{type(e).__name__}: {e}"}, status_code=400)
+        return {"ok": True, "path": path, "value": value}
 
     @app.post("/api/batch/run")
     async def batch_run(body: dict):

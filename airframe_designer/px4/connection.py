@@ -513,6 +513,29 @@ class ConnectionManager:
         return self.archive.snapshot(kind=kind, board=board, firmware_file=image, board_firmware=dict(link.firmware or {}),
                                      params_board=dict(link.params), params_export=export, airframe=af, atlas=atlas, note=note)
 
+    def preset_snapshot(self, note: str = "") -> dict:
+        """A version of the preset itself: geometry, every exported parameter, and the module sources.
+
+        Unlike `archive_snapshot` this does not need a board. A preset is a design, and a design can be
+        versioned on a laptop with nothing plugged in. If a board happens to be connected its parameters go
+        in too, so a version taken next to the aircraft records what was actually on it.
+        """
+        af = self.sim.airframe.to_dict() if getattr(self.sim, "airframe", None) else None
+        if af is None:
+            return {"ok": False, "error": "no airframe loaded"}
+        export = {}
+        try:
+            export = self.export_params_fn() if self.export_params_fn else {}
+        except Exception as e:
+            self.log(f"[archive] export failed: {e}")
+        link = self.link
+        on_board = bool(link is not None and link.mode == "hitl" and link.ctl_connected and link.params)
+        return self.archive.snapshot(
+            kind="preset", board=self.detected_board() if on_board else {"target": "preset"},
+            firmware_file=None, board_firmware=dict(link.firmware or {}) if on_board else None,
+            params_board=dict(link.params) if on_board else {}, params_export=export,
+            airframe=af, atlas=True, note=note)
+
     def archive_restore(self, version_id: str, flash: bool = True, params: bool = True, note: str = "") -> dict:
         """Put the board back to an archived version: flash its image, then write its full parameter set."""
         v = self.archive.get(version_id)

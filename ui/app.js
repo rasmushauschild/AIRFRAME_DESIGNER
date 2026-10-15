@@ -1,7 +1,8 @@
 let lastPrearmReportRequest = 0;
 let prearmReportRequestPending = false;
-import { createScene } from '/static/scene.js';
 import { noseSelection, removeNoseMotor, simulatorNoseSelected } from '/static/nose_selection.js';
+const V = new URL(import.meta.url).search;
+const { createScene } = await import('/static/scene.js' + V);
 
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => Array.from(document.querySelectorAll(s));
@@ -12,7 +13,12 @@ const api = async (path, body, method) => {
   if (!r.ok) throw new Error((j && j.error) || r.statusText);
   return j;
 };
+// Right-align a number into a fixed character width with a fixed number of decimals, so a readout never
+// changes width and nothing beside it shifts when a digit appears or disappears.
+const pad = (v, d, w) => (v == null || !isFinite(v) ? '—' : (+v).toFixed(d)).padStart(w, ' ');
 const fmt = (v, d = 3) => (typeof v === 'number' ? v.toFixed(d) : String(v));
+const fmtDate = (iso) => { try { return new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }); } catch { return String(iso); } };
+const api_get = (path) => api(path);
 const deg = (r) => r * 180 / Math.PI;
 
 let airframe = null;
@@ -51,9 +57,8 @@ $$('.tabs button').forEach(b => b.addEventListener('click', () => {
   if (b.dataset.tab === 'airframe') loadExport();
   if (b.dataset.tab === 'px4') { ensureParams(); loadExport(); }
   if (b.dataset.tab === 'connect') refreshConnection();
-  if (b.dataset.tab === 'design') refreshDesign();
   if (b.dataset.tab === 'batch') refreshBatch();
-  if (b.dataset.tab === 'versions') refreshArchive();
+  if (b.dataset.tab === 'firmware') refreshFirmware();
 }));
 function openTab(name) { $$('.tabs button').find(b => b.dataset.tab === name)?.click(); }
 
@@ -98,7 +103,6 @@ function pushAirframe(immediate = false) {
       showHover(res.hover);
       markDirty();
       loadExport();
-      if ($('#tab-design').classList.contains('active')) refreshDesign();
     } catch (e) { logLine('[ui] airframe rejected: ' + e.message); }
   };
   if (immediate) doPush(); else pushTimer = setTimeout(doPush, 120);
@@ -145,19 +149,16 @@ function setAirframe(af) {
   airframe = normaliseAirframe(af);
   scene.setAirframe(airframe);
   $('#af-name').value = af.name;
-  $('#title-name').textContent = af.name;
+  if (document.activeElement !== $('#af-name')) $('#af-name').value = af.name || '';
   fillMassCard();
   ['bx', 'by', 'bz'].forEach((k, i) => $('#af-' + k).value = af.body.size[i]);
   ['dragx', 'dragy', 'dragz'].forEach((k, i) => $('#af-' + k).value = af.body.drag_quadratic[i]);
   ['adragx', 'adragy', 'adragz'].forEach((k, i) => $('#af-' + k).value = af.body.drag_angular[i]);
   ['dcx', 'dcy', 'dcz'].forEach((k, i) => $('#af-' + k).value = af.body.drag_center[i]);
-  designGroups = null;
-  $('#d-speed').value = airframe.design.cruise_speed_kmh ?? 50;
   renderRotorTable();
   renderWingTable();
   renderLegTable();
   renderMotorSliders();
-  fillNoseLiftCard();
   fillMotorCard();
   fillCadCard();
   loadExport();          // fills the edited/affected-parameters section (needs the server's export view)
@@ -176,21 +177,17 @@ function fillMassCard() {
   $('#af-hover').value = airframe.hover_pitch_deg || 0;
   $('#af-landed').value = airframe.landed_pitch_deg || 0;
 }
-const KIND_DEFAULTS = { prop: { km: 0.05, tau: 0.04, diameter: 0.25, thrust_exponent: 2, ram_drag: false },
-                        ducted: { km: 0.01, tau: 0.12, diameter: 0.12, thrust_exponent: 2, ram_drag: true } };
 function fillMotorCard() {
   const r = airframe.rotors[selected >= 0 ? selected : 0]; if (!r) return;
   $('#m-power').value = r.max_power_w || 0;
-  $('#m-kind').value = r.kind || 'prop'; $('#m-tmax').value = r.max_thrust; $('#m-tau').value = r.tau;
-  $('#m-km').value = Math.abs(r.km); $('#m-dia').value = r.diameter; $('#m-exp').value = r.thrust_exponent; $('#m-ram').checked = !!r.ram_drag;
-  $('#m-turnloss').value = Math.round((r.turn_loss ?? 0.1) * 100);
+  $('#m-tmax').value = r.max_thrust; $('#m-tau').value = r.tau;
+  $('#m-km').value = Math.abs(r.km); $('#m-dia').value = r.diameter; $('#m-exp').value = r.thrust_exponent;
 }
-function applyMotorCard(kindChanged) {
-  const kind = $('#m-kind').value;
-  if (kindChanged) { const d = KIND_DEFAULTS[kind]; $('#m-tau').value = d.tau; $('#m-km').value = d.km; $('#m-dia').value = d.diameter; $('#m-exp').value = d.thrust_exponent; $('#m-ram').checked = d.ram_drag; }
-  const tmax = +$('#m-tmax').value, tau = +$('#m-tau').value, km = Math.abs(+$('#m-km').value), dia = +$('#m-dia').value, ex = +$('#m-exp').value, ram = $('#m-ram').checked;
-  const turnLoss = Math.max(0, +$('#m-turnloss').value) / 100;
-  airframe.rotors.forEach(r => { r.kind = kind; r.max_thrust = tmax; r.tau = tau; r.km = (r.km >= 0 ? 1 : -1) * km; r.diameter = dia; r.thrust_exponent = ex; r.ram_drag = ram; r.turn_loss = turnLoss; if (kind !== 'ducted') r.duct_axis = null; });
+function applyMotorCard() {
+  const tmax = +$('#m-tmax').value, tau = +$('#m-tau').value, km = Math.abs(+$('#m-km').value);
+  const dia = +$('#m-dia').value, ex = +$('#m-exp').value;
+  // one card for every rotor: they are all the same kind of thing now, and km keeps its sign per rotor
+  airframe.rotors.forEach(r => { r.max_thrust = tmax; r.tau = tau; r.km = (r.km >= 0 ? 1 : -1) * km; r.diameter = dia; r.thrust_exponent = ex; });
   setAirframe(airframe); pushAirframe(true);
 }
 $('#m-power').addEventListener('change', () => {
@@ -199,8 +196,7 @@ $('#m-power').addEventListener('change', () => {
   airframe.rotors.forEach(r => { r.max_power_w = watts; });
   pushAirframe(true);
 });
-$('#m-kind').addEventListener('change', () => applyMotorCard(true));
-['m-tmax', 'm-tau', 'm-km', 'm-dia', 'm-exp', 'm-ram', 'm-turnloss'].forEach(id => $('#' + id).addEventListener('change', () => applyMotorCard(false)));
+['m-tmax', 'm-tau', 'm-km', 'm-dia', 'm-exp'].forEach(id => $('#' + id).addEventListener('change', applyMotorCard));
 
 // ============================================================ CAD bodies (STEP)
 let cadSelected = null;              // body id highlighted in the table and the 3D view
@@ -326,13 +322,13 @@ $('#cad-remove-all').addEventListener('click', () => { if (!airframe.cad || !con
 function bindNumber(id, fn) {
   $('#' + id).addEventListener('change', (e) => { fn(parseFloat(e.target.value) || 0); scene.setAirframe(airframe); pushAirframe(true); });
 }
-$('#af-name').addEventListener('change', e => { airframe.name = e.target.value; $('#title-name').textContent = airframe.name; pushAirframe(true); });
+$('#af-name').addEventListener('change', e => { airframe.name = e.target.value.trim(); pushAirframe(true); loadPresetList(); loadVersionList(); });
 bindNumber('af-mass', v => airframe.mass.mass = v);
 bindNumber('af-cgx', v => airframe.mass.cg[0] = v);
 bindNumber('af-cgy', v => airframe.mass.cg[1] = v);
 bindNumber('af-cgz', v => airframe.mass.cg[2] = v);
 bindNumber('af-battery', v => { airframe.design = airframe.design || {}; airframe.design.battery_wh = Math.max(0, v); });
-$('#st-battery').addEventListener('click', () => { openTab('airframe'); const el = $('#af-battery'); el.focus(); el.select(); });
+$('#ro-batt').addEventListener('click', () => { openTab('airframe'); const el = $('#af-battery'); el.focus(); el.select(); });
 bindNumber('af-ixx', v => airframe.mass.inertia[0] = v);
 bindNumber('af-iyy', v => airframe.mass.inertia[1] = v);
 bindNumber('af-izz', v => airframe.mass.inertia[2] = v);
@@ -357,25 +353,18 @@ $('#af-estimate').addEventListener('click', async () => {
     airframe.mass.inertia = r.inertia; setAirframe(airframe);
   } catch (e) { logLine('[ui] estimate failed: ' + e.message); }
 });
-$('#af-save').addEventListener('click', async () => {
-  const b = $('#af-save');
-  try {
-    const typed = $('#af-name').value.trim();
-    if (typed) { airframe.name = typed; $('#title-name').textContent = typed; }
-    const name = airframe.name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'airframe';
-    const bad = sanitizeNumbers(airframe);
-    if (bad.length) logLine('[ui] empty or invalid number fields set to 0: ' + bad.join(', '));
-    await api('/api/airframe', { airframe, keep_state: true });
-    const r = await api('/api/airframe/save', { name });
-    logLine('[ui] saved ' + r.path);
-    b.textContent = 'Saved'; setTimeout(() => b.textContent = 'Save', 1500);
-    loadPresetList();
-  } catch (e) {
-    logLine('[ui] SAVE FAILED: ' + e.message);
-    b.textContent = 'Save failed'; b.classList.add('danger'); setTimeout(() => { b.textContent = 'Save'; b.classList.remove('danger'); }, 4000);
-    showProblems([`Save failed: ${e.message}. The design is still in the running app; fix the problem and save again.`]);   // alert() is silent in the desktop app's web view
-  }
-});
+// There is no Save button. Every accepted edit, on any tab, is written straight back to the preset file by
+// the server; this just shows that it happened, so "saved" is a fact on screen rather than a thing to remember.
+let savedMarkTimer = null;
+function markSaved() {
+  const el = $('#af-saved');
+  if (!el) return;
+  el.textContent = 'saved';
+  el.classList.add('on');
+  clearTimeout(savedMarkTimer);
+  savedMarkTimer = setTimeout(() => el.classList.remove('on'), 1200);
+}
+
 async function loadPresetList() {
   const r = await api('/api/airframes');
   const sel = $('#af-preset');
@@ -424,14 +413,6 @@ function renderRotorTable() {
       airframe.design.nose_lift.motors = removeNoseMotor(noseSelection(airframe.rotors, airframe.design.nose_lift.motors), i);
       airframe.rotors.splice(i, 1); selected = -1; setAirframe(airframe); pushAirframe(true); });
   });
-  el.querySelectorAll('tr[data-intake]').forEach(tr => {
-    const i = +tr.dataset.intake, r = airframe.rotors[i];
-    tr.querySelectorAll('input').forEach(input => input.addEventListener('change', () => {
-      const follow = tr.querySelector('[data-follow]').checked;
-      r.intake_pos = follow ? null : [0, 1, 2].map(j => Number(tr.querySelector(`[data-intake-axis="${j}"]`).value));
-      scene.updateRotorNode(i, r); renderRotorTable(); pushAirframe(true);
-    }));
-  });
 }
 const axisText = (a) => a.map(v => (v >= 0 ? ' ' : '') + v.toFixed(2)).join(' ');
 function rotorRowHtml(i, r) {
@@ -446,15 +427,10 @@ function rotorRowHtml(i, r) {
   <td><input type="number" step="1" data-k="tilt" value="${+tilt.toFixed(1)}"></td>
   <td><input type="number" step="1" data-k="cant" value="${+cant.toFixed(1)}"></td>
   <td class="axis" title="CA_ROTOR${i}_AX / AY / AZ">${axisText(r.axis)}</td>
-  <td>${r.kind === 'ducted' ? `<select data-k="duct"><option value="jet" ${r.duct_axis ? '' : 'selected'}>jet</option><option value="foil" ${r.duct_axis ? 'selected' : ''}>foil</option></select>` : ''}</td>
   <td><span class="spin ${ccw ? 'ccw' : 'cw'}" title="click to flip (KM=${r.km})">${ccw ? 'CCW' : 'CW'}</span></td>
   <td><input type="number" step="0.5" data-k="tmax" value="${r.max_thrust}"></td>
   <td class="hover"></td>
-  <td><button class="del" title="remove rotor">✕</button></td></tr>${r.kind === 'ducted' ? `<tr data-intake="${i}"><td></td><td colspan="13"><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:6px 0">
-    <span>Jet intake</span>${['X','Y','Z'].map((label,j) => `<label>${label} <input aria-label="${esc(r.name)} intake ${label}" type="number" step="0.005" data-intake-axis="${j}" value="${(r.intake_pos || r.pos)[j]}" ${r.intake_pos ? '' : 'disabled'}></label>`).join('')}
-    <label><input type="checkbox" data-follow ${r.intake_pos ? '' : 'checked'}> Follow thrust origin</label>
-    <span class="hint">Row above: ${r.duct_axis ? 'foil' : 'jet'} thrust origin XYZ and direction Tilt° / Cant°. Coordinates: X forward, Y right, Z down (m).</span>
-  </div></td></tr>` : ''}`;
+  <td><button class="del" title="remove rotor">✕</button></td></tr>`;
 }
 function renderRotorRow(i) {
   const tr = document.querySelector(`#rotor-table tr[data-i="${i}"]`);
@@ -473,8 +449,6 @@ function applyRow(i, tr) {
   r.pos = [g('x'), g('y'), g('z')];
   r.axis = tiltToAxis(g('tilt'), g('cant'), r.pos[1]);
   r.max_thrust = g('tmax');
-  const duct = tr.querySelector('select[data-k="duct"]');
-  if (duct) r.duct_axis = duct.value === 'foil' ? (r.duct_axis || [1, 0, 0]) : null;
   tr.classList.toggle('off', !r.enabled);
   scene.updateRotorNode(i, r);
   renderRotorRow(i);
@@ -488,13 +462,7 @@ function renderReadout() {
   const r = airframe.rotors[selected];
   const [tilt, cant] = axisToTilt(r.axis, r.pos[1]);
   el.classList.add('show');
-  let foil = '';
-  if (r.duct_axis) {
-    const a = r.axis, d = r.duct_axis, na = Math.hypot(...a) || 1, nd = Math.hypot(...d) || 1;
-    const bend = deg(Math.acos(Math.max(-1, Math.min(1, (a[0] * d[0] + a[1] * d[1] + a[2] * d[2]) / (na * nd)))));
-    foil = ` · jetfoil bends ${bend.toFixed(0)}° (${((1 - (r.turn_loss ?? 0.1) * bend / 90) * 100).toFixed(0)}% thrust)`;
-  }
-  el.innerHTML = `<b>${esc(r.name || 'Motor ' + (selected + 1))}</b> pos [${r.pos.map(v => fmt(v)).join(', ')}] · axis [${r.axis.map(v => fmt(v, 3)).join(', ')}] (tilt ${tilt.toFixed(1)}°, cant ${cant.toFixed(1)}°)${foil} · ${r.km >= 0 ? 'CCW' : 'CW'}${r.enabled === false ? ' · disabled' : ''}`;
+  el.innerHTML = `<b>${esc(r.name || 'Motor ' + (selected + 1))}</b> pos [${r.pos.map(v => fmt(v)).join(', ')}] · axis [${r.axis.map(v => fmt(v, 3)).join(', ')}] (tilt ${tilt.toFixed(1)}°, cant ${cant.toFixed(1)}°) · ${r.km >= 0 ? 'CCW' : 'CW'}${r.enabled === false ? ' · disabled' : ''}`;
 }
 $('#rotor-add').addEventListener('click', () => {
   const base = airframe.rotors[selected] || airframe.rotors[airframe.rotors.length - 1] || { pos: [0.2, 0, 0], axis: [0, 0, -1], km: 0.05, max_thrust: 8, tau: 0.04, diameter: 0.25, thrust_exponent: 2, kind: 'prop', ram_drag: false, duct_axis: null, turn_loss: 0.1, enabled: true };
@@ -508,8 +476,6 @@ function mirror(axisIdx) {
   if (selected < 0 || !airframe.rotors[selected]) return;
   const n = JSON.parse(JSON.stringify(airframe.rotors[selected]));
   n.pos[axisIdx] = -n.pos[axisIdx]; n.axis[axisIdx] = -n.axis[axisIdx]; n.km = -n.km;
-  if (n.intake_pos) n.intake_pos[axisIdx] = -n.intake_pos[axisIdx];
-  if (n.duct_axis) n.duct_axis[axisIdx] = -n.duct_axis[axisIdx];
   n.name = 'M' + (airframe.rotors.length + 1);
   airframe.rotors.push(n); selected = airframe.rotors.length - 1;
   setAirframe(airframe); scene.select(selected); pushAirframe(true);
@@ -718,139 +684,6 @@ $('#leg-auto-btn').addEventListener('click', async () => {
     markDirty();
   } catch (e) { logLine('[ui] auto legs: ' + e.message); }
 });
-$('#leg-generate-btn').addEventListener('click', async () => {
-  try {
-    await api('/api/airframe', { airframe, keep_state: true });   // the generator uses the live airframe's CG
-    const r = await api('/api/airframe/legs/generate', { height: +$('#lg-height').value, spread_x: +$('#lg-sx').value, spread_y: +$('#lg-sy').value,
-      landed_pitch_deg: airframe.landed_pitch_deg || 0, attach_z: +$('#lg-az').value });
-    airframe.legs = r.legs || [];
-    renderLegTable(); scene.setAirframe(airframe); pushAirframe(true);
-  } catch (e) { logLine('[ui] leg generation failed: ' + e.message); }
-});
-
-// ============================================================ design / optimize
-let designTimer = null, designGroups = null, optPoll = null, lastAnalysis = null;
-const pct = (v) => (v == null || !isFinite(v)) ? '—' : (v * 100).toFixed(0) + '%';
-const num = (v, d = 1, unit = '') => (v == null || !isFinite(v)) ? '—' : v.toFixed(d) + unit;
-function designSpec() {
-  const groups = {};
-  for (const [name, g] of Object.entries(designGroups || {})) {
-    const row = $(`#d-groups tr[data-g="${name}"]`);
-    const on = (k) => row && row.querySelector(`input[data-k="${k}-on"]`).checked;
-    const rng = (k) => [+row.querySelector(`input[data-k="${k}-lo"]`).value, +row.querySelector(`input[data-k="${k}-hi"]`).value];
-    groups[name] = { rotors: g.rotors, tilt: on('tilt') ? rng('tilt') : null, cant: on('cant') ? rng('cant') : null };
-  }
-  return { groups, hover_pitch: $('#d-hp-on').checked ? [+$('#d-hp-lo').value, +$('#d-hp-hi').value] : null,
-           weight: 1 - (+$('#d-weight').value) / 100, speed_kmh: +$('#d-speed').value, samples: +$('#d-samples').value, refine: 6 };
-}
-function groupsFromRotors() {   // saved assignment (airframe.design.groups) if it still fits the rotor count, else the server's default
-  const saved = airframe.design && airframe.design.groups;
-  if (saved && Object.values(saved).flatMap(g => g.rotors).length === airframe.rotors.length) return JSON.parse(JSON.stringify(saved));
-  return lastAnalysis ? JSON.parse(JSON.stringify(lastAnalysis.groups)) : null;
-}
-function renderGroups() {
-  if (!designGroups) return;
-  const rows = Object.entries(designGroups).map(([name, g]) => {
-    const r0 = airframe.rotors[g.rotors[0]];
-    const [tilt, cant] = r0 ? axisToTilt(r0.axis, r0.pos[1]) : [0, 0];
-    const prev = g.ui || {};
-    return `<tr data-g="${name}"><td class="idx">${name}</td><td class="motors">${g.rotors.map(i => 'M' + (i + 1)).join(' ')}</td>
-      <td><input type="checkbox" data-k="tilt-on" ${prev.tilt === false ? '' : 'checked'}> <span class="num">${tilt.toFixed(0)}°</span></td>
-      <td><input type="number" data-k="tilt-lo" value="${prev.tiltLo ?? 0}"> – <input type="number" data-k="tilt-hi" value="${prev.tiltHi ?? 90}"></td>
-      <td><input type="checkbox" data-k="cant-on" ${prev.cant ? 'checked' : ''}> <span class="num">${cant.toFixed(0)}°</span></td>
-      <td><input type="number" data-k="cant-lo" value="${prev.cantLo ?? 0}"> – <input type="number" data-k="cant-hi" value="${prev.cantHi ?? 30}"></td></tr>`;
-  }).join('');
-  const motorRow = airframe.rotors.map((r, i) => {
-    const g = Object.entries(designGroups).find(([, g]) => g.rotors.includes(i));
-    return `<label class="row tight" style="gap:2px"><span class="hint">M${i + 1}</span><input type="text" data-m="${i}" value="${g ? g[0] : ''}" maxlength="1"></label>`;
-  }).join('');
-  $('#d-groups').innerHTML = `<table class="grid"><thead><tr><th>Group</th><th>Motors</th><th title="tilt from vertical, forward/back">Tilt</th><th>Range°</th><th title="lateral cant, symmetric left/right">Cant</th><th>Range°</th></tr></thead><tbody>${rows}</tbody></table>
-    <div class="row tight" style="margin-top:6px">${motorRow}</div>`;
-  $$('#d-groups input[data-m]').forEach(inp => inp.addEventListener('change', () => {
-    const letter = inp.value.trim().toUpperCase() || 'A'; const i = +inp.dataset.m;
-    for (const g of Object.values(designGroups)) g.rotors = g.rotors.filter(k => k !== i);
-    (designGroups[letter] = designGroups[letter] || { rotors: [] }).rotors.push(i);
-    for (const k of Object.keys(designGroups)) if (!designGroups[k].rotors.length) delete designGroups[k];
-    designGroups = Object.fromEntries(Object.keys(designGroups).sort().map(k => [k, designGroups[k]]));
-    saveGroups(); renderGroups();
-  }));
-  $$('#d-groups tr[data-g] input').forEach(inp => inp.addEventListener('change', saveGroups));
-}
-function saveGroups() {
-  for (const [name, g] of Object.entries(designGroups)) {
-    const row = $(`#d-groups tr[data-g="${name}"]`); if (!row) continue;
-    const v = (k) => row.querySelector(`input[data-k="${k}"]`);
-    g.ui = { tilt: v('tilt-on').checked, tiltLo: +v('tilt-lo').value, tiltHi: +v('tilt-hi').value, cant: v('cant-on').checked, cantLo: +v('cant-lo').value, cantHi: +v('cant-hi').value };
-  }
-  airframe.design.groups = designGroups;
-}
-async function refreshDesign() {
-  clearTimeout(designTimer);
-  designTimer = setTimeout(async () => {
-    if (!airframe) return;
-    let r;
-    try { r = await api('/api/design/analysis', { airframe, speed_kmh: +$('#d-speed').value }); } catch (e) { $('#d-now').textContent = e.message; return; }
-    lastAnalysis = r;
-    if (!designGroups) designGroups = groupsFromRotors(); else saveGroups();
-    if (!document.activeElement || !document.activeElement.closest('#d-groups')) renderGroups();   // refresh current angles
-    renderNow(r);
-  }, 80);
-}
-function renderNow(r) {
-  const h = r.hover, c = r.cruise;
-  const auth = h.authority || {};
-  const probs = [...(h.problems || []), ...(c.problems || []), ...(r.notes || [])];
-  $('#d-notes').textContent = '';
-  $('#d-now').innerHTML = `<h4>Hover · ${airframe.hover_pitch_deg || 0}° nose-up</h4><div class="kv">
-      <div><span>Busiest motor</span><span class="${h.max_util > 0.85 ? 'err' : ''}">${pct(h.max_util)}</span></div>
-      <div><span>Wasted thrust</span><span>${pct(h.waste)}</span></div>
-      <div><span>Power</span><span>${num(h.power, 0, ' W')}</span></div>
-      <div><span>Roll / pitch / yaw</span><span>${num(auth.roll, 1)} / ${num(auth.pitch, 1)} / ${num(auth.yaw, 1)} Nm</span></div></div>
-    <h4>Cruise · ${(r.airspeed * 3.6).toFixed(0)} km/h</h4><div class="kv">
-      <div><span>Body pitch</span><span>${num(c.pitch_deg, 1, '°')}</span></div>
-      <div><span>PX4 pitch</span><span class="${Math.abs(c.px4_pitch_deg) > (r.tilt_limit_deg || 45) ? 'err' : ''}">${num(c.px4_pitch_deg, 1, '°')}</span></div>
-      <div><span>Busiest motor</span><span class="${c.max_util > 0.85 ? 'err' : ''}">${pct(c.max_util)}</span></div>
-      <div><span>Power vs hover</span><span>${pct(c.power_ratio)}</span></div>
-      <div><span>Total thrust</span><span>${num(c.total_thrust, 0, ' N')}</span></div>
-      <div><span>Wing lift</span><span>${pct(c.lift_share)} of weight</span></div>
-      <div><span>Wing AoA</span><span>${num(c.alpha_deg, 1, '°')}</span></div>
-      <div><span>Ram / wing / body drag</span><span>${num(c.ram_drag, 0)} / ${num(c.wing_drag, 0)} / ${num(c.body_drag, 0)} N</span></div></div>
-    ${probs.length ? `<div class="problems">⚠ ${probs.join('<br>⚠ ')}</div>` : ''}`;
-}
-$('#d-speed').addEventListener('change', () => { airframe.design.cruise_speed_kmh = +$('#d-speed').value; pushAirframe(true); });
-$('#d-run').addEventListener('click', async () => {
-  saveGroups();
-  const spec = designSpec();
-  $('#d-run').disabled = true; $('#d-progress').textContent = 'starting…'; $('#d-results').innerHTML = '';
-  try { await api('/api/design/optimize', { airframe, spec }); } catch (e) { $('#d-progress').textContent = e.message; $('#d-run').disabled = false; return; }
-  clearInterval(optPoll);
-  optPoll = setInterval(async () => {
-    let j; try { j = await api('/api/design/optimize'); } catch { return; }
-    if (j.running) { $('#d-progress').textContent = `${j.message} · ${Math.round(j.progress * 100)}%`; return; }
-    clearInterval(optPoll); $('#d-run').disabled = false;
-    if (j.error) { $('#d-progress').textContent = j.error; return; }
-    if (j.result && j.result.ok === false) { $('#d-progress').textContent = j.result.error; return; }
-    if (j.result) renderResults(j.result);
-  }, 400);
-});
-function renderResults(res) {
-  $('#d-progress').textContent = `${res.evaluated} designs evaluated, ${res.feasible} feasible`;
-  const vars = res.variables;
-  const head = vars.map(v => `<th title="${esc(v.path || '')}">${v.kind === 'hover_pitch' ? 'Hover°' : (v.group ? v.group + ' ' + v.kind + '°' : esc(v.path || v.kind))}</th>`).join('');
-  const row = (m, i, cls, label) => `<tr class="${cls}"><td class="idx">${label}</td>${m.x.map(x => `<td class="num">${x.toFixed(1)}</td>`).join('')}
-    <td class="num ${m.hover.ok ? '' : 'err'}">${pct(m.hover.max_util)}</td><td class="num">${num(m.hover.authority.yaw, 1)}</td>
-    <td class="num ${m.cruise.converged ? '' : 'err'}">${pct(m.cruise.power_ratio)}</td><td class="num">${num(m.cruise.px4_pitch_deg, 0, '°')}</td><td class="num">${pct(m.cruise.lift_share)}</td>
-    <td class="num">${pct(m.cruise.max_util)}</td><td>${i >= 0 ? `<button class="pill small" data-apply="${i}">Apply</button>` : ''}</td></tr>`;
-  $('#d-results').innerHTML = `<table class="grid"><thead><tr><th></th>${head}<th title="busiest motor in hover">Hover</th><th title="yaw torque available in hover, Nm">Yaw</th><th title="cruise power relative to hover power">Cruise</th><th>PX4 pitch</th><th>Wing</th><th title="busiest motor in cruise">Motor</th><th></th></tr></thead>
-    <tbody>${row(res.current, -1, 'current', 'now')}${res.results.map((m, i) => row(m, i, m.pareto ? 'pareto' : '', String(i + 1))).join('')}</tbody></table>`;
-  $$('#d-results button[data-apply]').forEach(b => b.addEventListener('click', () => {
-    const m = res.results[+b.dataset.apply];
-    (m.axes || []).forEach((a, i) => { if (airframe.rotors[i]) airframe.rotors[i].axis = a; });
-    if (m.hover_pitch_deg != null) airframe.hover_pitch_deg = m.hover_pitch_deg;
-    setAirframe(airframe); pushAirframe(true);
-    b.textContent = 'Applied'; setTimeout(() => b.textContent = 'Apply', 1500);
-  }));
-}
 
 // ============================================================ PX4 export
 async function loadExport() {
@@ -888,7 +721,15 @@ $('#btn-update').addEventListener('click', () => {
   pushToPX4($('#update-status'), true);
 });
 let geometryDirty = false;
-function markDirty() { geometryDirty = true; $('#update-status').innerHTML = '<span class="warn">Changed since last update</span>'; }
+function markDirty() { geometryDirty = true; markSaved(); $('#update-status').innerHTML = '<span class="warn">Changed since last update</span>'; }
+// The flight controller is running the ATLAS ground-sequence module, so Takeoff and Land are one MAVLink
+// command rather than anything this app does. Kept when the simulator-side nose-lift card was removed.
+function nativeModuleActive() {
+  const has = status.mode === 'sitl' || !!status.native_module;
+  const enabled = status.nlf_enable ?? (params.NLF_ENABLE || {}).value ?? ((airframe && airframe.px4_overrides) || {}).NLF_ENABLE;
+  return has && +enabled === 1;
+}
+
 function updateFooter() {
   const armBtn = $('#btn-arm');
   armBtn.textContent = status.armed ? 'Kill' : 'Arm';
@@ -916,27 +757,14 @@ function updateFooter() {
     sel.disabled = !!status.armed || !nativeNoseLift;
     if (document.activeElement !== sel) sel.value = String(airframe?.px4_overrides?.NLF_PILOT ?? params.NLF_PILOT?.value ?? 0);
     const chosen = Number(sel.value);
-    $('#handover-hint').hidden = !chosen;
-    sel.title = nativeNoseLift ? (chosen && chosen !== pilotHandover ? 'Update PX4 to apply' : '') : 'Needs the native nose-lift module'; }
-  { const ng = $('#sim-nogps');
-    ng.disabled = !!status.armed;
-    if (document.activeElement !== ng) ng.checked = Number(airframe?.px4_overrides?.EKF2_GPS_CTRL ?? 7) === 0; }
-  const manualHint = $('#staged-rc-hint');
-  if (manualHint) {
-    manualHint.dataset.standard ||= manualHint.textContent;
-    manualHint.textContent = manualPrototype ? 'HITL/SITL manual prototype: first Takeoff lifts the nose under RC throttle. After pitch settles for one second, press again to climb gently to 2 m above the starting height and hold altitude. RC throttle is a power ceiling: lowering it overrides height hold. No horizontal position hold or automatic landing. Keep all motor batteries disconnected for HITL.' : manualHint.dataset.standard;
-  }
-  if (stagedCheckbox.nextSibling?.nodeType === Node.TEXT_NODE) stagedCheckbox.nextSibling.textContent = manualPrototype ? ' GPS-free manual prototype (simulation only)' : ' Two-stage takeoff with RC throttle (1 m)';
+    sel.title = nativeNoseLift ? (chosen && chosen !== pilotHandover ? 'Flash the firmware to apply' : '') : 'Needs the native nose-lift module'; }
   if (document.activeElement !== stagedCheckbox) stagedCheckbox.checked = Number(airframe.px4_overrides?.NLF_RC_THR ?? params.NLF_RC_THR?.value ?? 0) === 1;
   tko.title = nativeNoseLift ? 'PX4 arms, raises the nose to the configured target, then climbs and holds heading' : 'Automatic takeoff';
   tko.textContent = 'Takeoff';
   if (stagedRc) tko.title = 'First press: RC-controlled nose lift. Once nose ready, press again to climb to 1 m. Lower throttle to request abort/landing.';
   if (manualPrototype) tko.title = 'Simulation only: RC nose lift, then second press for 2 m altitude hold with RC power ceiling and attitude control.';
   if (pilotHandover) tko.title = status.armed ? 'Second press (throttle at minimum): you get the throttle; raise it slowly to lift off' : `Arms, raises the nose to level and waits for "nose ready"; a second press gives you the throttle, PX4 (${pilotHandover === 2 ? 'Altitude' : 'Stabilized'}) takes over once airborne`;
-  tko.disabled = noseTakeoffPending || !!status.resetting || !status.ctl_connected || (nativeNoseLift && status.armed && !stagedRc && !pilotHandover) || (!status.armed && !status.arm_ready);
-  $$('#nl-card input, #nl-card button').forEach(el => { el.disabled = status.mode !== 'sitl' || !!status.armed || noseTakeoffPending; });
-  $$('#nl-motors input').forEach(el => { el.disabled ||= airframe.rotors[+el.dataset.m]?.enabled === false; });
-  $('#nl-stop').disabled = status.mode !== 'sitl' || !!status.armed;
+  tko.disabled = !!status.resetting || !status.ctl_connected || (nativeNoseLift && status.armed && !stagedRc && !pilotHandover) || (!status.armed && !status.arm_ready);
   { const me = $('#motor-enable'); if (me) { const hitl = status.conn_mode === 'hitl'; me.disabled = hitl && (status.armed || !status.ctl_connected); if (me.disabled && me.checked) { stopMotorTest(); me.checked = false; } me.closest('label') && (me.closest('label').title = hitl ? 'Real motor tests require a connected, disarmed flight controller' : ''); } }
   const landButton = $('#btn-land');
   if (landButton) {
@@ -953,13 +781,9 @@ function updateFooter() {
   targetInput.title = simPitch
     ? 'SITL nose-lift target, shared with Flight and scenarios. Does not change hover pitch.'
     : 'PX4 NLF_TARGET: firmware nose-lift target. Editable while connected and disarmed.';
-  $('#nl-target').closest('label').hidden = false;
   if (document.activeElement !== targetInput) targetInput.value = simPitch
     ? (airframe.design?.nose_lift?.target_pitch_deg ?? airframe.hover_pitch_deg ?? 0)
     : ((params.NLF_TARGET || {}).value ?? airframe.px4_overrides?.NLF_TARGET ?? ((airframe.hover_pitch_deg ?? 25) - 10));
-  const nlHint = $('#nl-card .hint');
-  if (nlHint) nlHint.textContent = status.mode === 'sitl' ? 'SITL only: select the motors that lift the nose. Enable Use for Takeoff to raise the nose before automatic takeoff. Supports any motor count within PX4’s 12-output limit. Land uses the standard PX4 landing sequence.' : 'Simulator-only motor selection. The hardware nose-lift module is unchanged.';
-  $$('#mode-pills .pill').forEach(el => { if (el.textContent.toLowerCase() === 'takeoff') { el.disabled = !!nativeNoseLift; el.title = nativeNoseLift ? 'Use Takeoff below' : ''; } });
 
   tko.classList.toggle('hidden', !!status.armed && !status.on_ground_hint && false);
   const upd = $('#btn-update');
@@ -976,102 +800,6 @@ function updateFooter() {
   if (fwStale && !geometryDirty && !$('#update-status').textContent) $('#update-status').innerHTML = onBoard ? '<span class="warn">The board firmware is out of date</span>' : '<span class="warn">Firmware sources changed: Update PX4 rebuilds it</span>';
   $$('#mode-pills .pill').forEach(b => b.classList.toggle('active', status.connected && (status.mode_name || '').toLowerCase() === b.textContent.toLowerCase()));
 }
-// ---- nose lift (ground sequence): settings live in airframe.design.nose_lift
-let lastNoseLift = null;
-let noseTakeoffPending = false;
-let noseTakeoffGeneration = 0;
-function noseLiftCfg() {
-  airframe.design = airframe.design || {};
-  const d = airframe.design.nose_lift || {};
-  const motors = $$('#nl-motors input[data-m]').filter(c => c.checked).map(c => +c.dataset.m);
-  return { enabled: $('#nl-use').checked, motors, target_pitch_deg: +$('#nl-target').value,
-           rate_deg_s: +$('#nl-rate').value || 8, assist_cmd: (+$('#nl-assist').value || 0) / 100 };
-}
-function fillNoseLiftCard() {
-  if (!airframe) return;
-  const d = (airframe.design && airframe.design.nose_lift) || {};
-  const def = noseSelection(airframe.rotors, d.motors);   // front motors by default
-  $('#nl-motors').innerHTML = airframe.rotors.map((r, i) => `<label class="row tight" style="gap:3px"><input type="checkbox" data-m="${i}" ${def.includes(i) ? 'checked' : ''} ${r.enabled === false ? 'disabled' : ''}> <span class="hint">${esc(r.name || `M${i + 1}`)}${r.enabled === false ? ' (off)' : ''}</span></label>`).join('');
-  $('#nl-target').value = d.target_pitch_deg ?? airframe.hover_pitch_deg ?? 0;
-  $('#nl-rate').value = d.rate_deg_s ?? 8;
-  $('#nl-assist').value = Math.round((d.assist_cmd ?? 0) * 100);
-  $('#nl-use').checked = !!d.enabled;
-  $$('#nl-card input').forEach(inp => { inp.onchange = () => {
-    if (status.mode !== 'sitl' || status.armed) return;
-    airframe.design ||= {}; airframe.design.nose_lift = noseLiftCfg(); pushAirframe(true); updateFooter();
-  }; });
-}
-async function startNoseLift() {
-  const c = noseLiftCfg();
-  if (!c.motors.length) { logLine('[ui] nose lift: choose the motors first'); return false; }
-  const assist = airframe.rotors.flatMap((r, i) => r.enabled !== false && !c.motors.includes(i) ? [i] : []);
-  lastNoseLift = null;
-  try {
-    await api('/api/sim/nose_lift', { index_space: 'editor', motors: c.motors, target_pitch_deg: c.target_pitch_deg, rate_deg_s: c.rate_deg_s,
-                                       assist_motors: c.assist_cmd > 0 ? assist : [], assist_cmd: c.assist_cmd });
-    return true;
-  } catch (e) { logLine('[ui] nose lift: ' + e.message); $('#nl-status').textContent = e.message; return false; }
-}
-$('#nl-start').addEventListener('click', startNoseLift);
-$('#nl-stop').addEventListener('click', () => { noseTakeoffGeneration++; return api('/api/sim/nose_lift', { stop: true }); });
-function updateNoseLift(st) {
-  lastNoseLift = st.nose_lift || null;
-  const el = $('#nl-status'); if (!el) return;
-  const n = lastNoseLift;
-  el.textContent = n ? `${n.state}: nose ${n.pitch_deg.toFixed(1)}° → ${n.target_deg}°, cmd ${(n.cmd * 100).toFixed(0)}%${n.reason ? ' · ' + n.reason : ''}` : '';
-  el.classList.toggle('err', !!(n && n.state === 'failed'));
-}
-async function waitNoseLift(generation, timeoutMs = 40000) {
-  const t0 = Date.now();
-  while (Date.now() - t0 < timeoutMs) {
-    await new Promise(r => setTimeout(r, 100));
-    if (generation !== noseTakeoffGeneration || status.mode !== 'sitl') return false;
-    if (!lastNoseLift) continue;
-    if (lastNoseLift.state === 'holding' || lastNoseLift.state === 'handover') return true;
-    if (lastNoseLift.state === 'failed') return false;
-  }
-  return false;
-}
-// The native (firmware) ground sequence is used whenever the connected firmware has the module and NLF_ENABLE is 1:
-// SITL always has it; a Pixhawk only once flashed with the ATLAS build. Reported by the status feed, not the lazily
-// loaded parameter list, so it works before the PX4 tab was ever opened.
-function nativeModuleActive() {
-  if (simulatorNoseSelected(status.mode, airframe?.design?.nose_lift)) return false;
-  const has = status.mode === 'sitl' || !!status.native_module;
-  const enabled = status.nlf_enable ?? (params.NLF_ENABLE || {}).value ?? (airframe && airframe.px4_overrides || {}).NLF_ENABLE;
-  return has && +enabled === 1;
-}
-$('#btn-takeoff').addEventListener('click', async () => {
-  if (noseTakeoffPending) return;
-  const generation = ++noseTakeoffGeneration;
-  const simSequence = simulatorNoseSelected(status.mode, airframe?.design?.nose_lift);
-  noseTakeoffPending = true; updateFooter();
-  try {
-    if (nativeModuleActive()) {
-      // one MAVLink command, the same a ground station would send to the real aircraft; the flight controller does the rest
-      if (status.armed && Number(params.NLF_RC_THR?.value ?? 0) !== 1 && Number(params.NLF_MANUAL?.value ?? 0) !== 1 && Number(params.NLF_PILOT?.value ?? 0) === 0) return;
-      await api('/api/px4/command', { command: 'nose_lift_takeoff' });
-      return;
-    }
-
-    const useNl = status.mode === 'sitl' && airframe && airframe.design && airframe.design.nose_lift && airframe.design.nose_lift.enabled;   // simulator-side hook: SITL only
-    if (useNl && !status.armed) {
-      logLine('[ui] takeoff: lifting the nose first');
-      if (!(await startNoseLift())) return;
-      if (!(await waitNoseLift(generation))) { logLine('[ui] takeoff cancelled: nose lift ' + (lastNoseLift ? lastNoseLift.state + ' ' + (lastNoseLift.reason || '') : 'timed out')); return; }
-    }
-    if (simSequence && (generation !== noseTakeoffGeneration || status.mode !== 'sitl')) return;
-    const guard = simSequence ? { expected_mode: 'sitl' } : {};
-    if (!status.armed) { await api('/api/px4/command', { command: 'arm', ...guard }); await new Promise(r => setTimeout(r, 1500)); }
-    if (simSequence && (generation !== noseTakeoffGeneration || status.mode !== 'sitl')) return;
-    await api('/api/px4/command', { command: 'takeoff', ...guard });
-  } catch (e) { logLine('[ui] ' + e.message); }
-  finally { noseTakeoffPending = false; updateFooter(); }
-});
-$('#btn-arm').addEventListener('click', async () => {
-  try { await api('/api/px4/command', status.armed ? { command: 'kill', force: true } : { command: 'arm' }); } catch (e) { logLine('[ui] ' + e.message); }
-});
-
 // ============================================================ edited parameters (overrides saved with the airframe)
 function renderOverrides(r) {
   r = r || lastExport;
@@ -1211,7 +939,7 @@ $('#param-meta-fetch').addEventListener('click', async () => {
 });
 
 // ============================================================ flight / sim
-$$('#tab-sim button[data-cmd], #btn-land').forEach(b => b.addEventListener('click', async () => {
+$$('#btn-land').forEach(b => b.addEventListener('click', async () => {
   try {
     if (b.dataset.mode === 'land' && nativeModuleActive()) {
       await api('/api/px4/command', { command: 'nose_lift_land' });
@@ -1236,10 +964,6 @@ $('#btn-follow').addEventListener('click', (e) => {
   e.target.classList.toggle('on', camMode !== 'static');
   scene.setCameraMode(camMode);
 });
-$('#sim-speed').addEventListener('change', e => api('/api/sim/speed', { speed: parseFloat(e.target.value) }));
-$('#sim-noise').addEventListener('change', e => api('/api/sim/noise', { enabled: e.target.checked }));
-$('#wind-apply').addEventListener('click', () => api('/api/sim/wind', { north: +$('#wind-n').value, east: +$('#wind-e').value, down: +$('#wind-d').value }));
-$('#home-apply').addEventListener('click', () => api('/api/sim/home', { lat: +$('#home-lat').value, lon: +$('#home-lon').value, alt: +$('#home-alt').value }));
 
 // Hardware sliders send short PX4 actuator-test pulses only while held.
 let motorTestTimer = null, motorTestBusy = false, heldMotor = null, motorTestStarted = 0;
@@ -1372,81 +1096,76 @@ $('#motor-enable').addEventListener('change', (e) => {
 });
 
 // ============================================================ websocket + status
-let homeFilled = false;
 function applyStatus(s) {
   status = s;
   const none = !s.conn_mode;
-  $('#st-mode').textContent = (none ? 'No link' : (s.mode === 'hitl' ? 'Pixhawk' : 'SITL'));
-  $('#st-conn').textContent = s.paused ? 'PAUSED — PX4 gets no data, press Resume' : none ? (s.conn_error ? 'failed — open Connect' : 'open Connect')
-    : s.connected ? (s.mode === 'hitl' ? s.address.replace('/dev/', '') + (s.hil_enabled ? ' · HITL' : ' · real sensors') : 'PX4 connected')
-    : (s.mode === 'sitl' ? (s.px4_running ? 'PX4 starting…' : 'waiting for PX4') : 'no data from ' + s.address.replace('/dev/', ''));
-  $('#st-link .dot').classList.toggle('on', s.connected);
-  const det = $('#st-detected');
-  const showDet = !s.flashing && s.mode !== 'hitl' && s.px4_ports && s.px4_ports.length > 0;
-  if (s.flashing) { $('#st-mode').textContent = 'Pixhawk'; $('#st-conn').textContent = 'flashing firmware…'; }
-  det.classList.toggle('hidden', !showDet); det.classList.toggle('blink', showDet);
-  if (showDet) det.textContent = `Pixhawk on ${s.px4_ports[0].replace('/dev/', '')} · connect`;
-  $('#st-armed').textContent = s.resetting > 0 ? `Resetting… ${Math.ceil(s.resetting)} s` : (s.armed ? 'Armed' : 'Disarmed');
-  $('#st-armed').classList.toggle('armed', s.armed);
-  $('#st-flightmode').textContent = s.connected ? s.mode_name + (s.mode === 'hitl' && !s.hil_enabled ? ' · HIL OFF (set SYS_HITL=1)' : '') : '—';
-  if (!homeFilled) { $('#home-lat').value = s.home.lat; $('#home-lon').value = s.home.lon; $('#home-alt').value = s.home.alt; homeFilled = true; }
+  // One readout for "who is flying": the link, the mode and whether it is armed.
+  const where = none ? 'no link' : s.flashing ? 'flashing' : (s.mode === 'hitl' ? 'Pixhawk' : 'SITL');
+  let state;
+  if (s.resetting > 0) state = `resetting ${Math.ceil(s.resetting)} s`;
+  else if (s.paused) state = 'paused';
+  else if (!s.connected) state = none ? 'open Connect' : (s.px4_running ? 'starting' : 'waiting');
+  else state = (s.mode_name || '—') + (s.armed ? ' · armed' : '');
+  $('#ro-fc-v').textContent = `${where} · ${state}`;
+  $('#ro-fc').classList.toggle('warn', !s.connected && !none);
+  $('#ro-fc').classList.toggle('crit', !!s.conn_error);
+  $('#ro-fc .dot').classList.toggle('on', !!s.connected);
+  $('#ro-fc').title = none ? 'Not connected. Click to open Connect.'
+    : `${s.address || 'SITL'}${s.mode === 'hitl' && !s.hil_enabled ? ' · HIL OFF (set SYS_HITL=1)' : ''}`;
+  if (!s.flashing && s.mode !== 'hitl' && s.px4_ports && s.px4_ports.length) {
+    $('#ro-fc-v').textContent = `Pixhawk on ${s.px4_ports[0].replace('/dev/', '')} · connect`;
+    $('#ro-fc').classList.add('warn');
+  }
   if (s.params_session !== undefined && s.params_session !== paramsSession) {   // board (re)connected or reflashed: forget the old list
     paramsSession = s.params_session; paramsLoaded = false; params = {};
   }
   if (s.params_loaded && s.param_count && s.params_loaded >= s.param_count && !paramsLoaded && (hardwareMotors() || $('#tab-px4').classList.contains('active'))) ensureParams();
   updateFooter();
 }
-const effectiveMax = (r) => {
-  if (r.enabled === false) return 0;
-  if (!r.duct_axis) return r.max_thrust;
-  const a = r.axis, d = r.duct_axis, na = Math.hypot(...a) || 1, nd = Math.hypot(...d) || 1;
-  const bend = deg(Math.acos(Math.max(-1, Math.min(1, (a[0] * d[0] + a[1] * d[1] + a[2] * d[2]) / (na * nd)))));
-  return r.max_thrust * Math.max(0, 1 - (r.turn_loss ?? 0.1) * bend / 90);
-};
+const effectiveMax = (r) => (r.enabled === false ? 0 : r.max_thrust);
 function applyState(st) {
   scene.updateState(st);
-  updateNoseLift(st);
   $('#btn-pause').textContent = st.paused ? 'Resume' : 'Pause';
   $('#btn-pause').classList.toggle('armed', !!st.paused);
-  $('#st-time').textContent = `${st.t.toFixed(1)} s`;
-  if (airframe && st.rotors && st.rotors.length) {
-    const total = st.rotors.reduce((a, r) => a + (r.thrust || 0), 0);
-    const max = airframe.rotors.reduce((a, r) => a + effectiveMax(r), 0);
-    $('#st-thrust').textContent = max > 0 ? `Thrust ${(100 * total / max).toFixed(0)}% · ${total.toFixed(0)} N` : 'Thrust —';
+
+  const f = st.forces || {};
+  const weight = airframe && airframe.mass ? (+airframe.mass.mass || 0) * 9.80665 : 0;
+
+  // Power: what the motors are drawing, and how much of what they can draw. Every field is written with a
+  // fixed number of digits into a fixed-width box, so nothing on this bar moves as the numbers change.
+  {
+    const w = +f.power || 0;
+    const cap = airframe ? airframe.rotors.reduce((a, r) => a + (r.enabled === false ? 0 : (+r.max_power_w || 0)), 0) : 0;
+    $('#ro-power').textContent = cap > 0 ? `${pad(w, 0, 5)} W  ${pad(100 * w / cap, 0, 3)}%` : `${pad(w, 0, 5)} W`;
   }
   {
-    const f0 = st.forces || {}, weight = airframe && airframe.mass ? (+airframe.mass.mass || 0) * 9.80665 : 0;
-    const hasWing = airframe && (airframe.wings || []).some(w => w.enabled !== false);
-    const el = $('#st-lift');
-    el.textContent = hasWing && f0.lift != null && weight > 0 ? `Lift ${(100 * f0.lift / weight).toFixed(0)}% · ${(+f0.lift).toFixed(0)} N` : 'Lift —';
-    el.classList.toggle('armed', !!f0.stalled);
-    {   // battery gauge (nested: the lift block continues below)
     const cap = +((airframe && airframe.design && airframe.design.battery_wh) || 0);
-    const el = $('#st-battery');
+    const el = $('#ro-batt'), v = $('#ro-batt-v');
     if (cap > 0) {
       const used = +st.energy_wh || 0, left = Math.max(0, cap - used), pct = 100 * left / cap, pw = +st.power_avg_w || 0;
       const mins = pw > 5 ? (left / pw) * 60 : null;
-      el.textContent = `Battery ${pct.toFixed(0)}% · ${mins == null ? '—' : mins >= 100 ? Math.round(mins) + ' min' : mins.toFixed(1) + ' min'}`;
-      el.title = `${left.toFixed(1)} of ${cap.toFixed(0)} Wh left · ${used.toFixed(2)} Wh used since reset · ${pw.toFixed(0)} W average. Click to set the capacity`;
-      el.classList.toggle('warn-pill', pct <= 25 && pct > 10); el.classList.toggle('err-pill', pct <= 10);
-    } else { el.textContent = 'Battery —'; el.title = 'Set the battery capacity (Wh) on the Geometry tab to see charge and minutes left'; el.classList.remove('warn-pill', 'err-pill'); }
-    }
-    el.title = 'wing lift as a share of the weight, and in newtons' + (f0.stalled ? ' · a wing is STALLED' : '');
+      v.textContent = `${pad(pct, 0, 3)}%  ${mins == null ? ' — ' : pad(mins, 0, 3) + ' min'}`;
+      el.title = `${left.toFixed(1)} of ${cap.toFixed(0)} Wh left · ${pw.toFixed(0)} W average. Click to set the capacity`;
+      el.classList.toggle('warn', pct <= 25 && pct > 10);
+      el.classList.toggle('crit', pct <= 10);
+    } else { v.textContent = '  —'; el.title = 'Set the battery capacity (Wh) on the Geometry tab'; el.classList.remove('warn', 'crit'); }
   }
-  $('#st-rtf').textContent = `RTF ${st.rtf ? st.rtf.toFixed(2) : '—'}${st.lockstep_timeouts ? ' · ' + st.lockstep_timeouts + ' waits' : ''}`;
-  const [r, p, y] = st.euler.map(deg);
-  const pitch = Math.abs(p) < 0.05 ? 0 : p;
-  $('#pitch-value').textContent = Number.isFinite(pitch) ? `${pitch > 0 ? '+' : ''}${pitch.toFixed(1)}°` : '—';
-  $('#pitch-direction').textContent = !Number.isFinite(pitch) ? 'Attitude unavailable' : pitch > 0 ? 'Nose up' : pitch < 0 ? 'Nose down' : 'Level';
-  $('#st-pose').textContent = `N ${st.pos[0].toFixed(1)} E ${st.pos[1].toFixed(1)} alt ${(-st.pos[2]).toFixed(2)} m · R ${r.toFixed(0)}° P ${p.toFixed(0)}° Y ${y.toFixed(0)}°${st.on_ground ? ' · on ground' + (st.feet_down != null ? ` (${st.feet_down} feet)` : '') : ''}`;
-  const f = st.forces || {};
-  const parts = [];
-  if (f.airspeed != null) parts.push(`airspeed ${(+f.airspeed).toFixed(1)} m/s`);
-  if (f.lift != null) parts.push(`lift ${(+f.lift).toFixed(0)} N` + (f.stalled ? ' (stalled)' : ''));
-  if (f.wing_drag != null || f.ram_drag != null || f.body_drag != null) parts.push(`drag wing ${(+f.wing_drag || 0).toFixed(0)} · ram ${(+f.ram_drag || 0).toFixed(0)} · body ${(+f.body_drag || 0).toFixed(0)} N`);
-  if (f.power != null) parts.push(`power ${(+f.power).toFixed(0)} W`);
-  if (st.rotor_health && st.rotor_health.some(h => h < 0.999)) parts.push('rotor health ' + st.rotor_health.map(h => (h * 100).toFixed(0) + '%').join(' '));
-  $('#st-aero').textContent = parts.join(' · ');
+  {
+    const hasWing = airframe && (airframe.wings || []).some(w => w.enabled !== false);
+    const el = $('#ro-lift');
+    el.textContent = hasWing && f.lift != null && weight > 0
+      ? `${pad(+f.lift, 0, 4)} N  ${pad(100 * f.lift / weight, 0, 3)}%` : '   —';
+    el.parentElement.classList.toggle('warn', !!f.stalled);
+    el.parentElement.title = 'lift from the wings, and as a share of the weight' + (f.stalled ? ' · a wing is STALLED' : '');
+  }
+  $('#ro-speed').textContent = `${pad(+f.airspeed || 0, 1, 4)} m/s`;
+  $('#ro-alt').textContent = `${pad(-st.pos[2], 2, 5)} m`;
+  {
+    const w = st.wind || [0, 0, 0];
+    const sp = Math.hypot(w[0], w[1], w[2]);
+    const from = sp > 0.05 ? ((Math.atan2(-w[1], -w[0]) * 180 / Math.PI) + 360) % 360 : null;
+    $('#ro-wind').textContent = sp < 0.05 ? ` 0.0 m/s` : `${pad(sp, 1, 4)} m/s ${pad(from, 0, 3)}°`;
+  }
   if (airframe) updateMotorSliders(st);
 }
 const logPre = $('#log-pre');
@@ -1467,7 +1186,7 @@ function connectWs() {
     if (m.type === 'airframe') { setAirframe(m.airframe); }
     if (m.type === 'state') { lastRc = m.rc || {}; lastManual = m.manual || {}; applyState(m.state); if (m.status) applyStatus(m.status); if (m.log) m.log.forEach(l => logLine(l[1])); if ($('#tab-px4').classList.contains('active')) renderRcLive(); }
   };
-  ws.onclose = () => { $('#pitch-value').textContent = '—'; $('#pitch-direction').textContent = 'Disconnected'; logLine('[ui] connection to simulator lost, retrying…'); setTimeout(connectWs, 1500); };
+  ws.onclose = () => { $('#ro-fc-v').textContent = 'disconnected'; logLine('[ui] websocket closed; reconnecting'); setTimeout(connectWs, 800); };
 }
 connectWs();
 loadPresetList();
@@ -1521,46 +1240,11 @@ api('/api/log?since=0').then(lines => lines.forEach(l => logLine(l[1]))).catch((
 
 // ============================================================ connection / HITL
 let connTimer = null, lastChecklistHtml = '';
-$('#st-link').addEventListener('click', () => openTab('connect'));
-$('#st-detected').addEventListener('click', async () => { openTab('connect'); await connectHitl(); });
+$('#ro-fc').addEventListener('click', async () => { openTab('connect'); if ((status.px4_ports || []).length && status.mode !== 'hitl') await connectHitl(); });
 $('#conn-sitl').addEventListener('click', async () => { await connCall('/api/connection/connect', { mode: 'sitl' }); });
 $('#conn-rescan').addEventListener('click', refreshConnection);
 $('#conn-disconnect').addEventListener('click', async () => { await connCall('/api/connection/disconnect', {}); });
 $('#conn-reboot').addEventListener('click', async () => { if (confirmTwice('conn-reboot', $('#conn-reboot'), 'reboot the board (the link reconnects by itself)')) { await api('/api/px4/command', { command: 'reboot' }); setTimeout(refreshConnection, 3000); } });
-// ---- PX4 messages (decoded events) in the Flight tab
-let eventsTimer = null;
-async function refreshEvents() {
-  clearTimeout(eventsTimer);
-  if (!$('#tab-sim').classList.contains('active')) return;
-  try {
-    const r = await api('/api/events');
-    const ev = r.events || [];
-    let summary = null;
-    for (let i = ev.length - 1; i >= 0; i--) if (ev[i].name === 'commander_arming_check_summary') { summary = ev[i]; break; }
-    const el = $('#px4-messages');
-    let html = '';
-    if (summary) {
-      const d = {}; (summary.arg_names || []).forEach((k, i) => d[k] = summary.args[i]);
-      const canArm = String(d.can_arm || '').split('|').filter(x => x && !/^\d+$/.test(x));
-      const errs = String(d.error || '').split('|').filter(x => x && x !== '0' && x.toLowerCase() !== 'system');   // "system" = offboard/mission checks
-      html += `<div class="conn-row"><div><b>${canArm.length ? 'Can arm in' : 'Cannot arm'}</b> <span class="hint">${canArm.length ? canArm.join(', ') : 'see messages below'}</span>` +
-        `${errs.length ? `<div class="err">blocking: ${errs.join(', ').replace(/_/g, ' ')}</div>` : ''}</div></div>`;
-    }
-    // PX4 sends its arming/health checks as a batch right before each summary. Show only the batch that belongs
-    // to the latest summary (everything older is history, not the current state), plus anything newer than it.
-    const modeNow = (status.mode_name || '').toLowerCase();
-    const lastSummary = [...ev].reverse().find(x => x.name === 'commander_arming_check_summary');
-    const tCut = lastSummary ? lastSummary.t - 0.6 : (Date.now() / 1000 - 10);
-    const seen = new Set();
-    const shown = ev.filter(x => x.t >= tCut && x.level <= 6 && x.group !== 'protocol' && !x.name.includes('summary'))
-      .filter(x => !(/offboard/i.test(x.text) && modeNow !== 'offboard') && !(/mission/i.test(x.text) && modeNow !== 'mission'))
-      .reverse().filter(x => { if (seen.has(x.text)) return false; seen.add(x.text); return true; }).slice(0, 8);
-    html += shown.map(x => `<div class="msg ${x.level <= 3 ? 'err' : x.level === 4 ? 'warn' : ''}"><span class="lvl">${x.level_name}</span> ${x.text}</div>`).join('') || '<div class="hint">no messages from PX4 yet</div>';
-    el.innerHTML = html;
-  } catch (e) { }
-  eventsTimer = setTimeout(refreshEvents, 2000);
-}
-$$('.tabs button').forEach(b => b.addEventListener('click', () => { if (b.dataset.tab === 'sim') refreshEvents(); }));
 async function connectHitl(serial) {
   await connCall('/api/connection/connect', { mode: 'hitl', serial, baud: +$('#conn-baud').value || 921600 });
 }
@@ -1632,54 +1316,97 @@ async function refreshConnection() {
 }
 
 
-// ============================================================ Versions: firmware archive on GitHub
-let archTimer = null;
-const fmtDate = (iso) => { try { const d = new Date(iso); return d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }); } catch { return iso; } };
-async function refreshArchive() {
-  clearTimeout(archTimer);
-  if (!$('#tab-versions').classList.contains('active')) return;
-  let a;
-  try { a = await api('/api/archive'); } catch (e) { $('#arch-status').innerHTML = `<div class="err">${esc(e.message)}</div>`; return; }
-  const st = a.status || {};
-  const push = st.last_push ? `last push ${st.last_push_ok ? '✓' : '✗'} ${fmtDate(new Date(st.last_push * 1000).toISOString())}` : 'not pushed yet in this session';
-  $('#arch-status').innerHTML = `<div class="conn-row"><div><b>${st.count} version${st.count === 1 ? '' : 's'}</b> · <a href="${esc(st.web)}" target="_blank" rel="noopener">${esc(st.web)}</a>
-    <div class="hint">${st.cloned ? 'local copy ' + esc(st.path) : 'not cloned yet'} · ${push}${st.busy ? ' · pushing…' : ''}</div>
-    ${st.error ? `<div class="err">${esc(st.error)}</div>` : ''}
-    ${a.board_connected ? '' : '<div class="hint">Connect the Pixhawk (Connect tab) to snapshot or restore.</div>'}</div></div>`;
-  const r = a.restore || {};
-  $('#arch-restore').innerHTML = r.running ? `<span class="warn">Restoring ${esc(r.id)}… ${(r.steps || []).join('; ')} (watch the log)</span>`
-    : (r.id ? (r.error ? `<span class="err">Restore of ${esc(r.id)} failed: ${esc(r.error)}</span>` : `<span class="ok">Restored ${esc(r.id)}: ${(r.steps || []).join('; ')}</span>`) : '');
-  const vs = a.versions || [];
-  $('#arch-list').innerHTML = vs.length ? `<table class="grid"><thead><tr><th>When</th><th>Kind</th><th>Board</th><th>PX4 on board</th><th>ATLAS</th><th>Airframe</th><th>Params</th><th>Note</th><th></th></tr></thead><tbody>${vs.map(v => `
-    <tr data-id="${esc(v.id)}"><td class="nowrap">${fmtDate(v.time)}</td><td>${esc(v.kind)}</td><td class="mono">${esc((v.board || {}).target || '')}</td>
-    <td>${esc((v.board_firmware || {}).version || '')}</td><td>${v.atlas ? '<span class="ok">yes</span>' : 'no'}</td><td>${esc(v.airframe || '')}</td>
-    <td class="num" title="${v.firmware_bytes ? 'image ' + (v.firmware_bytes / 1e6).toFixed(2) + ' MB · sha256 ' + (v.firmware_sha256 || '').slice(0, 12) : 'no image'}">${v.params_count}</td>
-    <td>${esc(v.note || '')}</td>
-    <td class="nowrap">${v.firmware_bytes ? `<button class="pill small primary" data-restore="${esc(v.id)}" title="flash this image and write back every parameter of this version">Flash &amp; restore</button>` : ''}
-      <button class="pill small" data-params="${esc(v.id)}" title="write back this version's parameters without flashing">Params only</button>
-      <button class="pill small" data-airframe="${esc(v.id)}" title="load this version's airframe into the app">Airframe</button>
-      <a class="pill small" href="${esc(st.web)}/tree/main/versions/${encodeURIComponent(v.id)}" target="_blank" rel="noopener">GitHub</a></td></tr>`).join('')}</tbody></table>`
-    : '<div class="hint">No versions yet. Flash a board from the Connect tab, or click "Snapshot board now".</div>';
-  $$('#arch-list button[data-restore]').forEach(b => b.addEventListener('click', async () => {
-    if (!confirmTwice('restore:' + b.dataset.restore, b, 'flash this image and restore its parameters')) return;
-    b.disabled = true; try { const r = await api('/api/archive/restore', { id: b.dataset.restore, flash: true, params: true }); if (!r.ok) alert(r.error); } catch (e) { alert(e.message); } refreshArchive();
-  }));
-  $$('#arch-list button[data-params]').forEach(b => b.addEventListener('click', async () => {
-    if (!confirmTwice('params:' + b.dataset.params, b, 'write these parameters to the board')) return;
-    b.disabled = true; try { const r = await api('/api/archive/restore', { id: b.dataset.params, flash: false, params: true }); if (!r.ok) alert(r.error); } catch (e) { alert(e.message); } refreshArchive();
-  }));
-  $$('#arch-list button[data-airframe]').forEach(b => b.addEventListener('click', async () => {
-    try { const r = await api('/api/archive/load_airframe', { id: b.dataset.airframe }); selected = -1; setAirframe(r.airframe); markDirty(); openTab('airframe'); logLine('[archive] loaded airframe from ' + b.dataset.airframe); } catch (e) { alert(e.message); }
-  }));
-  archTimer = setTimeout(refreshArchive, r.running || st.busy ? 2000 : 10000);
+// ============================================================ preset versions (GitHub)
+async function loadVersionList() {
+  const sel = $('#af-version');
+  if (!sel) return;
+  try {
+    const r = await api_get('/api/preset/versions');
+    const rows = r.versions || [];
+    sel.innerHTML = `<option value="">${rows.length ? rows.length + ' version' + (rows.length === 1 ? '' : 's') : 'Versions…'}</option>`
+      + rows.map(v => `<option value="${esc(v.id)}">${fmtDate(v.time)}${v.note ? ' · ' + esc(v.note) : ''}</option>`).join('');
+    sel.title = r.archive && r.archive.web ? 'Versions of this preset on ' + r.archive.web : 'Versions of this preset';
+  } catch (e) { sel.innerHTML = '<option value="">Versions unavailable</option>'; }
 }
-$('#arch-snapshot').addEventListener('click', async () => {
-  const b = $('#arch-snapshot'); b.disabled = true; b.textContent = 'Saving…';
-  try { const r = await api('/api/archive/snapshot', { note: $('#arch-note').value }); if (!r.ok) alert(r.error); else { $('#arch-note').value = ''; logLine('[archive] snapshot ' + r.id); } } catch (e) { alert(e.message); }
-  b.disabled = false; b.textContent = 'Snapshot board now'; refreshArchive();
+$('#af-version').addEventListener('change', async e => {
+  const id = e.target.value;
+  e.target.selectedIndex = 0;
+  if (!id) return;
+  if (!confirmTwice('load-version', e.target, 'load this version over the current preset')) return;
+  try {
+    const r = await api('/api/archive/load_airframe', { id });
+    if (r.airframe) { setAirframe(r.airframe); logLine('[preset] loaded version ' + id); }
+  } catch (err) { logLine('[preset] ' + err.message); }
 });
-$('#arch-pull').addEventListener('click', async () => { try { const r = await api('/api/archive/pull', {}); if (!r.ok) alert(r.error); } catch (e) { alert(e.message); } refreshArchive(); });
+$('#af-push').addEventListener('click', async e => {
+  const b = e.currentTarget, label = b.textContent;
+  b.disabled = true; b.textContent = 'Pushing…';
+  try {
+    const r = await api('/api/preset/push', {});
+    if (r.ok) { logLine('[preset] pushed version ' + r.id); loadVersionList(); }
+    else logLine('[preset] push failed: ' + (r.error || 'unknown'));
+  } catch (err) { logLine('[preset] push failed: ' + err.message); }
+  b.disabled = false; b.textContent = label;
+});
 
+// ============================================================ firmware: the custom PX4 modules
+let fwLoaded = null, fwDirty = false;
+async function refreshFirmware() {
+  const sel = $('#fw-file');
+  if (sel.options.length <= 1 || sel.value === '') {
+    try {
+      const r = await api_get('/api/firmware/files');
+      sel.innerHTML = (r.files || []).map(f => `<option value="${esc(f)}">${esc(f)}</option>`).join('')
+        || '<option value="">no module sources found</option>';
+      $('#fw-note').textContent = r.root || '';
+      if (sel.options.length) { sel.value = sel.options[0].value; await openFirmwareFile(sel.value); }
+    } catch (e) { $('#fw-note').textContent = e.message; }
+  }
+  const fw = status.firmware || {};
+  const stale = !!(fw.needs_rebuild || fw.needs_relaunch || fw.needs_flash);
+  $('#fw-state').classList.toggle('on', !stale);
+  $('#fw-state-text').textContent = !fw.custom ? 'stock PX4'
+    : stale ? 'sources changed since the last build' : (fw.board ? 'board up to date' : 'SITL up to date');
+}
+async function openFirmwareFile(path) {
+  try {
+    const r = await api_get('/api/firmware/file?path=' + encodeURIComponent(path));
+    $('#fw-text').value = r.text || '';
+    fwLoaded = r.text || ''; fwDirty = false;
+    $('#fw-save').disabled = true;
+  } catch (e) { $('#fw-text').value = ''; $('#fw-note').textContent = e.message; }
+}
+$('#fw-file').addEventListener('change', e => openFirmwareFile(e.target.value));
+$('#fw-text').addEventListener('input', () => {
+  fwDirty = $('#fw-text').value !== fwLoaded;
+  $('#fw-save').disabled = !fwDirty;
+});
+$('#fw-revert').addEventListener('click', () => openFirmwareFile($('#fw-file').value));
+$('#fw-save').addEventListener('click', async e => {
+  const b = e.currentTarget;
+  b.disabled = true;
+  try {
+    await api('/api/firmware/file', { path: $('#fw-file').value, text: $('#fw-text').value });
+    fwLoaded = $('#fw-text').value; fwDirty = false;
+    logLine('[firmware] saved ' + $('#fw-file').value + '. Build to compile it.');
+    refreshFirmware();
+  } catch (err) { logLine('[firmware] ' + err.message); b.disabled = false; }
+});
+$('#fw-build').addEventListener('click', async e => {
+  const b = e.currentTarget, label = b.textContent;
+  b.disabled = true; b.textContent = 'Building…';
+  try { const r = await api('/api/firmware/build', { atlas: true }); logLine('[firmware] ' + (r.ok ? 'built' : 'build failed: ' + (r.error || ''))); }
+  catch (err) { logLine('[firmware] ' + err.message); }
+  b.disabled = false; b.textContent = label; refreshFirmware();
+});
+$('#fw-flash').addEventListener('click', async e => {
+  const b = e.currentTarget, label = b.textContent;
+  if (!confirmTwice('fw-flash', b, 'flash this firmware to the board')) return;
+  b.disabled = true; b.textContent = 'Flashing…';
+  try { const r = await api('/api/px4/push', { save: true, firmware: true }); logLine('[firmware] ' + JSON.stringify(r.firmware || r)); }
+  catch (err) { logLine('[firmware] ' + err.message); }
+  b.disabled = false; b.textContent = label; refreshFirmware();
+});
 
 // ============================================================ Remote control (PX4 tab): indicator + one row per channel
 let lastRc = {}, lastManual = {}, rcLastRender = 0, rcIndKey = '', rcBuiltFor = '';
@@ -2092,97 +1819,96 @@ $('#joy-connect').addEventListener('click', serialConnect);
 joyRenderMap(); joyTick(); serialReconnect();
 
 
-// ============================================================ batch: scenarios, headless jobs, studies
-let batchTimer = null, studyTimer = null, scenariosCache = null, studiesCache = null, lastJobs = null;
+// ============================================================ batch: a list of actions, run in order
+// A batch is whatever you put in the list. The actions run top to bottom, and `Repeat` runs the whole list
+// again. Nothing is implicit: a scenario job carries the airframe exactly as the actions before it left it.
+const BATCH_ACTIONS = {
+  scenario: { label: 'Run a scenario', fields: [{ k: 'scenario', type: 'select', options: () => (scenariosCache || []).map(s => s.file.replace(/\.json$/, '')) }] },
+  param:    { label: 'Set a PX4 parameter', fields: [{ k: 'name', type: 'text', placeholder: 'MC_PITCHRATE_P' }, { k: 'value', type: 'number' }] },
+  geometry: { label: 'Set a geometry value', fields: [{ k: 'path', type: 'text', placeholder: 'rotors[*].tilt_deg' }, { k: 'value', type: 'number' }] },
+  wind:     { label: 'Set the wind', fields: [{ k: 'north', type: 'number' }, { k: 'east', type: 'number' }, { k: 'down', type: 'number' }] },
+  reset:    { label: 'Reset the aircraft', fields: [] },
+};
+let batchList = [];
+try { batchList = JSON.parse(localStorage.getItem('airframe-batch') || '[]'); } catch { }
+const saveBatch = () => { try { localStorage.setItem('airframe-batch', JSON.stringify(batchList)); } catch { } };
+
+function renderBatchFields() {
+  const kind = $('#ba-kind').value;
+  const spec = BATCH_ACTIONS[kind];
+  $('#ba-fields').innerHTML = (spec.fields || []).map(f => {
+    if (f.type === 'select') return `<label style="flex:1">${f.k}<select data-f="${f.k}">${(f.options() || []).map(o => `<option>${esc(o)}</option>`).join('')}</select></label>`;
+    return `<label style="flex:1">${f.k}<input data-f="${f.k}" type="${f.type}" ${f.type === 'number' ? 'step="any" value="0"' : ''} placeholder="${esc(f.placeholder || '')}"></label>`;
+  }).join('') || '<span class="hint">no settings</span>';
+}
+function renderBatchList() {
+  const el = $('#ba-list');
+  if (!batchList.length) { el.innerHTML = '<div class="hint">No actions yet. Add one above; they run in order.</div>'; return; }
+  el.innerHTML = batchList.map((a, i) => {
+    const bits = Object.entries(a).filter(([k]) => k !== 'kind').map(([k, v]) => `${k} ${v}`).join(', ');
+    return `<div class="conn-row"><div><b>${i + 1}.</b> ${esc(BATCH_ACTIONS[a.kind].label)}${bits ? ' <span class="hint">' + esc(bits) + '</span>' : ''}</div>
+      <div class="row tight"><button class="pill small" data-up="${i}" ${i ? '' : 'disabled'}>↑</button>
+      <button class="pill small" data-del="${i}">✕</button></div></div>`;
+  }).join('');
+  $$('#ba-list [data-del]').forEach(b => b.addEventListener('click', () => { batchList.splice(+b.dataset.del, 1); saveBatch(); renderBatchList(); }));
+  $$('#ba-list [data-up]').forEach(b => b.addEventListener('click', () => {
+    const i = +b.dataset.up; [batchList[i - 1], batchList[i]] = [batchList[i], batchList[i - 1]]; saveBatch(); renderBatchList();
+  }));
+}
+$('#ba-kind').addEventListener('change', renderBatchFields);
+$('#ba-add').addEventListener('click', () => {
+  const kind = $('#ba-kind').value;
+  const action = { kind };
+  $$('#ba-fields [data-f]').forEach(el => { action[el.dataset.f] = el.type === 'number' ? (parseFloat(el.value) || 0) : el.value.trim(); });
+  batchList.push(action); saveBatch(); renderBatchList();
+});
+$('#ba-clear').addEventListener('click', () => { batchList = []; saveBatch(); renderBatchList(); });
+
+async function runBatchAction(a) {
+  if (a.kind === 'param') return api('/api/params/set', { name: a.name, value: a.value });
+  if (a.kind === 'geometry') return api('/api/airframe/path', { path: a.path, value: a.value });
+  if (a.kind === 'wind') return api('/api/sim/wind', { north: a.north, east: a.east, down: a.down });
+  if (a.kind === 'reset') return api('/api/sim/reset', {});
+  if (a.kind === 'scenario') {
+    await api('/api/airframe', { airframe });                      // the job copies the live airframe
+    const r = await api('/api/batch/run', { scenario: a.scenario, options: {} });
+    logLine(`[batch] started ${r.id} (${a.scenario})`);
+    return r;
+  }
+}
+$('#ba-run').addEventListener('click', async e => {
+  const b = e.currentTarget, label = b.textContent;
+  if (!batchList.length) { logLine('[batch] the list is empty'); return; }
+  b.disabled = true;
+  const repeats = Math.max(1, +$('#ba-repeat').value || 1);
+  try {
+    for (let pass = 1; pass <= repeats; pass++) {
+      for (let i = 0; i < batchList.length; i++) {
+        b.textContent = `${pass}/${repeats} · step ${i + 1}/${batchList.length}`;
+        try { await runBatchAction(batchList[i]); }
+        catch (err) { logLine(`[batch] step ${i + 1} failed: ${err.message}`); }
+      }
+    }
+    logLine(`[batch] finished ${repeats} pass${repeats === 1 ? '' : 'es'} of ${batchList.length} action(s)`);
+  } finally { b.disabled = false; b.textContent = label; pollJobs(); }
+});
+
+let batchTimer = null, scenariosCache = null, lastJobs = null;
 const jobsOpen = new Set();
-const KEY_METRICS = ['alt_mean', 'pos_std_xy', 'roll_rms_deg', 'pitch_rms_deg', 'util_max', 'power_mean', 'time_to_alt', 'speed_mean', 'lift_share_mean'];
 const mnum = (v, d = 2) => (v == null || !isFinite(v)) ? '—' : (+v).toFixed(d);
 async function refreshBatch() {
-  clearTimeout(batchTimer); clearTimeout(studyTimer);
-  if (!$('#tab-batch').classList.contains('active')) return;
-  if (!scenariosCache) await loadScenarios();
-  if (!studiesCache) await loadStudies();
-  pollJobs(); pollStudy();
-}
-async function loadScenarios() {
-  const el = $('#scenario-list');
-  try {
-    const r = await api('/api/scenarios');
-    scenariosCache = r.scenarios || [];
-  } catch (e) { el.innerHTML = `<div class="hint">${esc(e.message)}</div>`; return; }
-  el.innerHTML = scenariosCache.length ? scenariosCache.map(s => `<div class="card sc"><div class="conn-row"><div><b>${esc(s.name)}</b> <span class="hint mono">${esc(s.file)}</span>
-      <div class="hint">${esc(s.description || '')}</div><div class="phases">${(s.phases || []).map(p => `<span class="phase">${esc(p)}</span>`).join('')}</div></div>
-      <div class="row tight">
-      <button class="pill small primary" data-run="${esc(s.file)}">Run headless</button>
-      <button class="pill small" data-visible="${esc(s.file)}" title="Run at normal speed in the live viewport with the currently loaded aircraft and physics engine">Run visibly</button></div></div></div>`).join('')
-    : '<div class="hint">No scenarios in scenarios/.</div>';
-  const start = async (file) => {
-    await api('/api/airframe', { airframe });   // the job copies the live airframe
-    const r = await api('/api/batch/run', { scenario: file.replace(/\.json$/, ''), options: {} });
-    logLine(`[batch] started ${r.id} (${file})`);
-    return r.id;
-  };
-  $$('#scenario-list button[data-run]').forEach(b => b.addEventListener('click', async () => {
-    b.disabled = true; b.textContent = 'Starting…';
-    try { await start(b.dataset.run); pollJobs(); } catch (e) { logLine('[batch] ' + e.message); }
-    b.disabled = false; b.textContent = 'Run headless';
-  }));
-  $$('#scenario-list button[data-visible]').forEach(b => b.addEventListener('click', async () => {
-    b.disabled = true; b.textContent = 'Starting…';
-    try {
-      const r = await api('/api/sim/scenario/start', { scenario: b.dataset.visible });
-      logLine(`[live test] started ${r.name}`);
-    } catch (e) { logLine('[live test] ' + e.message); }
-    b.disabled = false; b.textContent = 'Run visibly';
-  }));
-}
-async function pollJobs() {
   clearTimeout(batchTimer);
   if (!$('#tab-batch').classList.contains('active')) return;
-  try { const r = await api('/api/batch/jobs'); lastJobs = r; renderJobs(r); } catch (e) { $('#batch-jobs').innerHTML = `<div class="hint">${esc(e.message)}</div>`; }
-  batchTimer = setTimeout(pollJobs, 1500);
-}
-function phaseSummary(res) {
-  const m = (res && res.metrics) || {};
-  const phases = m.phases || {};
-  const rows = Object.entries(phases).map(([name, d]) => {
-    const kv = KEY_METRICS.filter(k => d[k] != null).map(k => `<span title="${k}"><i>${k.replace(/_/g, ' ')}</i> ${mnum(d[k], k.includes('deg') || k === 'power_mean' ? 1 : 3)}</span>`).join('');
-    return `<div class="phase-row"><b>${esc(name)}</b>${kv}</div>`;
-  });
-  const overall = [];
-  if (m.crashed != null) overall.push(`<span class="${m.crashed ? 'err' : 'ok'}"><i>crashed</i> ${m.crashed ? 'yes' + (m.crash_reason ? ' (' + esc(m.crash_reason) + ')' : '') : 'no'}</span>`);
-  if (m.energy_wh != null) overall.push(`<span><i>energy</i> ${mnum(m.energy_wh, 3)} Wh</span>`);
-  if (m.max_tilt_deg != null) overall.push(`<span><i>max tilt</i> ${mnum(m.max_tilt_deg, 1)}°</span>`);
-  if (m.saturation_fraction != null) overall.push(`<span><i>saturation</i> ${(m.saturation_fraction * 100).toFixed(0)}%</span>`);
-  return (overall.length ? `<div class="phase-row">${overall.join('')}</div>` : '') + rows.join('');
-}
-async function downloadAnimation(url, control) {
-  const label = control.textContent;
-  control.textContent = 'Preparing download…';
-  try {
-    const response = await fetch(url);
-    if (!response.ok) {
-      const body = await response.json().catch(() => ({}));
-      throw new Error(body.error || `Download failed (${response.status})`);
-    }
-    const blob = await response.blob();
-    const objectUrl = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = objectUrl;
-    link.download = 'aircraft-animation.zip';
-    document.body.append(link);
-    link.click();
-    link.remove();
-    setTimeout(() => URL.revokeObjectURL(objectUrl), 60000);
-    control.textContent = 'Download requested';
-    logLine('[animation] ZIP ready. Check your browser downloads.');
-  } catch (error) {
-    control.textContent = 'Download failed — retry';
-    logLine('[animation] ' + error.message);
+  if (!scenariosCache) {
+    try { scenariosCache = (await api('/api/scenarios')).scenarios || []; } catch { scenariosCache = []; }
   }
-  setTimeout(() => { control.textContent = label; }, 5000);
+  renderBatchFields(); renderBatchList(); pollJobs();
 }
-
+async function pollJobs() {
+  try { const r = await api('/api/batch/jobs'); lastJobs = r; renderJobs(r); } catch (e) { }
+  clearTimeout(batchTimer);
+  if ($('#tab-batch').classList.contains('active')) batchTimer = setTimeout(pollJobs, 1500);
+}
 function renderJobs(r) {
   const jobs = r.jobs || [];
   const el = $('#batch-jobs');
@@ -2205,64 +1931,6 @@ function renderJobs(r) {
   $$('#batch-jobs tr[data-job]').forEach(tr => tr.addEventListener('click', () => { const id = tr.dataset.job; if (jobsOpen.has(id)) jobsOpen.delete(id); else jobsOpen.add(id); if (lastJobs) renderJobs(lastJobs); }));
 }
 
-async function loadStudies() {
-  const el = $('#study-list');
-  try {
-    const r = await api('/api/studies');
-    studiesCache = r.studies || [];
-  } catch (e) { el.innerHTML = `<div class="hint">${esc(e.message)}</div>`; studiesCache = []; return; }
-  el.innerHTML = studiesCache.length ? studiesCache.map(s => `<div class="card sc"><div class="conn-row"><div><b>${esc(s.name)}</b> <span class="hint mono">${esc(s.file)}</span>
-      <div class="hint">${esc(s.description || '')}</div>
-      ${s.objective ? `<div class="hint"><i>objective</i> <code>${esc(s.objective)}</code></div>` : ''}
-      <div class="phases">${(s.variables || []).map(v => `<span class="phase" title="${esc(JSON.stringify(v))}">${esc(v.path || v.name || JSON.stringify(v))}${v.range ? ' ' + esc(JSON.stringify(v.range)) : ''}</span>`).join('')}</div></div>
-      <button class="pill small primary" data-study="${esc(s.file)}">Run study</button></div></div>`).join('')
-    : '<div class="hint">No studies in studies/. A study is a JSON file with variables (parameter paths + ranges), scenarios and an objective.</div>';
-  $$('#study-list button[data-study]').forEach(b => b.addEventListener('click', async () => {
-    b.disabled = true;
-    try {
-      await api('/api/airframe', { airframe, keep_state: true });
-      await api('/api/study/run', { spec: b.dataset.study, use_current_airframe: true });
-      logLine('[study] started ' + b.dataset.study);
-      pollStudy();
-    } catch (e) { logLine('[study] ' + e.message); }
-    b.disabled = false;
-  }));
-}
-async function pollStudy() {
-  clearTimeout(studyTimer);
-  if (!$('#tab-batch').classList.contains('active')) return;
-  let j;
-  try { j = await api('/api/study/status'); } catch (e) { $('#study-status').innerHTML = `<div class="hint">${esc(e.message)}</div>`; return; }
-  renderStudy(j);
-  if (j.running) studyTimer = setTimeout(pollStudy, 1500);
-}
-function renderStudy(j) {
-  const el = $('#study-status');
-  if (!j.name && !j.running && !j.summary && !j.error) { el.innerHTML = ''; return; }
-  const trials = j.trials || [];
-  const best = (j.summary && j.summary.best) || (trials.length ? trials.reduce((a, t) => (t.score < a.score ? t : a), trials[0]) : null);
-  const paths = best ? Object.keys(best.values || {}) : (trials[0] ? Object.keys(trials[0].values || {}) : []);
-  const head = `<tr><th>#</th><th>Gen</th>${paths.map(p => `<th title="${esc(p)}">${esc(p.split('.').slice(-2).join('.'))}</th>`).join('')}<th>Objective</th><th>Score</th><th>Feasible</th></tr>`;
-  const rows = trials.slice(-60).reverse().map((t, k) => `<tr class="${t === best ? 'pareto' : ''} ${t.feasible ? '' : 'infeasible'}"><td class="idx">${trials.length - k}</td><td class="num">${t.generation ?? ''}</td>${paths.map(p => `<td class="num">${mnum((t.values || {})[p], 3)}</td>`).join('')}
-    <td class="num">${mnum(t.objective, 4)}</td><td class="num">${mnum(t.score, 4)}</td><td>${t.feasible ? '<span class="ok">yes</span>' : `<span class="err" title="${esc((t.violations || []).join(', '))}">no</span>`}</td></tr>`).join('');
-  el.innerHTML = `<div class="card"><div class="conn-row"><div><b>${esc(j.name || 'study')}</b> ${j.running ? '<span class="warn">running</span>' : j.error ? `<span class="err">${esc(j.error)}</span>` : '<span class="ok">finished</span>'}
-      ${j.summary ? `<div class="hint">${j.summary.evaluations} evaluations · ${j.summary.feasible} feasible${j.summary.best ? ` · best score ${mnum(j.summary.best.score, 4)}` : ''}</div>` : ''}</div>
-      ${best ? `<button class="pill small primary" id="study-apply" title="apply the best trial's variables to the live airframe">Apply best</button>` : ''}</div>
-    <pre class="joblog">${(j.log || []).map(esc).join('\n')}</pre>
-    ${trials.length ? `<div class="tbl"><table class="grid trials"><thead>${head}</thead><tbody>${rows}</tbody></table></div>` : ''}</div>`;
-  const ab = $('#study-apply');
-  if (ab && best) ab.addEventListener('click', async () => {
-    ab.disabled = true;
-    try {
-      const r = await api('/api/airframe/apply_variables', { variables: best.values });
-      selected = -1; setAirframe(r.airframe); showProblems([]); markDirty();
-      logLine('[study] applied best: ' + JSON.stringify(best.values));
-      ab.textContent = 'Applied'; setTimeout(() => { ab.textContent = 'Apply best'; ab.disabled = false; }, 1500);
-    } catch (e) { logLine('[study] apply failed: ' + e.message); ab.disabled = false; }
-  });
-}
-
-// Keep scripted flights visible in the same scene as interactive flying.
 const liveBadge = document.createElement('div');
 liveBadge.style.cssText = 'position:absolute;top:12px;left:12px;background:#fff;color:#222;padding:10px 14px;border-radius:12px;z-index:4;display:none;box-shadow:0 2px 12px #0002';
 const liveLabel = document.createElement('span');
@@ -2351,18 +2019,6 @@ $('#handover-mode').addEventListener('change', async e => {
   } catch (err) { logLine('[ui] ' + err.message); }
 });
 // Indoor sensor set: no GPS fusion, barometer height. Position modes vanish, exactly as on the real aircraft indoors.
-const NO_GPS = { EKF2_GPS_CTRL: 0, SYS_HAS_GPS: 0, EKF2_HGT_REF: 0 };
-$('#sim-nogps').addEventListener('change', async e => {
-  if (status.armed) return;
-  try {
-    for (const [name, value] of Object.entries(NO_GPS)) {
-      if (e.target.checked) { await api('/api/airframe/override', { name, value }); airframe.px4_overrides[name] = value; }
-      else { await api('/api/airframe/override_remove', { name }); delete airframe.px4_overrides[name]; }
-    }
-    markDirty();
-    logLine('[ui] ' + (e.target.checked ? 'No GPS: PX4 will ignore the GPS and hold height on the barometer.' : 'GPS fusion restored.') + ' Update PX4 while disarmed to apply.');
-  } catch (err) { logLine('[ui] ' + err.message); }
-});
 $('#staged-rc-takeoff').addEventListener('change', async e => {
   if (status.armed) return;
   const value=e.target.checked?1:0;
