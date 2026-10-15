@@ -579,8 +579,8 @@ function setThrustArrow(g, len, frac) {
   head.scale.set(s, 1, s);
 }
 
-// Coordinate indicator: a small scene with the world axes (N red, E blue, Up green) rendered in the lower-left
-// corner with a camera that copies the main camera's orientation, so it always shows where north and up are.
+// Coordinate indicator: a small scene with the world axes (N red, E blue, Up green) rendered in the
+// bottom-right corner with a camera that copies the main camera's orientation, so it always shows where north and up are.
 function makeAxesInset() {
   const scene = new THREE.Scene();
   const cam = new THREE.PerspectiveCamera(44, 1, 0.1, 20);
@@ -595,14 +595,18 @@ function makeAxesInset() {
   const dir = new THREE.Vector3();
   return {
     render(renderer, mainCam, canvas) {
-      // lower-right corner, drawn over the main scene without clearing the colour (so no dark square), with the
-      // camera far enough back that the labels never leave the little frustum whatever the view direction
-      // three.js viewport/scissor coordinates are CSS pixels (it applies the pixel ratio itself)
+      // hard into the bottom-right corner, drawn over the main scene without clearing the colour (so no
+      // dark square), with the camera just far enough back that the arrows never leave the little frustum
+      // whatever the view direction. three.js viewport/scissor coordinates are CSS pixels.
       const sz = renderer.getSize(new THREE.Vector2());
-      const size = 120, margin = 12;
-      const x = sz.x - size - margin, y = margin;
+      const size = 96;
+      const x = sz.x - size, y = 0;
       mainCam.getWorldDirection(dir);
-      cam.position.copy(dir).multiplyScalar(-6.0); cam.up.copy(mainCam.up); cam.lookAt(0, 0, 0);
+      cam.position.copy(dir).multiplyScalar(-4.4); cam.up.copy(mainCam.up); cam.lookAt(0, 0, 0);
+      // render the top-left part of a larger frustum, which puts the origin of the triad down in the
+      // corner instead of floating in the middle of its own little box
+      cam.setViewOffset(size * 1.55, size * 1.55, 0, 0, size, size);
+      cam.updateProjectionMatrix();
       const autoClear = renderer.autoClear;
       renderer.autoClear = false;
       renderer.clearDepth();

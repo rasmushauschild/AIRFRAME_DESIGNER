@@ -54,8 +54,6 @@ class Wing:
     tip_chord: float = 0.3
     sweep_deg: float = 0.0
     dihedral_deg: float = 0.0
-    sweep_tip_deg: float | None = None      # sweep at the tip; None = the same all the way out
-    dihedral_tip_deg: float | None = None   # dihedral at the tip; None = flat panel. A real wing is often curved
     incidence_deg: float = 0.0   # section angle about the span line at the root, LE up positive
     twist_deg: float = 0.0
     pitch_deg: float = 0.0       # rigid rotation of the whole wing about the aircraft pitch axis through ``pos``, nose-up positive
@@ -65,14 +63,6 @@ class Wing:
     aero: WingAeroCoefficients = field(default_factory=WingAeroCoefficients)
 
     # ------------------------------------------------------------ planform
-    @property
-    def dih_tip_deg(self) -> float:
-        return self.dihedral_deg if self.dihedral_tip_deg is None else float(self.dihedral_tip_deg)
-
-    @property
-    def swp_tip_deg(self) -> float:
-        return self.sweep_deg if self.sweep_tip_deg is None else float(self.sweep_tip_deg)
-
     @property
     def half_span(self) -> float:
         return self.span / 2.0 if self.symmetric else self.span
@@ -122,30 +112,16 @@ class Wing:
 def span_curve(w: Wing, f: float, sd: float) -> tuple[np.ndarray, np.ndarray]:
     """Where the span line has got to at span fraction `f`, and which way it points there.
 
-    A wing whose dihedral is the same everywhere is a flat panel, and a flat panel cannot follow a surface
-    that curves — on PORTAL's lower wing the anhedral runs from about 20° at the root to 45° at the tip, so
-    a single angle is either right at the root or right at the tip. The dihedral and the sweep therefore
-    run linearly from their root value to their tip value, and the span line is the integral of that:
-    exact closed forms, so the 3D view and the physics place the same wing in the same place.
+    A panel is flat: one dihedral and one sweep, the chord running linearly from root to tip. The browser
+    draws the wing from its own copy of this in ui/scene_math.js, and tests/test_wing_curve.mjs compares
+    the two, so the shape in the 3D view is the shape that flies.
 
     Returns (offset from the root leading edge, unit span direction) for one half, structural frame.
     """
-    hs = w.half_span
-    a0, a1 = math.radians(w.dihedral_deg), math.radians(w.dih_tip_deg)
-    p0, p1 = math.radians(w.sweep_deg), math.radians(w.swp_tip_deg)
-    da, dp = a1 - a0, p1 - p0
-    s = hs * f
-    a = a0 + da * f
-    if abs(da) < 1e-9:
-        y, z = s * math.cos(a0), -s * math.sin(a0)
-    else:
-        y = (hs / da) * (math.sin(a) - math.sin(a0))
-        z = (hs / da) * (math.cos(a) - math.cos(a0))
-    if abs(dp) < 1e-9:
-        x = -s * math.tan(p0)
-    else:                                   # the integral of tan is -ln|cos|
-        x = -(hs / dp) * (math.log(abs(math.cos(p0))) - math.log(abs(math.cos(p0 + dp * f))))
-    return np.array([x, sd * y, z]), np.array([0.0, sd * math.cos(a), -math.sin(a)])
+    a, p = math.radians(w.dihedral_deg), math.radians(w.sweep_deg)
+    s = w.half_span * f
+    return (np.array([-s * math.tan(p), sd * s * math.cos(a), -s * math.sin(a)]),
+            np.array([0.0, sd * math.cos(a), -math.sin(a)]))
 
 
 def wing_panels(w: Wing) -> dict:

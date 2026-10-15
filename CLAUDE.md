@@ -24,9 +24,9 @@ airframe_designer/
               cad (STEP solids -> masses via OCP; OBJ/STL meshes to look at, no mass),
               airframe (composition, schema migration, PX4 export, hover check), paths (parameter-path addressing)
   aero/       strip-theory wings, rotor thrust/torque/ram drag, body drag, fastmath
-              (a wing's dihedral and sweep may run from a root value to a tip value, so a panel can
-               follow a surface that curves; ui/scene_math.js holds the same maths for the 3D view and
-               tests/test_wing_curve.mjs compares the two)
+              (a wing is a flat panel: one sweep, one dihedral, chord straight from root to tip.
+               ui/scene_math.js holds the same geometry for the 3D view and tests/test_wing_curve.mjs
+               compares the two, so what is drawn is what flies)
   dynamics/   quaternion, leg geometry, jsbsim_backend (THE physics engine; there is no other)
   sensors/    IMU/mag/baro/GPS -> HIL messages
   px4/        link (MAVLink SITL/HITL), sitl (process, BSON param seeding, instances), connection (runtime SITL<->HITL),

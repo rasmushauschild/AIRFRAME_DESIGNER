@@ -565,7 +565,7 @@ const wingsOpen = new Set();   // indices whose coefficient row is expanded
 function renderWingTable() {
   const el = $('#wing-table');
   const rows = airframe.wings.map((w, i) => wingRowHtml(i, w)).join('');
-  el.innerHTML = `<table class="grid wings"><thead><tr><th>On</th><th>Name</th><th title="root leading edge on the centreline, structural frame, m">X</th><th>Y</th><th title="Z DOWN (+), like PX4: a wing above the reference point has negative Z">Z</th><th title="tip to tip (symmetric) or panel length (single panel), m">Span</th><th title="root chord, m">Root</th><th title="tip chord, m">Tip</th><th title="leading-edge sweep at the root, back positive">Swp°</th><th title="sweep at the tip: blank = the same all the way out. Set it to follow a leading edge that curves">Swp tip°</th><th title="whole-wing pitch: the entire wing rotated rigidly about the aircraft pitch axis through its root point, nose-up positive (with sweep the tips move up/down with it)">Pitch°</th><th title="dihedral at the root, tips up positive; 90 + single panel = vertical fin">Dih°</th><th title="dihedral at the tip: blank = a flat panel. Set it to follow a wing that curves along its span">Dih tip°</th><th title="section incidence at the root: each section turned about the span line, leading edge up positive">Inc°</th><th title="extra incidence at the tip (washout negative)">Tw°</th><th title="symmetric: left + right halves">Sym</th><th>Model</th><th title="stall angle of attack">Stall°</th><th title="planform area m² · aspect ratio">Area · AR</th><th></th></tr></thead>
+  el.innerHTML = `<table class="grid wings"><thead><tr><th>On</th><th>Name</th><th title="root leading edge on the centreline, structural frame, m">X</th><th>Y</th><th title="Z DOWN (+), like PX4: a wing above the reference point has negative Z">Z</th><th title="tip to tip (symmetric) or panel length (single panel), m">Span</th><th title="root chord, m">Root</th><th title="tip chord, m">Tip</th><th title="leading-edge sweep, back positive">Swp°</th><th title="whole-wing pitch: the entire wing rotated rigidly about the aircraft pitch axis through its root point, nose-up positive (with sweep the tips move up/down with it)">Pitch°</th><th title="dihedral, tips up positive; 90 + single panel = vertical fin">Dih°</th><th title="section incidence at the root: each section turned about the span line, leading edge up positive">Inc°</th><th title="extra incidence at the tip (washout negative)">Tw°</th><th title="symmetric: left + right halves">Sym</th><th>Model</th><th title="stall angle of attack">Stall°</th><th title="planform area m² · aspect ratio">Area · AR</th><th></th></tr></thead>
     <tbody>${rows || '<tr><td colspan="17" class="hint">No wings. A pure multirotor needs none.</td></tr>'}</tbody></table>`;
   el.querySelectorAll('tr[data-w]').forEach(tr => {
     const i = +tr.dataset.w;
@@ -599,15 +599,12 @@ function renderWingTable() {
 function wingRowHtml(i, w) {
   const a = w.aero || WING_AERO_DEFAULT;
   const n = (k, step, v) => `<input type="number" step="${step}" data-k="${k}" value="${nf(v, 4)}">`;
-  // blank means "whatever the root is": an empty box says that more honestly than a copy of the number
-  const nb = (k, step, v) => `<input type="number" step="${step}" data-k="${k}" value="${v == null ? '' : nf(v, 4)}" placeholder="root">`;
   const main = `<tr data-w="${i}" class="${w.enabled === false ? 'off' : ''}">
     <td><input type="checkbox" data-k="on" ${w.enabled === false ? '' : 'checked'}></td>
     <td><input type="text" class="name" data-k="name" value="${esc(w.name)}"></td>
     <td>${n('x', 0.01, w.pos[0])}</td><td>${n('y', 0.01, w.pos[1])}</td><td>${n('z', 0.01, w.pos[2])}</td>
     <td>${n('span', 0.01, w.span)}</td><td>${n('root', 0.01, w.root_chord)}</td><td>${n('tip', 0.01, w.tip_chord)}</td>
-    <td>${n('sweep', 1, w.sweep_deg)}</td><td>${nb('sweep_tip', 1, w.sweep_tip_deg)}</td><td>${n('pitch', 0.5, w.pitch_deg || 0)}</td>
-    <td>${n('dih', 1, w.dihedral_deg)}</td><td>${nb('dih_tip', 1, w.dihedral_tip_deg)}</td><td>${n('inc', 0.5, w.incidence_deg)}</td><td>${n('twist', 0.5, w.twist_deg)}</td>
+    <td>${n('sweep', 1, w.sweep_deg)}</td><td>${n('pitch', 0.5, w.pitch_deg || 0)}</td><td>${n('dih', 1, w.dihedral_deg)}</td><td>${n('inc', 0.5, w.incidence_deg)}</td><td>${n('twist', 0.5, w.twist_deg)}</td>
     <td><input type="checkbox" data-k="sym" ${w.symmetric === false ? '' : 'checked'}></td>
     <td><select data-k="model" title="linear: lift slope + induced drag · polhamus: sharp-edged delta with vortex lift · polar: airfoil section data (XFOIL / NeuralFoil / UIUC) looked up at the live angle of attack and Reynolds number"><option value="linear" ${['polhamus', 'polar'].includes(a.model) ? '' : 'selected'}>linear</option><option value="polhamus" ${a.model === 'polhamus' ? 'selected' : ''}>polhamus</option><option value="polar" ${a.model === 'polar' ? 'selected' : ''}>polar (airfoil)</option></select></td>
     <td>${n('stall', 1, a.stall_deg)}</td>
@@ -623,7 +620,7 @@ function wingRowHtml(i, w) {
     <button class="pill small polar-build" data-w="${i}" title="build (or rebuild) the polar tables and show CL max, stall angle, CD min, L/D max">Build polar</button>
     <span class="hint polar-info" data-w="${i}">${a.model === 'polar' ? 'oswald e below is used for the induced drag; stall comes from the polar itself' : ''}</span>
   </div>`;
-  return main + `<tr data-wc="${i}" class="coeffs"><td colspan="20">${a.model === 'polar' ? polarRow : ''}<div class="row tight">
+  return main + `<tr data-wc="${i}" class="coeffs"><td colspan="18">${a.model === 'polar' ? polarRow : ''}<div class="row tight">
     ${c('cl_alpha', 0.1, a.cl_alpha, '2-D lift slope, 1/rad (2π thin airfoil)')}
     ${c('cl0', 0.05, a.cl0, 'lift at zero geometric angle of attack')}
     ${c('cd0', 0.005, a.cd0, 'parasite drag')}
@@ -644,9 +641,7 @@ function applyWingRow(i) {
   w.name = tr.querySelector('[data-k="name"]').value.trim() || ('wing' + (i + 1));
   w.pos = [g('x'), g('y'), g('z')];
   w.span = Math.max(0, g('span')); w.root_chord = Math.max(0, g('root')); w.tip_chord = Math.max(0, g('tip'));
-  const gb = (k) => { const el = tr.querySelector(`[data-k="${k}"]`); const v = parseFloat(el.value); return el.value.trim() === '' || !isFinite(v) ? null : v; };
   w.sweep_deg = g('sweep'); w.pitch_deg = g('pitch'); w.dihedral_deg = g('dih'); w.incidence_deg = g('inc'); w.twist_deg = g('twist');
-  w.sweep_tip_deg = gb('sweep_tip'); w.dihedral_tip_deg = gb('dih_tip');
   w.symmetric = tr.querySelector('[data-k="sym"]').checked;
   w.aero = w.aero || { ...WING_AERO_DEFAULT };
   const newModel = tr.querySelector('[data-k="model"]').value;

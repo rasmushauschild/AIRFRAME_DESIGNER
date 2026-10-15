@@ -8,26 +8,19 @@ export function frameOffsetForCg(cg = [0, 0, 0]) {
 }
 
 // ---------------------------------------------------------------- wing geometry
-// The port of geometry/wings.py span_curve() and wing_outline(). It lives here, in plain arrays and with
-// no three.js, because the 3D view and the physics have to place the same wing in exactly the same place
-// and that is only worth claiming if a test can run both and compare them.
+// The port of geometry/wings.py span_curve() and wing_outline(): a flat panel, one sweep and one dihedral,
+// the chord running linearly from root to tip. It lives here, in plain arrays and with no three.js,
+// because the 3D view and the physics have to place the same wing in exactly the same place, and that is
+// only worth claiming if a test can run both and compare them.
 const RAD = Math.PI / 180;
 
 /** Where the span line has got to at span fraction f, and which way it points there, for one half. */
 export function spanCurve(w, f, sd) {
   const sym = w.symmetric !== false;
   const hs = sym ? (+w.span || 0) / 2 : (+w.span || 0);
-  const a0 = (+w.dihedral_deg || 0) * RAD;
-  const a1 = (w.dihedral_tip_deg == null ? (+w.dihedral_deg || 0) : +w.dihedral_tip_deg) * RAD;
-  const p0 = (+w.sweep_deg || 0) * RAD;
-  const p1 = (w.sweep_tip_deg == null ? (+w.sweep_deg || 0) : +w.sweep_tip_deg) * RAD;
-  const da = a1 - a0, dp = p1 - p0, s = hs * f, a = a0 + da * f;
-  let y, z, x;
-  if (Math.abs(da) < 1e-9) { y = s * Math.cos(a0); z = -s * Math.sin(a0); }
-  else { y = (hs / da) * (Math.sin(a) - Math.sin(a0)); z = (hs / da) * (Math.cos(a) - Math.cos(a0)); }
-  if (Math.abs(dp) < 1e-9) x = -s * Math.tan(p0);
-  else x = -(hs / dp) * (Math.log(Math.abs(Math.cos(p0))) - Math.log(Math.abs(Math.cos(p0 + dp * f))));
-  return { off: [x, sd * y, z], es: [0, sd * Math.cos(a), -Math.sin(a)] };
+  const a = (+w.dihedral_deg || 0) * RAD, p = (+w.sweep_deg || 0) * RAD, s = hs * f;
+  return { off: [-s * Math.tan(p), sd * s * Math.cos(a), -s * Math.sin(a)],
+           es: [0, sd * Math.cos(a), -Math.sin(a)] };
 }
 
 const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];

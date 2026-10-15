@@ -231,18 +231,16 @@
       "name": "Upper wing",
       "enabled": true,
       "pos": [
-        -0.33,
+        -0.377,
         0,
-        -0.165
+        -0.153
       ],
-      "root_y": 0.593,
-      "span": 2.673,
-      "root_chord": 1.18,
-      "tip_chord": 0.72,
-      "sweep_deg": 18.1,
-      "dihedral_deg": 27.8,
-      "sweep_tip_deg": 16.6,
-      "dihedral_tip_deg": 35.5,
+      "root_y": 0.617,
+      "span": 2.638,
+      "root_chord": 1.134,
+      "tip_chord": 0.743,
+      "sweep_deg": 14.7,
+      "dihedral_deg": 32.3,
       "incidence_deg": 0,
       "twist_deg": 0,
       "pitch_deg": 0,
@@ -270,18 +268,16 @@
       "name": "Lower wing",
       "enabled": true,
       "pos": [
-        -0.665,
+        -0.511,
         0,
-        0.492
+        0.434
       ],
-      "root_y": 0.589,
-      "span": 2.539,
-      "root_chord": 1.011,
-      "tip_chord": 0.532,
-      "sweep_deg": -6.8,
-      "dihedral_deg": -15.2,
-      "sweep_tip_deg": 15.4,
-      "dihedral_tip_deg": -39.4,
+      "root_y": 0.587,
+      "span": 2.582,
+      "root_chord": 0.75,
+      "tip_chord": 0.595,
+      "sweep_deg": 4.8,
+      "dihedral_deg": -27.1,
       "incidence_deg": 0,
       "twist_deg": 0,
       "pitch_deg": 0,
@@ -312,7 +308,7 @@
       "attach": [
         1.7,
         0,
-        -0.0678
+        -0.2078
       ],
       "length": 0,
       "tilt_deg": 0,
@@ -326,9 +322,9 @@
     {
       "name": "Right wingtip contact",
       "attach": [
-        -1.3558085226140189,
-        1.946075480743506,
-        1.220214909114319
+        -1.3558,
+        1.9461,
+        1.3
       ],
       "length": 0,
       "tilt_deg": 0,
@@ -342,9 +338,9 @@
     {
       "name": "Left wingtip contact",
       "attach": [
-        -1.3558085226140189,
-        -1.946075480743506,
-        1.220214909114319
+        -1.3558,
+        -1.9461,
+        1.3
       ],
       "length": 0,
       "tilt_deg": 0,
@@ -357,7 +353,7 @@
     }
   ],
   "hover_pitch_deg": 10.000000000066347,
-  "landed_pitch_deg": -22.86,
+  "landed_pitch_deg": -26.26,
   "px4_overrides": {
     "MIS_TAKEOFF_ALT": 10,
     "MPC_TKO_RAMP_T": 1,
@@ -386,7 +382,7 @@
     "MPC_XY_VEL_P_ACC": 1.2,
     "MC_YAWRATE_K": 3,
     "MC_YAW_WEIGHT": 1,
-    "NLF_LAND_ANG": -22.86,
+    "NLF_LAND_ANG": -26.26,
     "CA_ROTOR0_CT": 5.980676,
     "CA_ROTOR1_CT": 5.980676,
     "CA_ROTOR2_CT": 5.839845,
