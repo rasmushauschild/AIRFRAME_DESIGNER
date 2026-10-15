@@ -601,10 +601,14 @@ function makeAxesInset() {
       // A small box in the bottom-right corner, far enough in that the rounded corner of the panel does not
       // cut the arrows off, and with the camera back far enough that the triad stays inside the box.
       const sz = renderer.getSize(new THREE.Vector2());
-      const size = 100, margin = 6;
-      const x = sz.x - size - margin, y = margin;
+      const size = 100, off = 1.32;          // the triad sits at 0.66 of the box: 34 px from the corner
+      const x = sz.x - size, y = 0;
       mainCam.getWorldDirection(dir);
-      cam.position.copy(dir).multiplyScalar(-6.6); cam.up.copy(mainCam.up); cam.lookAt(0, 0, 0);
+      cam.position.copy(dir).multiplyScalar(-6.6 * off); cam.up.copy(mainCam.up); cam.lookAt(0, 0, 0);
+      // Render the top-left part of a wider frustum to move the triad towards the corner, with the camera
+      // pulled back by the same factor so that crop does not magnify it into the rounded corner.
+      cam.setViewOffset(size * off, size * off, 0, 0, size, size);
+      cam.updateProjectionMatrix();
       const autoClear = renderer.autoClear;
       renderer.autoClear = false;
       renderer.clearDepth();
