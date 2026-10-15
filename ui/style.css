@@ -541,3 +541,12 @@ label.disabled { opacity: 0.45; cursor: default; }
 .sec-body .conn-row + .conn-row { margin-top: 4px; }
 .sec-body label.row { gap: 6px; }
 .sec-body .card { background: transparent; box-shadow: none; padding: 0; border-radius: 0; }
+
+/* ---- a mirrored couple reads as one block: no line between the two rows, and a tie down their left edge */
+table.grid tr.pair-top td { border-bottom-color: transparent; }
+table.grid tr.pair-top td:first-child, table.grid tr.pair-bottom td:first-child { position: relative; }
+table.grid tr.pair-top td:first-child::before, table.grid tr.pair-bottom td:first-child::before {
+  content: ''; position: absolute; left: -5px; width: 3px; background: var(--accent); opacity: 0.8; }
+table.grid tr.pair-top td:first-child::before { top: 4px; bottom: -1px; border-radius: 2px 2px 0 0; }
+table.grid tr.pair-bottom td:first-child::before { top: 0; bottom: 4px; border-radius: 0 0 2px 2px; }
+table.grid tr.pair-top input.sym, table.grid tr.pair-bottom input.sym { accent-color: var(--accent); }

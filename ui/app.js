@@ -478,16 +478,20 @@ function mirrorLegOnto(src, dst) {
   dst.length = src.length; dst.tilt_deg = src.tilt_deg; dst.cant_deg = src.cant_deg;   // cant is outward, so it mirrors as it is
   dst.foot_radius = src.foot_radius; dst.stiffness = src.stiffness; dst.damping = src.damping; dst.friction = src.friction;
 }
-/** Tie item `i` to its opposite number, making one if there is not one already. Returns false with a reason. */
+/** Tie item `i` to its opposite number, making one only if the other side really is empty. Returns a reason
+ *  when it cannot, or '' when it is done. An existing item on the other side is always preferred to a new
+ *  one, even if it is carrying a tie of its own: duplicating a motor that is already there is worse than
+ *  re-tying it, and a list that quietly grows an extra rotor is a list you cannot trust. */
 function makePair(list, i, mirrorOnto, keyY, mk) {
   const src = list[i];
   const y = keyY(src);
   if (Math.abs(y) < 1e-6) return 'it sits on the centreline, so it has no opposite side';
-  const near = list.findIndex((x, k) => k !== i && !x.pair && Math.abs(keyY(x) + y) < 0.02
-    && Math.abs(keyY(x)) > 1e-6);
-  const tok = pairToken();
-  let j = near;
+  const mirrored = (x, k) => k !== i && Math.abs(keyY(x) + y) < 0.05 && Math.abs(keyY(x)) > 1e-6;
+  let j = list.findIndex((x, k) => mirrored(x, k) && !x.pair);          // free, on the other side
+  if (j < 0) j = list.findIndex((x, k) => mirrored(x, k) && twinOf(list, k) < 0);   // there, but half tied
+  if (j < 0 && list.some((x, k) => mirrored(x, k))) return 'the item on the other side is already tied to another';
   if (j < 0) { list.push(mk(src)); j = list.length - 1; }
+  const tok = pairToken();
   src.pair = tok; list[j].pair = tok;
   mirrorOnto(src, list[j]);
   return '';
@@ -510,9 +514,23 @@ const tiltToAxis = (tilt, cant, y = 1) => {
 const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 const nf = (v, d = 3) => (typeof v === 'number' && isFinite(v)) ? +v.toFixed(d) : (v ?? '');
 
+// The order the tables are drawn in: a tied couple is kept together, whatever order the two happen to sit
+// in the data. Only the drawing is reordered — every row keeps its real index, so the output numbering,
+// the PX4 export and everything else are untouched by how the list looks.
+function pairedOrder(list) {
+  const out = [], done = new Set();
+  list.forEach((_, i) => {
+    if (done.has(i)) return;
+    done.add(i); out.push(i);
+    const j = twinOf(list, i);
+    if (j >= 0 && !done.has(j)) { done.add(j); out.push(j); }
+  });
+  return out;
+}
+
 function renderRotorTable() {
   const el = $('#rotor-table');
-  const rows = airframe.rotors.map((r, i) => rotorRowHtml(i, r)).join('');
+  const rows = pairedOrder(airframe.rotors).map(i => rotorRowHtml(i, airframe.rotors[i])).join('');
   el.innerHTML = `<table class="grid"><thead><tr><th title="Physical PWM port: 1–8 = MAIN 1–8; 9–10 = AUX 1–2">#</th><th title="enabled: takes part in the simulation and the PX4 export">On</th><th title="tied to the rotor on the other side: moving one moves the other. They keep their own name, output and spin">Sym</th><th>Name</th><th title="position, m, structural frame (FRD like PX4): X forward">X</th><th title="Y right (+)">Y</th><th title="Z DOWN (+): a rotor 10 cm above the reference point has Z = -0.10">Z</th><th title="forward lean of the thrust axis from vertical, degrees; negative = backward">Tilt°</th><th title="sideways lean, degrees; positive = outward from the centreline (right for a rotor on the centreline)">Cant°</th><th title="resulting unit thrust vector = CA_ROTORn_AX / AY / AZ">Axis AX AY AZ</th><th title="direction of rotation; click a cell to flip it (the sign of KM)">Spin</th><th title="max thrust N">Tmax</th><th title="share of max thrust this rotor needs to hover, as PX4's allocator would solve it">Hover</th><th></th></tr></thead><tbody>${rows || '<tr><td colspan="14" class="hint">No rotors. Add one below.</td></tr>'}</tbody></table>`;
   api('/api/airframe/hover_check').then(showHover).catch(() => { });
   el.querySelectorAll('tr[data-i]').forEach(tr => {
@@ -531,7 +549,8 @@ const axisText = (a) => a.map(v => (v >= 0 ? ' ' : '') + v.toFixed(2)).join(' ')
 function rotorRowHtml(i, r) {
   const ccw = r.km >= 0;
   const [tilt, cant] = axisToTilt(r.axis, r.pos[1]);
-  return `<tr data-i="${i}" class="${i === selected ? 'selected' : ''} ${r.enabled === false ? 'off' : ''}"><td class="idx">${rotorPortHtml(i, r)}</td>
+  const pcls = r.pair ? (twinOf(airframe.rotors, i) > i ? ' pair-top' : ' pair-bottom') : '';
+  return `<tr data-i="${i}" class="${i === selected ? 'selected' : ''} ${r.enabled === false ? 'off' : ''}${pcls}"><td class="idx">${rotorPortHtml(i, r)}</td>
   <td><input type="checkbox" data-k="on" ${r.enabled === false ? '' : 'checked'}></td>
   <td><input type="checkbox" class="sym" data-k="sym" ${r.pair ? 'checked' : ''} title="${r.pair ? 'tied to its opposite number' : 'tie this rotor to the one on the other side'}"></td>
   <td><input type="text" class="name" data-k="name" value="${esc(r.name)}"></td>
@@ -734,7 +753,7 @@ $('#fin-add').addEventListener('click', () => addWing(FIN_DEFAULT));
 const LEG_DEFAULT = { name: 'leg', attach: [0.15, 0.15, 0], length: 0.2, tilt_deg: 0, cant_deg: 0, foot_radius: 0, stiffness: 3000, damping: 150, friction: 0.8, enabled: true };
 function renderLegTable() {
   const el = $('#leg-table');
-  const rows = airframe.legs.map((l, i) => legRowHtml(i, l)).join('');
+  const rows = pairedOrder(airframe.legs).map(i => legRowHtml(i, airframe.legs[i])).join('');
   el.innerHTML = `<table class="grid legs"><thead><tr><th>On</th><th title="tied to the leg on the other side: moving one moves the other">Sym</th><th>Name</th><th title="attachment point on the structure, structural frame, m: X forward">X</th><th title="Y right (+)">Y</th><th title="Z DOWN (+), like PX4: legs usually have positive Z">Z</th><th title="attachment to foot, m">Len</th><th title="lean forward (+) / backward (-) from straight down">Tilt°</th><th title="lean outward (+) / inward (-) from the centreline">Cant°</th><th title="contact starts this far above the foot point (ball or skid tube), m">Foot r</th><th title="N/m">Stiff</th><th title="N/(m/s)">Damp</th><th title="foot point, structural frame">Foot</th><th></th></tr></thead>
     <tbody>${rows || '<tr><td colspan="14" class="hint">No legs. The vehicle needs at least 3 to stand.</td></tr>'}</tbody></table>`;
   el.querySelectorAll('tr[data-l]').forEach(tr => {
@@ -753,7 +772,8 @@ const legFoot = (l) => {
 function legRowHtml(i, l) {
   const n = (k, step, v, extra = '') => `<input type="number" step="${step}" data-k="${k}" value="${nf(v, 4)}" ${extra}>`;
   const f = legFoot(l);
-  return `<tr data-l="${i}" class="${l.enabled === false ? 'off' : ''}">
+  const pcls = l.pair ? (twinOf(airframe.legs, i) > i ? ' pair-top' : ' pair-bottom') : '';
+  return `<tr data-l="${i}" class="${l.enabled === false ? 'off' : ''}${pcls}">
     <td><input type="checkbox" data-k="on" ${l.enabled === false ? '' : 'checked'}></td>
     <td><input type="checkbox" class="sym" data-k="sym" ${l.pair ? 'checked' : ''} title="${l.pair ? 'tied to its opposite number' : 'tie this leg to the one on the other side'}"></td>
     <td><input type="text" class="name" data-k="name" value="${esc(l.name)}"></td>
