@@ -17,7 +17,7 @@ A PX4-in-the-loop aircraft design simulator. Python 3.12, venv at `.venv` (`.ven
 ```
 airframe_designer/
   geometry/   mass (CG, inertia), propulsion (rotors: every one a ducted jet), wings, gear (legs), body,
-              cad (STEP solids -> masses, via OCP),
+              cad (STEP solids -> masses via OCP; OBJ/STL meshes to look at, no mass),
               airframe (composition, schema migration, PX4 export, hover check), paths (parameter-path addressing)
   aero/       strip-theory wings, rotor thrust/torque/ram drag, body drag, fastmath
   dynamics/   quaternion, leg geometry, jsbsim_backend (THE physics engine; there is no other)

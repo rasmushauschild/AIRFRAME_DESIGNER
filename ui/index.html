@@ -130,11 +130,11 @@
       </details>
 
       <details class="sec" id="cad-details">
-        <summary>CAD bodies (STEP) <span id="cad-summary" class="hint"></span></summary>
+        <summary>CAD model <span id="cad-summary" class="hint"></span></summary>
         <div class="sec-body">
           <div class="row tight">
-            <input id="cad-file" type="file" accept=".step,.stp,.STEP,.STP" hidden>
-            <button id="cad-import" class="pill small primary" title="Import a STEP file: every solid becomes a body you can give a mass; their centroids and inertia come from the CAD geometry">Import STEP…</button>
+            <input id="cad-file" type="file" accept=".step,.stp,.obj,.stl,.STEP,.STP,.OBJ,.STL" hidden>
+            <button id="cad-import" class="pill small primary" title="STEP: every solid becomes a body you can give a mass, with its centroid and inertia from the geometry. OBJ or STL: triangles only, a shape to look at with no mass.">Import model…</button>
             <button id="cad-remove-all" class="pill small danger" title="forget this model and every body it brought with it" hidden>Remove model</button>
             <button id="cad-reset-offsets" class="pill small" title="put every body back where the CAD file has it">Reset drags</button>
             <span class="panel-spacer"></span>

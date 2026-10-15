@@ -531,6 +531,7 @@ details.sec > summary .sum-spacer { flex: 1; }
 /* A block of number fields lines up in even columns instead of wrapping into orphans. */
 .fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(92px, 1fr)); gap: 8px 10px; }
 .fields.cols-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+label.disabled { opacity: 0.45; cursor: default; }
 .fields > label { min-width: 0; }
 .fields input { width: 100%; }
 .sec-body > button, .sec-body > a.pill, .sec-body > label.row { align-self: flex-start; }

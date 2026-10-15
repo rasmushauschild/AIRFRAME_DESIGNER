@@ -66,6 +66,7 @@ class CadModel:
     origin: list[float] = field(default_factory=lambda: [0.0, 0.0, 0.0])   # FRD position of the CAD origin, m
     scale: float = 1.0              # extra factor on top of the STEP unit conversion (1 = file units are right)
     visible: bool = True
+    visual_only: bool = False       # an OBJ/STL: a shape to look at, with no solids and so no mass
     bodies: list[CadBody] = field(default_factory=list)
 
     # ------------------------------------------------------------ frames
@@ -88,6 +89,8 @@ class CadModel:
     def mass_items(self) -> list[MassItem]:
         """Point masses for MassProperties.resolve: each body's mass at its (dragged) centroid with the solid's own
         inertia scaled to that mass. A body with zero mass contributes nothing."""
+        if self.visual_only:        # a mesh has no solids: it cannot weigh anything, whatever a file may say
+            return []
         R = self.matrix()
         out = []
         for b in self.active():
@@ -112,7 +115,8 @@ class CadModel:
 
     # ------------------------------------------------------------ io
     def to_dict(self) -> dict:
-        d = {"file": self.file, "rotation_deg": list(self.rotation_deg), "origin": list(self.origin), "scale": self.scale, "visible": self.visible,
+        d = {"file": self.file, "rotation_deg": list(self.rotation_deg), "origin": list(self.origin), "scale": self.scale,
+             "visible": self.visible, "visual_only": self.visual_only,
              "bodies": [b.to_dict() | {"pos": self.body_pos(b)} for b in self.bodies]}
         return d
 
@@ -123,7 +127,7 @@ class CadModel:
         m = cls(file=str(d.get("file", "")), axes=str(d.get("axes", "frd") or "frd"),
                 rotation_deg=[float(v) for v in (d.get("rotation_deg") or [0, 0, 0])],
                 origin=[float(v) for v in (d.get("origin") or [0, 0, 0])], scale=float(d.get("scale", 1.0) or 1.0),
-                visible=bool(d.get("visible", True)),
+                visible=bool(d.get("visible", True)), visual_only=bool(d.get("visual_only", False)),
                 bodies=[CadBody.from_dict(b) for b in d.get("bodies", []) or []])
         if m.axes not in AXES_PRESETS:
             m.axes = "frd"
@@ -348,6 +352,128 @@ def import_step(step_path: str | Path, log=None) -> dict:
     return out
 
 
+MESH_SUFFIXES = (".obj", ".stl")
+
+
+def _mesh_volume_centroid(v: np.ndarray, t: np.ndarray) -> tuple[float, np.ndarray]:
+    """Volume and centroid of a closed triangle mesh (divergence theorem).
+
+    The sign of the sum only says which way the triangles are wound — plenty of exported meshes are wound
+    inside out — so the magnitude is the volume and the sign cancels in the centroid. An open mesh gives a
+    meaningless sum near zero; there the centroid falls back to the middle of the bounding box."""
+    if len(t) == 0:
+        return 0.0, np.zeros(3)
+    a, b, c = v[t[:, 0]], v[t[:, 1]], v[t[:, 2]]
+    vol6 = np.einsum("ij,ij->i", a, np.cross(b, c))
+    total = float(vol6.sum())
+    if abs(total) < 1e-12:
+        return 0.0, (v.min(axis=0) + v.max(axis=0)) / 2.0
+    centroid = ((a + b + c) * vol6[:, None]).sum(axis=0) / (4.0 * total)
+    return abs(total) / 6.0, centroid
+
+
+def _read_stl(data: bytes) -> list[tuple[str, np.ndarray, np.ndarray]]:
+    """One object, triangles as written. Binary and ASCII both come out as (name, vertices, triangles)."""
+    head = data[:5].lower()
+    if head != b"solid" or b"facet" not in data[:1024].lower():      # binary: 84-byte header then 50 bytes a triangle
+        n = int(np.frombuffer(data, "<u4", count=1, offset=80)[0])
+        if len(data) < 84 + 50 * n:
+            raise RuntimeError("truncated binary STL")
+        raw = np.frombuffer(data, dtype=np.dtype([("n", "<f4", 3), ("v", "<f4", (3, 3)), ("a", "<u2")]), count=n, offset=84)
+        verts = raw["v"].reshape(-1, 3).astype(np.float64)
+    else:
+        verts = np.array([[float(x) for x in ln.split()[1:4]]
+                          for ln in data.decode("utf-8", "replace").splitlines()
+                          if ln.strip().lower().startswith("vertex")], float).reshape(-1, 3)
+    tris = np.arange(len(verts), dtype=np.int64).reshape(-1, 3)
+    return [("solid", verts, tris)]
+
+
+def _read_obj(text: str) -> list[tuple[str, np.ndarray, np.ndarray]]:
+    """OBJ, split into one body per o/g group. Polygons are fanned into triangles; everything else is ignored."""
+    verts: list[list[float]] = []
+    groups: list[tuple[str, list[tuple[int, int, int]]]] = []
+
+    def group(name=""):
+        if not groups or groups[-1][1]:
+            groups.append((name or f"part {len(groups) + 1}", []))
+        else:
+            groups[-1] = (name or groups[-1][0], groups[-1][1])
+        return groups[-1][1]
+
+    faces = group("object")
+    for line in text.splitlines():
+        if line.startswith("v "):
+            p = line.split()
+            verts.append([float(p[1]), float(p[2]), float(p[3])])
+        elif line[:2] in ("o ", "g "):
+            faces = group(line[2:].strip())
+        elif line.startswith("f "):
+            idx = []
+            for tok in line.split()[1:]:
+                i = int(tok.split("/")[0])
+                idx.append(i - 1 if i > 0 else len(verts) + i)
+            for k in range(1, len(idx) - 1):
+                faces.append((idx[0], idx[k], idx[k + 1]))
+    v = np.asarray(verts, float).reshape(-1, 3)
+    out = []
+    for name, tri in groups:
+        if not tri:
+            continue
+        t = np.asarray(tri, np.int64)
+        used, inverse = np.unique(t.ravel(), return_inverse=True)
+        out.append((name, v[used], inverse.reshape(-1, 3)))
+    return out
+
+
+def import_mesh(path: str | Path, log=None) -> dict:
+    """An OBJ or STL as a shape to look at: triangles, no solids, no mass. Same cache as a STEP import.
+
+    A mesh file says nothing about its units. A model whose bounding box is tens of units across is in
+    millimetres (nobody builds a 30 metre drone); anything smaller is read as metres. The Scale field fixes
+    a wrong guess, and the log says which one was made."""
+    path = Path(path)
+    data = path.read_bytes()
+    sha = hashlib.sha1(data).hexdigest()
+    cp = cache_path(path)
+    if cp.exists():
+        try:
+            cached = json.loads(cp.read_text())
+            if cached.get("sha1") == sha:
+                return cached
+        except Exception:
+            pass
+    parts = _read_obj(data.decode("utf-8", "replace")) if path.suffix.lower() == ".obj" else _read_stl(data)
+    parts = [(n, v, t) for n, v, t in parts if len(v) and len(t)]
+    if not parts:
+        raise RuntimeError(f"{path.name} contains no triangles")
+    lo = np.min([v.min(axis=0) for _, v, _ in parts], axis=0)
+    hi = np.max([v.max(axis=0) for _, v, _ in parts], axis=0)
+    diag = float(np.linalg.norm(hi - lo)) or 1.0
+    unit = 0.001 if diag > 25 else 1.0
+    bodies = []
+    for k, (name, v, t) in enumerate(parts):
+        v = v * unit
+        vol, c = _mesh_volume_centroid(v, t)
+        bodies.append({
+            "id": f"{k}:{name}", "name": name, "volume": float(max(0.0, vol)), "centroid": [float(x) for x in c],
+            "inertia_unit": [0.0] * 6,
+            "vertices": [round(float(x), 6) for x in v.ravel()], "indices": [int(x) for x in t.ravel()],
+        })
+    if log:
+        log(f"[cad] {path.name}: {len(bodies)} object(s), {sum(len(b['indices']) for b in bodies) // 3} triangles, "
+            f"read as {'millimetres' if unit != 1.0 else 'metres'} (change Scale if that is wrong)")
+    out = {"file": path.name, "sha1": sha, "visual_only": True,
+           "bounds": [float(x) for x in (*(lo * unit), *(hi * unit))], "bodies": bodies}
+    cp.write_text(json.dumps(out))
+    return out
+
+
+def import_any(path: str | Path, log=None) -> dict:
+    """A STEP file for solids with mass, an OBJ or STL for a shape to look at."""
+    return import_mesh(path, log) if Path(path).suffix.lower() in MESH_SUFFIXES else import_step(path, log)
+
+
 def model_from_import(imported: dict, file_rel: str, previous: CadModel | None = None) -> CadModel:
     """A CadModel for a freshly imported file, keeping masses/offsets/removed flags of bodies with the same id."""
     prev = {b.id: b for b in (previous.bodies if previous else [])}
@@ -358,7 +484,7 @@ def model_from_import(imported: dict, file_rel: str, previous: CadModel | None =
                               inertia_unit=list(b["inertia_unit"]),
                               mass=old.mass if old else 0.0, offset=list(old.offset) if old else [0.0, 0.0, 0.0],
                               removed=old.removed if old else False))
-    m = CadModel(file=file_rel, bodies=bodies)
+    m = CadModel(file=file_rel, bodies=bodies, visual_only=bool(imported.get("visual_only")))
     if previous:
         m.axes, m.rotation_deg, m.origin, m.scale, m.visible = previous.axes, list(previous.rotation_deg), list(previous.origin), previous.scale, previous.visible
     return m

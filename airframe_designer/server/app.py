@@ -327,20 +327,24 @@ def build_app(state: AppState) -> FastAPI:
 
     @app.post("/api/cad/import")
     async def cad_import(request: Request, filename: str = "model.step"):
-        """Upload a STEP file (raw bytes): it is copied to airframes/cad/, every solid measured and meshed, and the
-        bodies attached to the live airframe (masses/offsets of bodies with the same id are kept on re-import)."""
+        """Upload a model (raw bytes): it is copied to airframes/cad/ and attached to the live airframe.
+
+        A STEP file gives solids, each measured and meshed, which can be given masses (masses/offsets of
+        bodies with the same id survive a re-import). An OBJ or STL gives triangles only: a shape to look
+        at, with no mass of its own."""
         data = await request.body()
         if not data:
             return JSONResponse({"ok": False, "error": "empty upload"}, status_code=400)
         CAD_DIR.mkdir(parents=True, exist_ok=True)
         stem = cadmod._safe_stem(filename)
-        suffix = ".stp" if filename.lower().endswith(".stp") else ".step"
+        low = filename.lower()
+        suffix = next((x for x in (".stp", ".obj", ".stl") if low.endswith(x)), ".step")
         dst = CAD_DIR / (stem + suffix)
         dst.write_bytes(data)
         try:
-            imported = await run_in_threadpool(cadmod.import_step, dst, state.log)
+            imported = await run_in_threadpool(cadmod.import_any, dst, state.log)
         except Exception as e:
-            return JSONResponse({"ok": False, "error": f"STEP import failed: {e}"}, status_code=400)
+            return JSONResponse({"ok": False, "error": f"import failed: {e}"}, status_code=400)
         af = sim.airframe.copy()
         af.cad = cadmod.model_from_import(imported, str(dst.relative_to(PROJECT_DIR)), af.cad)
         af.resolve_mass()
@@ -359,9 +363,9 @@ def build_app(state: AppState) -> FastAPI:
         if not path.exists():
             return JSONResponse({"ok": False, "error": f"CAD file missing: {m.file}"}, status_code=404)
         try:
-            imported = await run_in_threadpool(cadmod.import_step, path, state.log)
+            imported = await run_in_threadpool(cadmod.import_any, path, state.log)
         except Exception as e:
-            return JSONResponse({"ok": False, "error": f"STEP import failed: {e}"}, status_code=400)
+            return JSONResponse({"ok": False, "error": f"import failed: {e}"}, status_code=400)
         return cadmod.mesh_payload(m, imported)
 
     @app.get("/api/cad/totals")
