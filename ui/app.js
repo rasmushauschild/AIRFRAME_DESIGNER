@@ -61,7 +61,7 @@ $$('.tabs button').forEach(b => b.addEventListener('click', () => {
   if (b.dataset.tab === 'airframe') loadExport();
   if (b.dataset.tab === 'px4') { ensureParams(); loadExport(); }
   if (b.dataset.tab === 'controller') { refreshConnection(); ensureParams(); renderRcLive(); renderModeButtons(); }
-  if (b.dataset.tab === 'mission') { refreshBatch(); ensureParams().then(fillTakeoffLanding).catch(() => { }); fillTakeoffLanding(); }
+  if (b.dataset.tab === 'mission') { refreshBatch(); ensureParams().then(fillTakeoffLanding).catch(() => { }); fillTakeoffLanding(); renderMissions(); pollMission(); }
   if (b.dataset.tab === 'firmware') refreshFirmware();
 }));
 function openTab(name) { $$('.tabs button').find(b => b.dataset.tab === name)?.click(); }
@@ -1090,55 +1090,55 @@ $('#param-meta-fetch').addEventListener('click', async () => {
 const TL_PARAMS = { 'tl-alt': 'MIS_TAKEOFF_ALT', 'tl-climb': 'MPC_TKO_SPEED', 'tl-nose': 'NLF_TARGET',
                     'tl-descend': 'MPC_LAND_SPEED', 'tl-disarm': 'COM_DISARM_LAND' };
 const flightPlan = () => ((airframe && (airframe.design ||= {})).flight ||= {});
-function takeoffMode() {
-  const f = (airframe && airframe.design && airframe.design.flight) || {};
-  return f.takeoff || (nativeModuleActive() ? 'nose_lift' : 'auto');
-}
-function landMode() {
-  const f = (airframe && airframe.design && airframe.design.flight) || {};
-  return f.land || (nativeModuleActive() ? 'nose_lift' : 'auto');
-}
+// 'px4' is PX4's own takeoff and land; anything else is the directory of a module in the Firmware tab,
+// which is asked to do it over MAV_CMD_USER_1.
+const takeoffMode = () => (airframe?.design?.flight?.takeoff) || 'px4';
+const landMode = () => (airframe?.design?.flight?.land) || 'px4';
+const moduleFor = (dir) => fwGroups.find(g => g.dir === dir && g.kind === 'module');
 function paramNow(name, fallback) {
   const v = airframe?.px4_overrides?.[name] ?? params[name]?.value;
   return v === undefined || v === null ? fallback : v;
 }
-// The module is in the firmware (its parameters are there) even when it is switched off; that is a
-// different thing from a firmware that never had it, and the section says which.
-const noseLiftPresent = () => ('NLF_TARGET' in params) || ('NLF_ENABLE' in params)
-  || ('NLF_ENABLE' in ((airframe && airframe.px4_overrides) || {}));
+function tlOptions(sel, chosen) {
+  const mods = fwGroups.filter(g => g.kind === 'module' && g.user_command);
+  sel.innerHTML = `<option value="px4">PX4's own</option>`
+    + mods.map(g => `<option value="${esc(g.dir)}">${esc(g.name)}</option>`).join('');
+  sel.value = [...sel.options].some(o => o.value === chosen) ? chosen : 'px4';
+}
 function fillTakeoffLanding() {
   if (!airframe || !$('#tl-takeoff')) return;
-  const native = noseLiftPresent();
+  loadFirmwareModules().then(() => {
+    tlOptions($('#tl-takeoff'), takeoffMode());
+    tlOptions($('#tl-land'), landMode());
+  });
   for (const [id, name] of Object.entries(TL_PARAMS)) {
     const el = $('#' + id);
     if (document.activeElement !== el) el.value = nf(paramNow(name, ''), 3);
     el.disabled = !!status.armed;
   }
-  for (const [id, get] of [['tl-takeoff', takeoffMode], ['tl-land', landMode]]) {
-    const el = $('#' + id);
-    if (document.activeElement !== el) el.value = get();
-    el.querySelector('option[value="nose_lift"]').disabled = !native;
-  }
-  $('#tl-nose').disabled = !!status.armed || takeoffMode() !== 'nose_lift';
-  $('#tl-alt').disabled = $('#tl-climb').disabled = !!status.armed || takeoffMode() !== 'auto';
-  $('#tl-descend').disabled = !!status.armed || landMode() !== 'auto';
-  $('#tl-now').textContent = `${takeoffMode() === 'nose_lift' ? 'nose lift' : 'PX4 auto'} up, `
-    + `${landMode() === 'nose_lift' ? 'nose lift' : 'PX4'} down`;
-  const on = nativeModuleActive();
-  $('#tl-note').textContent = !native
-    ? 'This firmware has no nose-lift module, so only PX4\'s own takeoff and landing are available.'
-    : (takeoffMode() === 'nose_lift' || landMode() === 'nose_lift') && !on
-      ? 'The nose-lift sequence is switched off on the vehicle (NLF_ENABLE = 0). Update PX4 to turn it on.'
-      : 'Saved with the design; Update PX4 writes these to the flight controller.';
+  const noseTakeoff = takeoffMode() !== 'px4', noseLand = landMode() !== 'px4';
+  $('#tl-nose').disabled = !!status.armed || !noseTakeoff;
+  $('#tl-alt').disabled = $('#tl-climb').disabled = !!status.armed || noseTakeoff;
+  $('#tl-descend').disabled = !!status.armed || noseLand;
+  const nameOf = (m) => m === 'px4' ? 'PX4' : (moduleFor(m)?.name || m);
+  $('#tl-now').textContent = `${nameOf(takeoffMode())} up, ${nameOf(landMode())} down`;
+  const usesModule = noseTakeoff || noseLand;
+  const nlf = (noseTakeoff && moduleFor(takeoffMode())?.params?.includes('NLF_ENABLE'))
+           || (noseLand && moduleFor(landMode())?.params?.includes('NLF_ENABLE'));
+  $('#tl-note').textContent = !usesModule
+    ? "PX4's own takeoff and landing. The numbers above are its parameters."
+    : nlf && +paramNow('NLF_ENABLE', 0) !== 1
+      ? 'The module is switched off on the vehicle (NLF_ENABLE = 0). Update PX4 to turn it on.'
+      : 'The module is asked over MAV_CMD_USER_1. Saved with the design; Update PX4 writes the parameters.';
 }
 $$('#tl-takeoff, #tl-land').forEach(sel => sel.addEventListener('change', async (e) => {
-  // Write both, so picking one does not quietly move the other when the module's switch changes with it.
   const plan = flightPlan();
   plan.takeoff = takeoffMode(); plan.land = landMode();
   plan[e.target.id === 'tl-takeoff' ? 'takeoff' : 'land'] = e.target.value;
-  // Choosing the sequence is choosing to run it: the module's own switch follows the choice.
-  if (noseLiftPresent()) {
-    const want = (takeoffMode() === 'nose_lift' || landMode() === 'nose_lift') ? 1 : 0;
+  // Choosing a module is choosing to run it: its own enable parameter follows the choice.
+  const mods = [plan.takeoff, plan.land].map(moduleFor).filter(Boolean);
+  if (mods.some(m => m.params.includes('NLF_ENABLE')) || 'NLF_ENABLE' in params) {
+    const want = mods.some(m => m.params.includes('NLF_ENABLE')) ? 1 : 0;
     if (+paramNow('NLF_ENABLE', 0) !== want) {
       try {
         await api('/api/airframe/override', { name: 'NLF_ENABLE', value: want });
@@ -1174,9 +1174,9 @@ $('#btn-takeoff').addEventListener('click', async () => {
   const b = $('#btn-takeoff');
   b.disabled = true;
   try {
-    if (takeoffMode() === 'nose_lift') {
+    if (takeoffMode() !== 'px4') {
       await api('/api/px4/command', { command: 'nose_lift_takeoff' });
-      logLine('[ui] takeoff: the nose-lift module has it');
+      logLine('[ui] takeoff: handed to ' + (moduleFor(takeoffMode())?.name || takeoffMode()));
     } else {
       if (!status.armed) await api('/api/px4/command', { command: 'arm' });
       await api('/api/px4/command', { command: 'takeoff' });
@@ -1188,7 +1188,7 @@ $('#btn-takeoff').addEventListener('click', async () => {
 
 $$('#btn-land').forEach(b => b.addEventListener('click', async () => {
   try {
-    if (b.dataset.mode === 'land' && landMode() === 'nose_lift') {
+    if (b.dataset.mode === 'land' && landMode() !== 'px4') {
       await api('/api/px4/command', { command: 'nose_lift_land' });
       return;
     }
@@ -1418,6 +1418,7 @@ function applyState(st) {
     const from = sp > 0.05 ? ((Math.atan2(-w[1], -w[0]) * 180 / Math.PI) + 360) % 360 : null;
     $('#ro-wind').textContent = sp < 0.05 ? ` 0.0 m/s` : `${pad(sp, 1, 4)} m/s ${pad(from, 0, 3)}°`;
   }
+  showWindNow(st);
   if (airframe) updateMotorSliders(st);
 }
 const logPre = $('#log-pre');
@@ -1966,17 +1967,39 @@ $('#af-push').addEventListener('click', async e => {
 
 // ============================================================ firmware: the custom PX4 modules
 let fwLoaded = null, fwDirty = false;
-async function refreshFirmware() {
+// The modules you have written, as the build sees them: a directory whose CMakeLists.txt adds a PX4
+// module. Picking one puts its sources in the editor below; the groups that are not modules — the
+// allocator overlay, the uORB messages — are listed the same way, because they are yours to edit too.
+let fwGroups = [], fwGroup = '';
+async function loadFirmwareModules(force = false) {
+  if (fwGroups.length && !force) return;
+  try { fwGroups = (await api_get('/api/firmware/modules')).groups || []; }
+  catch (e) { $('#fw-modules').innerHTML = `<div class="hint">${esc(e.message)}</div>`; return; }
+  const mods = fwGroups.filter(g => g.kind === 'module');
+  $('#fw-mod-count').textContent = `${mods.length} module${mods.length === 1 ? '' : 's'}`;
+  $('#fw-modules').innerHTML = fwGroups.map(g => `<div class="conn-row fw-group ${g.dir === fwGroup ? 'current' : ''}" data-dir="${esc(g.dir)}">
+      <div><b>${esc(g.name)}</b> <span class="hint">${g.kind === 'module' ? esc(g.module) : 'sources'} · ${g.files.length} file${g.files.length === 1 ? '' : 's'}</span>
+        <div class="hint">${g.user_command ? 'answers MAV_CMD_USER_1, so a mission can hand it a takeoff or a landing' : ''}
+          ${g.params.length ? `${g.params.length} parameters: ${esc(g.params.slice(0, 4).join(', '))}${g.params.length > 4 ? '…' : ''}` : ''}</div></div>
+      <button class="pill small" data-open="${esc(g.dir)}">Open</button></div>`).join('')
+    || '<div class="hint">No custom firmware sources under firmware/atlas.</div>';
+  $$('#fw-modules [data-open]').forEach(b => b.addEventListener('click', () => selectFirmwareGroup(b.dataset.open)));
+  $$('#fw-modules .fw-group').forEach(r => r.addEventListener('click', (e) => { if (e.target.tagName !== 'BUTTON') selectFirmwareGroup(r.dataset.dir); }));
+  if (!fwGroup && fwGroups.length) await selectFirmwareGroup((mods[0] || fwGroups[0]).dir);
+}
+async function selectFirmwareGroup(dir) {
+  const g = fwGroups.find(x => x.dir === dir);
+  if (!g) return;
+  fwGroup = dir;
+  $$('#fw-modules .fw-group').forEach(r => r.classList.toggle('current', r.dataset.dir === dir));
+  $('#fw-where').textContent = g.name;
   const sel = $('#fw-file');
-  if (sel.options.length <= 1 || sel.value === '') {
-    try {
-      const r = await api_get('/api/firmware/files');
-      sel.innerHTML = (r.files || []).map(f => `<option value="${esc(f)}">${esc(f)}</option>`).join('')
-        || '<option value="">no module sources found</option>';
-      $('#fw-note').textContent = r.root || '';
-      if (sel.options.length) { sel.value = sel.options[0].value; await openFirmwareFile(sel.value); }
-    } catch (e) { $('#fw-note').textContent = e.message; }
-  }
+  sel.innerHTML = g.files.map(f => `<option value="${esc(f)}">${esc(f.startsWith(g.dir + '/') ? f.slice(g.dir.length + 1) : f)}</option>`).join('')
+    || '<option value="">no files</option>';
+  if (sel.options.length && sel.value) await openFirmwareFile(sel.value);
+}
+async function refreshFirmware() {
+  await loadFirmwareModules();
   const fw = status.firmware || {};
   const stale = !!(fw.needs_rebuild || fw.needs_relaunch || fw.needs_flash);
   $('#fw-state').classList.toggle('on', !stale);
@@ -2437,87 +2460,169 @@ joyRenderMap(); joyTick(); serialReconnect();
 // ============================================================ batch: a list of actions, run in order
 // A batch is whatever you put in the list. The actions run top to bottom, and `Repeat` runs the whole list
 // again. Nothing is implicit: a scenario job carries the airframe exactly as the actions before it left it.
-const BATCH_ACTIONS = {
-  scenario: { label: 'Run a scenario', fields: [{ k: 'scenario', type: 'select', options: () => (scenariosCache || []).map(s => s.file.replace(/\.json$/, '')) }] },
-  param:    { label: 'Set a PX4 parameter', fields: [{ k: 'name', type: 'text', placeholder: 'MC_PITCHRATE_P' }, { k: 'value', type: 'number' }] },
-  geometry: { label: 'Set a geometry value', fields: [{ k: 'path', type: 'text', placeholder: 'rotors[*].tilt_deg' }, { k: 'value', type: 'number' }] },
-  wind:     { label: 'Set the wind', fields: [{ k: 'north', type: 'number' }, { k: 'east', type: 'number' }, { k: 'down', type: 'number' }] },
-  reset:    { label: 'Reset the aircraft', fields: [] },
+// ============================================================ wind, and missions
+// A mission is a list of plain actions — take off, hover, move, cruise, land — kept with the design and
+// flown by the scenario runner, which is the same machinery the scripted tests use. Nothing here is
+// specific to one aircraft: the actions say what to do, not which motor does it.
+const windFromVec = (n, e) => (Math.hypot(n, e) < 1e-6 ? 0 : (Math.atan2(-e, -n) * 180 / Math.PI + 360) % 360);
+const windVec = (speed, fromDeg) => {
+  const a = fromDeg * Math.PI / 180;
+  return [-speed * Math.cos(a), -speed * Math.sin(a)];   // blowing towards, in NED
 };
-let batchList = [];
-try { batchList = JSON.parse(localStorage.getItem('airframe-batch') || '[]'); } catch { }
-const saveBatch = () => { try { localStorage.setItem('airframe-batch', JSON.stringify(batchList)); } catch { } };
-
-function renderBatchFields() {
-  const kind = $('#ba-kind').value;
-  const spec = BATCH_ACTIONS[kind];
-  $('#ba-fields').innerHTML = (spec.fields || []).map(f => {
-    if (f.type === 'select') return `<label style="flex:1">${f.k}<select data-f="${f.k}">${(f.options() || []).map(o => `<option>${esc(o)}</option>`).join('')}</select></label>`;
-    return `<label style="flex:1">${f.k}<input data-f="${f.k}" type="${f.type}" ${f.type === 'number' ? 'step="any" value="0"' : ''} placeholder="${esc(f.placeholder || '')}"></label>`;
-  }).join('') || '<span class="hint">no settings</span>';
+function showWindNow(st) {
+  const w = (st && st.wind) || [0, 0, 0];
+  const sp = Math.hypot(w[0], w[1]);
+  $('#wind-now').textContent = sp < 0.05 && Math.abs(w[2]) < 0.05 ? 'calm'
+    : `${sp.toFixed(1)} m/s from ${windFromVec(w[0], w[1]).toFixed(0)}°${Math.abs(w[2]) > 0.05 ? `, ${w[2].toFixed(1)} down` : ''}`;
 }
-function renderBatchList() {
-  const el = $('#ba-list');
-  if (!batchList.length) { el.innerHTML = '<div class="hint">No actions yet. Add one above; they run in order.</div>'; return; }
-  el.innerHTML = batchList.map((a, i) => {
-    const bits = Object.entries(a).filter(([k]) => k !== 'kind').map(([k, v]) => `${k} ${v}`).join(', ');
-    return `<div class="conn-row"><div><b>${i + 1}.</b> ${esc(BATCH_ACTIONS[a.kind].label)}${bits ? ' <span class="hint">' + esc(bits) + '</span>' : ''}</div>
+async function applyWind(speed, dir, down) {
+  const [north, east] = windVec(speed, dir);
+  try { await api('/api/sim/wind', { north, east, down }); logLine(`[wind] ${speed} m/s from ${dir}°`); }
+  catch (e) { logLine('[wind] ' + e.message); }
+}
+$('#wind-apply').addEventListener('click', () => applyWind(+$('#wind-speed').value || 0, +$('#wind-dir').value || 0, +$('#wind-down').value || 0));
+$('#wind-calm').addEventListener('click', () => { $('#wind-speed').value = 0; $('#wind-down').value = 0; applyWind(0, 0, 0); });
+
+// ---- the actions a mission is built from, and the scenario phase each one becomes
+const MISSION_ACTIONS = {
+  takeoff: { label: 'Take off', fields: [['alt', 'height m', 2]],
+             phase: (a) => takeoffMode() === 'px4' ? { type: 'takeoff', alt: a.alt, settle: 2, timeout: 60 }
+                                                   : { type: 'module', action: 'takeoff', alt: a.alt, timeout: 90 } },
+  hover:   { label: 'Hover', fields: [['s', 'seconds', 10]], phase: (a) => ({ type: 'hold', duration: a.s }) },
+  move:    { label: 'Move to', fields: [['n', 'north m', 0], ['e', 'east m', 0], ['alt', 'height m', 2]],
+             phase: (a) => ({ type: 'offboard_position', pos: [a.n, a.e, -a.alt], tolerance: 1.0, timeout: 60 }) },
+  cruise:  { label: 'Cruise at', fields: [['speed', 'm/s', 10], ['s', 'seconds', 15]],
+             phase: (a) => ({ type: 'cruise_velocity', speed: a.speed, duration: a.s }) },
+  mode:    { label: 'Set mode', fields: [['mode', 'mode', 'hold', FLIGHT_MODES.map(m => m[0])]],
+             phase: (a) => ({ type: 'mode', mode: a.mode }) },
+  wind:    { label: 'Change wind', fields: [['speed', 'm/s', 0], ['dir', 'from°', 0]],
+             phase: (a) => ({ type: 'wind', ned: [...windVec(a.speed, a.dir), 0] }) },
+  param:   { label: 'Set a parameter', fields: [['name', 'name', 'MPC_XY_VEL_MAX'], ['value', 'value', 0]],
+             phase: (a) => ({ type: 'param', name: a.name, value: a.value }) },
+  motor:   { label: 'Fail a motor', fields: [['rotor', 'rotor #', 1], ['scale', 'thrust left', 0]],
+             phase: (a) => ({ type: 'motor_failure', rotor: Math.max(0, a.rotor - 1), scale: a.scale }) },
+  wait:    { label: 'Wait', fields: [['s', 'seconds', 5]], phase: (a) => ({ type: 'wait', duration: a.s }) },
+  land:    { label: 'Land', fields: [],
+             phase: () => landMode() === 'px4' ? { type: 'land', timeout: 90 } : { type: 'module', action: 'land', timeout: 120 } },
+};
+const missions = () => ((airframe && (airframe.design ||= {})).missions ||= []);
+const missionIndex = () => Math.max(0, Math.min(missions().length - 1, +(airframe?.design?.mission_index ?? 0)));
+const currentMission = () => missions()[missionIndex()];
+
+function newMission(name) {
+  return { name: name || `Mission ${missions().length + 1}`, wind: { speed: 0, dir: 0 }, max_time: 180,
+           steps: [{ kind: 'takeoff', alt: 2 }, { kind: 'hover', s: 15 }, { kind: 'land' }] };
+}
+function describeStep(a) {
+  const spec = MISSION_ACTIONS[a.kind];
+  if (!spec) return a.kind;
+  const bits = spec.fields.map(([k, label]) => `${a[k]} ${label.replace(/°$/, '°')}`).join(', ');
+  return spec.label + (bits ? ' · ' + bits : '');
+}
+function renderMissionFields() {
+  const spec = MISSION_ACTIONS[$('#mi-kind').value];
+  $('#mi-fields').innerHTML = (spec.fields || []).map(([k, label, dflt, options]) => options
+    ? `<label>${esc(label)}<select data-f="${k}">${options.map(o => `<option${o === dflt ? ' selected' : ''}>${esc(o)}</option>`).join('')}</select></label>`
+    : `<label>${esc(label)}<input data-f="${k}" type="${typeof dflt === 'number' ? 'number' : 'text'}" step="any" value="${esc(dflt)}" style="width:${typeof dflt === 'number' ? 70 : 130}px"></label>`).join('')
+    || '<span class="hint">nothing to set</span>';
+}
+function renderMissions() {
+  if (!airframe || !$('#mi-pick')) return;
+  if (!missions().length) missions().push(newMission('First flight'));
+  const idx = missionIndex();
+  const m = currentMission();
+  $('#mi-pick').innerHTML = missions().map((x, i) => `<option value="${i}"${i === idx ? ' selected' : ''}>${esc(x.name)} · ${x.steps.length} step${x.steps.length === 1 ? '' : 's'}</option>`).join('');
+  $('#mi-wind-speed').value = m.wind?.speed ?? 0;
+  $('#mi-wind-dir').value = m.wind?.dir ?? 0;
+  $('#mi-max').value = m.max_time ?? 180;
+  $('#mi-steps').innerHTML = m.steps.map((a, i) => `<div class="conn-row"><div><b>${i + 1}.</b> ${esc(describeStep(a))}</div>
       <div class="row tight"><button class="pill small" data-up="${i}" ${i ? '' : 'disabled'}>↑</button>
-      <button class="pill small" data-del="${i}">✕</button></div></div>`;
-  }).join('');
-  $$('#ba-list [data-del]').forEach(b => b.addEventListener('click', () => { batchList.splice(+b.dataset.del, 1); saveBatch(); renderBatchList(); }));
-  $$('#ba-list [data-up]').forEach(b => b.addEventListener('click', () => {
-    const i = +b.dataset.up; [batchList[i - 1], batchList[i]] = [batchList[i], batchList[i - 1]]; saveBatch(); renderBatchList();
+      <button class="pill small" data-del="${i}">✕</button></div></div>`).join('')
+    || '<div class="hint">No actions yet. Add one below; they run in order.</div>';
+  $$('#mi-steps [data-del]').forEach(b => b.addEventListener('click', () => { m.steps.splice(+b.dataset.del, 1); renderMissions(); pushAirframe(true); }));
+  $$('#mi-steps [data-up]').forEach(b => b.addEventListener('click', () => {
+    const i = +b.dataset.up; [m.steps[i - 1], m.steps[i]] = [m.steps[i], m.steps[i - 1]]; renderMissions(); pushAirframe(true);
   }));
-}
-$('#ba-kind').addEventListener('change', renderBatchFields);
-$('#ba-add').addEventListener('click', () => {
-  const kind = $('#ba-kind').value;
-  const action = { kind };
-  $$('#ba-fields [data-f]').forEach(el => { action[el.dataset.f] = el.type === 'number' ? (parseFloat(el.value) || 0) : el.value.trim(); });
-  batchList.push(action); saveBatch(); renderBatchList();
-});
-$('#ba-clear').addEventListener('click', () => { batchList = []; saveBatch(); renderBatchList(); });
-
-async function runBatchAction(a) {
-  if (a.kind === 'param') return api('/api/params/set', { name: a.name, value: a.value });
-  if (a.kind === 'geometry') return api('/api/airframe/path', { path: a.path, value: a.value });
-  if (a.kind === 'wind') return api('/api/sim/wind', { north: a.north, east: a.east, down: a.down });
-  if (a.kind === 'reset') return api('/api/sim/reset', {});
-  if (a.kind === 'scenario') {
-    await api('/api/airframe', { airframe });                      // the job copies the live airframe
-    const r = await api('/api/batch/run', { scenario: a.scenario, options: {} });
-    logLine(`[batch] started ${r.id} (${a.scenario})`);
-    return r;
+  $('#mi-state').textContent = `${missions().length} mission${missions().length === 1 ? '' : 's'}`;
+  if (!$('#mi-kind').options.length) {
+    $('#mi-kind').innerHTML = Object.entries(MISSION_ACTIONS).map(([k, v]) => `<option value="${k}">${esc(v.label)}</option>`).join('');
+    renderMissionFields();
   }
 }
-$('#ba-run').addEventListener('click', async e => {
-  const b = e.currentTarget, label = b.textContent;
-  if (!batchList.length) { logLine('[batch] the list is empty'); return; }
-  b.disabled = true;
-  const repeats = Math.max(1, +$('#ba-repeat').value || 1);
-  try {
-    for (let pass = 1; pass <= repeats; pass++) {
-      for (let i = 0; i < batchList.length; i++) {
-        b.textContent = `${pass}/${repeats} · step ${i + 1}/${batchList.length}`;
-        try { await runBatchAction(batchList[i]); }
-        catch (err) { logLine(`[batch] step ${i + 1} failed: ${err.message}`); }
-      }
-    }
-    logLine(`[batch] finished ${repeats} pass${repeats === 1 ? '' : 'es'} of ${batchList.length} action(s)`);
-  } finally { b.disabled = false; b.textContent = label; pollJobs(); }
+$('#mi-kind').addEventListener('change', renderMissionFields);
+$('#mi-pick').addEventListener('change', (e) => { airframe.design.mission_index = +e.target.value; renderMissions(); pushAirframe(true); });
+$('#mi-new').addEventListener('click', () => { missions().push(newMission()); airframe.design.mission_index = missions().length - 1; renderMissions(); pushAirframe(true); });
+$('#mi-rename').addEventListener('click', () => {
+  const m = currentMission(); if (!m) return;
+  const box = $('#mi-pick');
+  const input = document.createElement('input');
+  input.type = 'text'; input.value = m.name; input.className = 'name'; input.style.flex = '1';
+  box.replaceWith(input); input.focus(); input.select();
+  const done = (commit) => { if (commit) { m.name = input.value.trim() || m.name; pushAirframe(true); } input.replaceWith(box); renderMissions(); };
+  input.onblur = () => done(true);
+  input.onkeydown = (ev) => { if (ev.key === 'Enter') done(true); if (ev.key === 'Escape') done(false); };
+});
+$('#mi-delete').addEventListener('click', (e) => {
+  if (missions().length <= 1) { logLine('[mission] this is the only mission'); return; }
+  if (!confirmTwice('mi-delete', e.currentTarget, 'delete this mission')) return;
+  missions().splice(missionIndex(), 1);
+  airframe.design.mission_index = 0;
+  renderMissions(); pushAirframe(true);
+});
+$$('#mi-wind-speed, #mi-wind-dir, #mi-max').forEach(inp => inp.addEventListener('change', () => {
+  const m = currentMission(); if (!m) return;
+  m.wind = { speed: +$('#mi-wind-speed').value || 0, dir: +$('#mi-wind-dir').value || 0 };
+  m.max_time = Math.max(10, +$('#mi-max').value || 180);
+  pushAirframe(true);
+}));
+$('#mi-add').addEventListener('click', () => {
+  const m = currentMission(); if (!m) return;
+  const kind = $('#mi-kind').value;
+  const step = { kind };
+  $$('#mi-fields [data-f]').forEach(el => { step[el.dataset.f] = el.tagName === 'SELECT' || el.type === 'text' ? el.value.trim() : (parseFloat(el.value) || 0); });
+  m.steps.push(step); renderMissions(); pushAirframe(true);
 });
 
-let batchTimer = null, scenariosCache = null, lastJobs = null;
+// ---- flying it: the mission becomes a scenario and the runner takes it from there
+function missionScenario(m) {
+  const [n, e] = windVec(m.wind?.speed || 0, m.wind?.dir || 0);
+  return {
+    name: m.name, max_time: m.max_time || 180, wind: [n, e, 0],
+    phases: [{ type: 'wait_ready', timeout: 60 },
+             ...m.steps.map(a => ({ name: describeStep(a), ...MISSION_ACTIONS[a.kind].phase(a) }))],
+  };
+}
+$('#mi-run').addEventListener('click', async () => {
+  const m = currentMission(); if (!m || !m.steps.length) { logLine('[mission] nothing to fly'); return; }
+  try {
+    const r = await api('/api/sim/scenario/start', missionScenario(m));
+    logLine(`[mission] flying ${r.name}`);
+  } catch (err) { logLine('[mission] ' + err.message); }
+  pollMission();
+});
+$('#mi-stop').addEventListener('click', async () => {
+  try { await api('/api/sim/scenario/stop', {}); logLine('[mission] stopped'); } catch (err) { logLine('[mission] ' + err.message); }
+});
+let missionTimer = null;
+async function pollMission() {
+  clearTimeout(missionTimer);
+  if (!$('#tab-mission').classList.contains('active')) return;
+  try {
+    const r = await api_get('/api/sim/scenario');
+    const p = r && r.phase;
+    $('#mi-progress').textContent = !r || !r.running && !p ? ''
+      : `${r.running ? 'flying' : (r.ok === false ? 'failed' : 'finished')}${p ? ' · ' + p.name : ''}${(r.failures || []).length ? ' · ' + r.failures[0] : ''}`;
+  } catch { }
+  missionTimer = setTimeout(pollMission, 1000);
+}
+
+let batchTimer = null, lastJobs = null;
 const jobsOpen = new Set();
 const mnum = (v, d = 2) => (v == null || !isFinite(v)) ? '—' : (+v).toFixed(d);
 async function refreshBatch() {
   clearTimeout(batchTimer);
   if (!$('#tab-mission').classList.contains('active')) return;
-  if (!scenariosCache) {
-    try { scenariosCache = (await api('/api/scenarios')).scenarios || []; } catch { scenariosCache = []; }
-  }
-  renderBatchFields(); renderBatchList(); pollJobs();
+  pollJobs();
 }
 async function pollJobs() {
   try { const r = await api('/api/batch/jobs'); lastJobs = r; renderJobs(r); } catch (e) { }

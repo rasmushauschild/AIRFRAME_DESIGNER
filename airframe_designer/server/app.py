@@ -582,6 +582,41 @@ def build_app(state: AppState) -> FastAPI:
             return None
         return p
 
+    @app.get("/api/firmware/modules")
+    def firmware_modules():
+        """The custom modules in firmware/atlas, with their sources.
+
+        A module is a directory whose CMakeLists.txt calls px4_add_module; that is PX4's own definition and
+        it is the one the build uses. Anything else under firmware/atlas that holds editable sources — the
+        allocator overlay, the uORB messages — is listed beside them as a group, because they are yours to
+        edit too even though the build treats them differently. `user_command` says whether the module
+        answers MAV_CMD_USER_1, which is what the Mission tab hands a takeoff or a landing to."""
+        groups, claimed = [], set()
+        for cmake in sorted(FW_ROOT.rglob("CMakeLists.txt")) if FW_ROOT.is_dir() else []:
+            text = cmake.read_text(errors="replace")
+            if "px4_add_module" not in text:
+                continue
+            d = cmake.parent
+            name = (re.search(r"MODULE\s+(\S+)", text) or [None, d.name])[1]
+            files = [str(f.relative_to(FW_ROOT)) for f in sorted(d.rglob("*"))
+                     if f.is_file() and f.suffix.lower() in FW_EDITABLE]
+            claimed.update(files)
+            src = "\n".join((FW_ROOT / f).read_text(errors="replace") for f in files if f.endswith((".cpp", ".hpp", ".h")))
+            groups.append({"kind": "module", "name": d.name, "module": str(name),
+                           "dir": str(d.relative_to(FW_ROOT)), "files": files,
+                           "user_command": "MAV_CMD_USER_1" in src,
+                           "params": sorted({m for m in re.findall(r"^\s{0,4}([A-Z][A-Z0-9_]{2,15}):", 
+                                                                   (d / "params.yaml").read_text(errors="replace"), re.M)})
+                                     if (d / "params.yaml").is_file() else []})
+        other: dict[str, list[str]] = {}
+        for f in fw_files():
+            if f in claimed:
+                continue
+            other.setdefault(f.split("/")[0] if "/" in f else ".", []).append(f)
+        groups += [{"kind": "sources", "name": k, "module": "", "dir": k, "files": v, "user_command": False, "params": []}
+                   for k, v in sorted(other.items())]
+        return {"groups": groups}
+
     @app.get("/api/firmware/files")
     async def firmware_files():
         return {"root": str(FW_ROOT), "files": fw_files()}

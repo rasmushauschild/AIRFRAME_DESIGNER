@@ -63,7 +63,8 @@
       "tau": 0.12,
       "diameter": 0.25,
       "thrust_exponent": 2,
-      "enabled": true
+      "enabled": true,
+      "pair": ""
     },
     {
       "name": "Rear lift 2",
@@ -83,7 +84,8 @@
       "tau": 0.12,
       "diameter": 0.25,
       "thrust_exponent": 2,
-      "enabled": true
+      "enabled": true,
+      "pair": ""
     },
     {
       "name": "Rear lift 3",
@@ -103,7 +105,8 @@
       "tau": 0.12,
       "diameter": 0.25,
       "thrust_exponent": 2,
-      "enabled": true
+      "enabled": true,
+      "pair": ""
     },
     {
       "name": "Rear lift 4",
@@ -123,7 +126,8 @@
       "tau": 0.12,
       "diameter": 0.25,
       "thrust_exponent": 2,
-      "enabled": true
+      "enabled": true,
+      "pair": ""
     },
     {
       "name": "Nose lift 1",
@@ -143,7 +147,8 @@
       "tau": 0.12,
       "diameter": 0.25,
       "thrust_exponent": 2,
-      "enabled": true
+      "enabled": true,
+      "pair": ""
     },
     {
       "name": "Nose lift 2",
@@ -163,7 +168,8 @@
       "tau": 0.12,
       "diameter": 0.25,
       "thrust_exponent": 2,
-      "enabled": true
+      "enabled": true,
+      "pair": ""
     },
     {
       "name": "Nose lift centre",
@@ -183,7 +189,8 @@
       "tau": 0.12,
       "diameter": 0.25,
       "thrust_exponent": 2,
-      "enabled": true
+      "enabled": true,
+      "pair": ""
     },
     {
       "name": "Cruise 1",
@@ -203,7 +210,8 @@
       "tau": 0.12,
       "diameter": 0.25,
       "thrust_exponent": 2,
-      "enabled": true
+      "enabled": true,
+      "pair": ""
     },
     {
       "name": "Cruise 2",
@@ -223,7 +231,8 @@
       "tau": 0.12,
       "diameter": 0.25,
       "thrust_exponent": 2,
-      "enabled": true
+      "enabled": true,
+      "pair": ""
     }
   ],
   "wings": [
@@ -232,11 +241,11 @@
       "enabled": true,
       "pos": [
         -0.377,
-        0,
-        -0.153
+        -0.14,
+        -0.103
       ],
       "root_y": 0.617,
-      "span": 2.638,
+      "span": 2.728,
       "root_chord": 1.134,
       "tip_chord": 0.743,
       "sweep_deg": 14.7,
@@ -317,7 +326,8 @@
       "stiffness": 130000,
       "damping": 3500,
       "friction": 0.8,
-      "enabled": true
+      "enabled": true,
+      "pair": ""
     },
     {
       "name": "Right wingtip contact",
@@ -333,7 +343,8 @@
       "stiffness": 130000,
       "damping": 3500,
       "friction": 0.8,
-      "enabled": true
+      "enabled": true,
+      "pair": ""
     },
     {
       "name": "Left wingtip contact",
@@ -349,7 +360,8 @@
       "stiffness": 130000,
       "damping": 3500,
       "friction": 0.8,
-      "enabled": true
+      "enabled": true,
+      "pair": ""
     }
   ],
   "hover_pitch_deg": 10.000000000066347,

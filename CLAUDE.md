@@ -56,9 +56,13 @@ airframes/    schema-2 JSON (docs/SCHEMA.md);  scenarios/  studies/  results/ (g
   light, low-inertia airframe jitters on its legs and the fake gyro noise makes PX4's estimator refuse to arm.
 * `sim/nose_lift.py` is the pre-arm ground sequence (motor floors under PX4's commands); it is a simulator hook,
   not a PX4 feature.
-* The app's tabs are Geometry, Params, Firmware, Mission and Controller. Mission holds what the Takeoff
-  and Land buttons do (`design.flight.takeoff` / `.land`: the nose-lift sequence or PX4's own) with the
-  PX4 parameters behind them, and the action list. Every section on every tab is a
+* The app's tabs are Geometry, Params, Firmware, Mission and Controller. Firmware lists the custom modules
+  (`/api/firmware/modules`: a directory whose CMakeLists.txt calls px4_add_module) and edits their sources.
+  Mission holds who does the takeoff and the landing — `design.flight.takeoff` / `.land`, either `px4` or a
+  module's directory, asked over MAV_CMD_USER_1 — the wind, and `design.missions`: named lists of plain
+  actions (take off, hover, move, cruise, set mode, wind, parameter, motor out, wait, land) that are turned
+  into scenario phases and flown by the same runner the scripted tests use. Missions are design-independent:
+  an action says what to do, never which motor does it. Every section on every tab is a
   `<details class="sec">`: the white box, its title the handle, its contents directly on it, nothing inside
   it that is another white box. Which sections are open is the user's and is remembered.
 * Every run is recorded (`sim/recorder.py`) and kept at the next reset if it armed or left the ground, with the

@@ -17,6 +17,7 @@ A scenario is JSON:
     {"type": "wind", "ned": [5, 0, 0]},
     {"type": "motor_failure", "rotor": 2, "scale": 0.0},
     {"type": "param", "name": "MC_PITCH_P", "value": 5.0},
+    {"type": "module", "action": "takeoff", "alt": 1.5, "timeout": 60},   # a firmware module's own takeoff/landing
     {"type": "wait", "duration": 2},
     {"type": "land", "timeout": 40}
   ]
@@ -406,6 +407,40 @@ class ScenarioRunner:
             self.fail(simr, f"nose lift failed: {nl.reason}", fatal=bool(self.phase.get("fatal", True)))
         elif self._elapsed(simr) > float(self.phase.get("timeout", 30.0)):
             self.fail(simr, f"nose lift did not reach the target (at {nl.pitch:.1f} deg)", fatal=True)
+
+    def _p_module(self, simr) -> None:
+        """Hand the takeoff or the landing to a module in the firmware.
+
+        The module is asked over MAV_CMD_USER_1 (1 = take off, 2 = land), which is the one command PX4
+        leaves to the airframe's own code. What happens next is the module's business; the phase only
+        watches for the result it is supposed to produce, and says so plainly if it does not arrive.
+        """
+        st, link = self._state, self.link
+        action = str(self.phase.get("action", "takeoff"))
+        if "sent" not in st:
+            link.send_command_long(31010, 1.0 if action == "takeoff" else 2.0)     # MAV_CMD_USER_1
+            self.metrics.note(simr.t, f"asked the firmware module to {action} (MAV_CMD_USER_1)")
+            st["sent"] = simr.t
+            return
+        alt = -float(simr.sim.pos[2]) - (self._rest_alt or 0.0)
+        el = self._elapsed(simr)
+        if action == "takeoff":
+            target = float(self.phase.get("alt", 1.0))
+            self.targets[self._name()] = {"alt": target + (self._rest_alt or 0.0)}
+            if alt >= 0.9 * target and abs(float(simr.sim.vel[2])) < 0.4:
+                st.setdefault("reached", simr.t)
+                if simr.t - st["reached"] >= float(self.phase.get("settle", 1.0)):
+                    self.metrics.phases[self._name()]["time_to_alt"] = round(simr.t - self.phase_t0, 2)
+                    self._next(simr)
+            elif el > float(self.phase.get("timeout", 60.0)):
+                self.fail(simr, f"the module did not reach {target} m in {el:.0f}s (alt {alt:.2f} m, armed={link.armed})",
+                          fatal=bool(self.phase.get("fatal", True)))
+        else:
+            if simr.sim.on_ground and not link.armed:
+                self.metrics.note(simr.t, "the module landed and disarmed")
+                self._next(simr)
+            elif el > float(self.phase.get("timeout", 90.0)):
+                self.fail(simr, f"the module did not land in {el:.0f}s (alt {alt:.2f} m, armed={link.armed})")
 
     def _p_arm(self, simr) -> None:
         st, link = self._state, self.link

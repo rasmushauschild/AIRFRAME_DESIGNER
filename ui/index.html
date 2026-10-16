@@ -299,20 +299,14 @@
         <div class="sec-body">
           <div class="fields cols-4">
             <label title="what the Takeoff button does">Takeoff
-              <select id="tl-takeoff">
-                <option value="nose_lift">Nose-lift sequence</option>
-                <option value="auto">PX4 auto takeoff</option>
-              </select></label>
+              <select id="tl-takeoff"></select></label>
             <label title="MIS_TAKEOFF_ALT: the height PX4 climbs to on an auto takeoff">Height m <input id="tl-alt" type="number" step="0.5" min="0.5"></label>
             <label title="MPC_TKO_SPEED: how fast it climbs away">Climb m/s <input id="tl-climb" type="number" step="0.1" min="0.1"></label>
             <label title="NLF_TARGET: the nose-up angle the ground sequence raises to before it lifts off">Nose target° <input id="tl-nose" type="number" step="1"></label>
           </div>
           <div class="fields cols-4">
             <label title="what the Land button does">Landing
-              <select id="tl-land">
-                <option value="nose_lift">Nose-lift sequence</option>
-                <option value="auto">PX4 land</option>
-              </select></label>
+              <select id="tl-land"></select></label>
             <label title="MPC_LAND_SPEED: descent rate for the final approach">Descend m/s <input id="tl-descend" type="number" step="0.1" min="0.1"></label>
             <label title="COM_DISARM_LAND: seconds on the ground before PX4 disarms itself (0 = never)">Disarm after s <input id="tl-disarm" type="number" step="0.5" min="0"></label>
           </div>
@@ -328,28 +322,48 @@
           <div class="hint" id="tl-note"></div>
         </div>
       </details>
-      <details class="sec" id="sec-batch" open>
-        <summary>Actions</summary>
+      <details class="sec" id="sec-wind" open>
+        <summary>Wind <span class="sum-spacer"></span><span class="hint" id="wind-now"></span></summary>
         <div class="sec-body">
-        <div class="row tight">
-          <select id="ba-kind" style="flex:1">
-            <option value="scenario">Run a scenario</option>
-            <option value="param">Set a PX4 parameter</option>
-            <option value="geometry">Set a geometry value</option>
-            <option value="wind">Set the wind</option>
-            <option value="reset">Reset the aircraft</option>
-          </select>
-          <button class="pill small primary" id="ba-add">Add</button>
+          <div class="fields cols-4">
+            <label title="wind speed at the aircraft">Speed m/s <input id="wind-speed" type="number" step="0.5" min="0" value="0"></label>
+            <label title="the direction the wind comes FROM, degrees clockwise from north">From° <input id="wind-dir" type="number" step="5" value="0"></label>
+            <label title="downward component, m/s (positive = downdraught)">Down m/s <input id="wind-down" type="number" step="0.5" value="0"></label>
+          </div>
+          <div class="row tight">
+            <button class="pill small primary" id="wind-apply">Set now</button>
+            <button class="pill small" id="wind-calm">Calm</button>
+            <span class="hint">This is the wind in the simulation right now. Each mission can set its own at the start.</span>
+          </div>
         </div>
-        <div class="row tight" id="ba-fields"></div>
-        <div id="ba-list" class="card"><div class="hint">No actions yet. Add one above; they run in order.</div></div>
-        <div class="row tight">
-          <label>Repeat <input id="ba-repeat" type="number" min="1" value="1" style="width:60px" title="run the whole list this many times"></label>
-          <label>Workers <input id="ba-workers" type="number" min="1" max="8" value="4" style="width:60px"></label>
-          <div class="panel-spacer"></div>
-          <button class="pill small" id="ba-clear">Clear</button>
-          <button class="pill small primary" id="ba-run">Run</button>
-        </div>
+      </details>
+
+      <details class="sec" id="sec-missions" open>
+        <summary>Missions <span class="sum-spacer"></span><span class="hint" id="mi-state"></span></summary>
+        <div class="sec-body">
+          <div class="row tight">
+            <select id="mi-pick" style="flex:1"></select>
+            <button class="pill small" id="mi-new">New</button>
+            <button class="pill small" id="mi-rename">Rename</button>
+            <button class="pill small danger" id="mi-delete">Delete</button>
+          </div>
+          <div class="fields cols-4">
+            <label title="wind set when the mission starts">Wind m/s <input id="mi-wind-speed" type="number" step="0.5" min="0"></label>
+            <label title="the direction it comes from">From° <input id="mi-wind-dir" type="number" step="5"></label>
+            <label title="give up after this many simulated seconds">Time limit s <input id="mi-max" type="number" step="10" min="10"></label>
+          </div>
+          <div id="mi-steps"></div>
+          <div class="row tight">
+            <select id="mi-kind" style="flex:1"></select>
+            <div class="row tight" id="mi-fields"></div>
+            <button class="pill small primary" id="mi-add">Add</button>
+          </div>
+          <div class="row tight">
+            <button class="pill small primary" id="mi-run">Fly it</button>
+            <button class="pill small" id="mi-stop">Stop</button>
+            <span class="panel-spacer"></span>
+            <span class="hint" id="mi-progress"></span>
+          </div>
         </div>
       </details>
       <details class="sec" id="sec-runs" open>
@@ -374,7 +388,14 @@
       </details>
 
       <details class="sec" id="sec-modules" open>
-        <summary>Modules</summary>
+        <summary>Modules <span class="sum-spacer"></span><span class="hint" id="fw-mod-count"></span></summary>
+        <div class="sec-body">
+          <div id="fw-modules"><div class="hint">Loading…</div></div>
+        </div>
+      </details>
+
+      <details class="sec" id="sec-source" open>
+        <summary>Source <span class="sum-spacer"></span><span class="hint" id="fw-where"></span></summary>
         <div class="sec-body">
         <div class="row tight">
           <select id="fw-file" style="flex:1"><option value="">Loading…</option></select>
