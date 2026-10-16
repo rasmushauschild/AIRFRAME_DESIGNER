@@ -540,7 +540,8 @@ label.disabled { opacity: 0.45; cursor: default; }
 .sec-body > button, .sec-body > a.pill, .sec-body > label.row { align-self: flex-start; }
 /* A container with nothing in it takes no room: an empty status line, an empty problem list and an empty
    device list used to leave a third of the box blank. */
-.sec-body > :empty { display: none; }
+/* A field is not empty because it has no child nodes: a textarea's text is its value. */
+.sec-body > :empty:not(textarea):not(input):not(select):not(canvas) { display: none; }
 .sec-body .conn-row + .conn-row { margin-top: 4px; }
 .sec-body label.row { gap: 6px; }
 .sec-body .card { background: transparent; box-shadow: none; padding: 0; border-radius: 0; }

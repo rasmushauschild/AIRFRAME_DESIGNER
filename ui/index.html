@@ -392,11 +392,13 @@
         <summary>Modules <span class="sum-spacer"></span><span class="hint" id="fw-where"></span></summary>
         <div class="sec-body">
           <div class="row tight">
-            <select id="fw-module" style="flex:1" title="your custom modules, and the other sources under firmware/atlas"></select>
+            <label class="row hint" style="flex:1" title="your own PX4 modules, and the other sources under firmware/atlas">Module
+              <select id="fw-module" style="flex:1"></select></label>
             <button class="pill small" id="fw-new" title="start a new PX4 module: a directory, a CMakeLists.txt that adds it to the build, and a source file that compiles">New module</button>
           </div>
           <div class="row tight">
-            <select id="fw-file" style="flex:1"><option value="">Loading…</option></select>
+            <label class="row hint" style="flex:1" title="the files of that module">File
+              <select id="fw-file" style="flex:1"><option value="">Loading…</option></select></label>
             <button class="pill small" id="fw-revert" title="discard edits and reload from disk">Revert</button>
             <button class="pill small primary" id="fw-save" title="write this file">Save</button>
           </div>

@@ -1996,9 +1996,9 @@ async function loadFirmwareModules(force = false) {
   const sel = $('#fw-module');
   const mods = fwGroups.filter(g => g.kind === 'module');
   const rest = fwGroups.filter(g => g.kind !== 'module');
-  const opt = (g) => `<option value="${esc(g.dir)}">${esc(g.name)}${g.kind === 'module' ? ` — ${g.files.length} files${g.user_command ? ', answers MAV_CMD_USER_1' : ''}` : ' (sources)'}</option>`;
+  const opt = (g) => `<option value="${esc(g.dir)}">${esc(g.name)} — ${g.files.length} file${g.files.length === 1 ? '' : 's'}${g.kind === 'module' && g.user_command ? ', answers MAV_CMD_USER_1' : ''}</option>`;
   sel.innerHTML = (mods.length ? `<optgroup label="Modules">${mods.map(opt).join('')}</optgroup>` : '')
-    + (rest.length ? `<optgroup label="Other sources">${rest.map(opt).join('')}</optgroup>` : '');
+    + (rest.length ? `<optgroup label="Other firmware sources">${rest.map(opt).join('')}</optgroup>` : '');
   if (!fwGroups.some(g => g.dir === fwGroup)) fwGroup = (mods[0] || fwGroups[0] || {}).dir || '';
   sel.value = fwGroup;
   await selectFirmwareGroup(fwGroup, true);

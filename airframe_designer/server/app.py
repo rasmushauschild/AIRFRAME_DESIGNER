@@ -608,12 +608,19 @@ def build_app(state: AppState) -> FastAPI:
                            "params": sorted({m for m in re.findall(r"^\s{0,4}([A-Z][A-Z0-9_]{2,15}):", 
                                                                    (d / "params.yaml").read_text(errors="replace"), re.M)})
                                      if (d / "params.yaml").is_file() else []})
+        # Everything else under firmware/atlas, named for what it is rather than for its directory: a
+        # group called "." or "src" tells you nothing about what is in it.
+        WHAT = {"allocator_overlay": "PX4 allocator, patched",
+                "msg": "uORB messages of your own",
+                "src": "which modules the build includes",
+                ".": "notes and board files"}
         other: dict[str, list[str]] = {}
         for f in fw_files():
             if f in claimed:
                 continue
             other.setdefault(f.split("/")[0] if "/" in f else ".", []).append(f)
-        groups += [{"kind": "sources", "name": k, "module": "", "dir": k, "files": v, "user_command": False, "params": []}
+        groups += [{"kind": "sources", "name": WHAT.get(k, k), "module": "", "dir": k, "files": v,
+                    "user_command": False, "params": []}
                    for k, v in sorted(other.items())]
         return {"groups": groups}
 
