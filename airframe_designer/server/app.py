@@ -617,6 +617,106 @@ def build_app(state: AppState) -> FastAPI:
                    for k, v in sorted(other.items())]
         return {"groups": groups}
 
+    # PX4 v1.18 ModuleBase is not a template: a module owns a static Descriptor and hands it to
+    # ModuleBase::main. The scaffold follows the one module in this tree so a new one builds unchanged.
+    MODULE_MAIN = """// {name}: a PX4 module of your own. It runs on SITL and, once you are sure of it, on the board.
+#include <px4_platform_common/module.h>
+#include <px4_platform_common/module_params.h>
+#include <px4_platform_common/px4_work_queue/ScheduledWorkItem.hpp>
+#include <drivers/drv_hrt.h>
+#include <uORB/Subscription.hpp>
+#include <uORB/topics/vehicle_local_position.h>
+#include <string.h>
+
+using namespace time_literals;      // 100_ms and friends
+
+class {cls} : public ModuleBase, public ModuleParams, public px4::ScheduledWorkItem
+{{
+public:
+	static Descriptor desc;
+
+	{cls}() : ModuleParams(nullptr), ScheduledWorkItem(MODULE_NAME, px4::wq_configurations::lp_default) {{}}
+
+	static int task_spawn(int, char **)
+	{{
+		auto *p = new {cls}();
+		if (!p) {{ return PX4_ERROR; }}
+		desc.object.store(p);
+		desc.task_id = task_id_is_work_queue;
+		p->ScheduleOnInterval(100_ms);          // ten times a second; change it to suit
+		return PX4_OK;
+	}}
+
+	static int custom_command(int, char **) {{ return print_usage("unknown command"); }}
+
+	static int print_usage(const char *reason = nullptr)
+	{{
+		if (reason) {{ PX4_WARN("%s", reason); }}
+		PRINT_MODULE_USAGE_NAME("{name}", "module");
+		PRINT_MODULE_USAGE_COMMAND("start");
+		PRINT_MODULE_USAGE_DEFAULT_COMMANDS();
+		return PX4_OK;
+	}}
+
+private:
+	void Run() override
+	{{
+		if (should_exit()) {{ ScheduleClear(); exit_and_cleanup(desc); return; }}
+
+		vehicle_local_position_s pos{{}};
+		if (_local_position.update(&pos)) {{
+			// Your code here. pos.x, pos.y, pos.z are the estimate in metres, NED (z is down).
+		}}
+	}}
+
+	uORB::Subscription _local_position{{ORB_ID(vehicle_local_position)}};
+}};
+
+ModuleBase::Descriptor {cls}::desc{{{cls}::task_spawn, {cls}::custom_command, {cls}::print_usage}};
+
+extern "C" __EXPORT int {name}_main(int argc, char *argv[]) {{ return ModuleBase::main({cls}::desc, argc, argv); }}
+"""
+
+    MODULE_CMAKE = """px4_add_module(
+	MODULE external__{name}
+	MAIN {name}
+	SRCS {cls}.cpp
+	EXTERNAL
+)
+
+target_link_libraries(external__{name} PRIVATE px4_work_queue)
+"""
+
+    @app.post("/api/firmware/module/new")
+    def firmware_module_new(body: dict):
+        """Start a module: a directory, a CMakeLists.txt that adds it, and a source file that builds.
+
+        It is deliberately the smallest thing that compiles and runs — a work item on a timer with the
+        local position subscribed — because an empty file that does not build teaches nothing, and a
+        module full of someone else's logic is harder to read than to write.
+        """
+        name = re.sub(r"[^a-z0-9_]+", "_", str(body.get("name", "")).strip().lower()).strip("_")
+        if not name or not name[0].isalpha():
+            return JSONResponse({"ok": False, "error": "a module name starts with a letter: letters, digits and _"}, status_code=400)
+        d = FW_ROOT / "src" / name
+        if d.exists():
+            return JSONResponse({"ok": False, "error": f"{name} already exists"}, status_code=409)
+        cls = "".join(p.title() for p in name.split("_"))
+        d.mkdir(parents=True)
+        (d / "CMakeLists.txt").write_text(MODULE_CMAKE.format(name=name, cls=cls))
+        (d / f"{cls}.cpp").write_text(MODULE_MAIN.format(name=name, cls=cls))
+        # the build only looks at the modules named in src/CMakeLists.txt
+        lists = FW_ROOT / "src" / "CMakeLists.txt"
+        txt = lists.read_text()
+        m = re.search(r"set\(config_module_list_external([^)]*)PARENT_SCOPE\)", txt)
+        if m and name not in m.group(1).split():
+            txt = txt[:m.start(1)] + m.group(1).rstrip() + f" {name} " + txt[m.end(1):]
+            lists.write_text(txt)
+        elif not m:
+            lists.write_text(txt + f"\nset(config_module_list_external {name} PARENT_SCOPE)\n")
+        state.log(f"[firmware] new module {name} in src/{name}")
+        return {"ok": True, "name": name, "dir": f"src/{name}", "files": [f"src/{name}/CMakeLists.txt", f"src/{name}/{cls}.cpp"]}
+
     @app.get("/api/firmware/files")
     async def firmware_files():
         return {"root": str(FW_ROOT), "files": fw_files()}

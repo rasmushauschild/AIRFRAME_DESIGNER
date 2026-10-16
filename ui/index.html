@@ -24,26 +24,27 @@
         <button class="pill toggle" id="btn-follow" title="Camera: static → track (looks at the drone) → follow (moves with it)">Static</button>
         <button class="pill theme-btn" id="btn-theme" title="Toggle dark mode">◐</button>
       </div>
-      <!-- The overlay: the seven numbers worth watching while it flies, and nothing else. Fixed widths and
-           tabular figures, so a digit changing never moves anything on screen. -->
-      <div class="status" id="overlay">
-        <button class="pill st ro" id="ro-fc" title="flight controller: link, mode and armed state">
-          <i class="dot"></i><span class="k">Controller</span><b id="ro-fc-v">—</b></button>
-        <span class="pill st ro" title="electrical power into the motors now, and as a share of what they can draw">
-          <span class="k">Power</span><b id="ro-power">—</b></span>
-        <button class="pill st ro" id="ro-batt" title="charge left, and minutes at the current draw. Click to set the capacity">
-          <span class="k">Battery</span><b id="ro-batt-v">—</b></button>
-        <span class="pill st ro" title="lift from the wings, and as a share of the weight">
-          <span class="k">Wing lift</span><b id="ro-lift">—</b></span>
-        <span class="pill st ro" title="speed through the air">
-          <span class="k">Speed</span><b id="ro-speed">—</b></span>
-        <span class="pill st ro" title="height above the ground">
-          <span class="k">Height</span><b id="ro-alt">—</b></span>
-        <span class="pill st ro" title="wind speed, and the direction it comes from">
-          <span class="k">Wind</span><b id="ro-wind">—</b></span>
-      </div>
       <div id="viewport">
         <canvas id="c"></canvas>
+      <!-- The overlay: the seven numbers worth watching while it flies, and nothing else. Fixed widths and
+             tabular figures, so a digit changing never moves anything on screen. -->
+        <div class="status" id="overlay">
+          <button class="pill st ro" id="ro-fc" title="flight controller: link, mode and armed state">
+            <i class="dot"></i><span class="k">Controller</span><b id="ro-fc-v">—</b></button>
+          <span class="pill st ro" title="electrical power into the motors now, and as a share of what they can draw">
+            <span class="k">Power</span><b id="ro-power">—</b></span>
+          <button class="pill st ro" id="ro-batt" title="charge left, and minutes at the current draw. Click to set the capacity">
+            <span class="k">Battery</span><b id="ro-batt-v">—</b></button>
+          <span class="pill st ro" title="lift from the wings, and as a share of the weight">
+            <span class="k">Wing lift</span><b id="ro-lift">—</b></span>
+          <span class="pill st ro" title="speed through the air">
+            <span class="k">Speed</span><b id="ro-speed">—</b></span>
+          <span class="pill st ro" title="height above the ground">
+            <span class="k">Height</span><b id="ro-alt">—</b></span>
+          <span class="pill st ro" title="wind speed, and the direction it comes from">
+            <span class="k">Wind</span><b id="ro-wind">—</b></span>
+        </div>
+
         <div id="hud">
           <div id="rotor-readout"></div>
         </div>
@@ -388,22 +389,19 @@
       </details>
 
       <details class="sec" id="sec-modules" open>
-        <summary>Modules <span class="sum-spacer"></span><span class="hint" id="fw-mod-count"></span></summary>
+        <summary>Modules <span class="sum-spacer"></span><span class="hint" id="fw-where"></span></summary>
         <div class="sec-body">
-          <div id="fw-modules"><div class="hint">Loading…</div></div>
-        </div>
-      </details>
-
-      <details class="sec" id="sec-source" open>
-        <summary>Source <span class="sum-spacer"></span><span class="hint" id="fw-where"></span></summary>
-        <div class="sec-body">
-        <div class="row tight">
-          <select id="fw-file" style="flex:1"><option value="">Loading…</option></select>
-          <button class="pill small" id="fw-revert" title="discard edits and reload from disk">Revert</button>
-          <button class="pill small primary" id="fw-save" title="write this file">Save</button>
-        </div>
-        <textarea id="fw-text" spellcheck="false" wrap="off"></textarea>
-        <div class="hint" id="fw-note"></div>
+          <div class="row tight">
+            <select id="fw-module" style="flex:1" title="your custom modules, and the other sources under firmware/atlas"></select>
+            <button class="pill small" id="fw-new" title="start a new PX4 module: a directory, a CMakeLists.txt that adds it to the build, and a source file that compiles">New module</button>
+          </div>
+          <div class="row tight">
+            <select id="fw-file" style="flex:1"><option value="">Loading…</option></select>
+            <button class="pill small" id="fw-revert" title="discard edits and reload from disk">Revert</button>
+            <button class="pill small primary" id="fw-save" title="write this file">Save</button>
+          </div>
+          <textarea id="fw-text" spellcheck="false" wrap="off"></textarea>
+          <div class="hint" id="fw-note"></div>
         </div>
       </details>
 

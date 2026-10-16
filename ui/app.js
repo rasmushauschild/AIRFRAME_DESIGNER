@@ -72,15 +72,30 @@ function openTab(name) { $$('.tabs button').find(b => b.dataset.tab === name)?.c
 // so destructive buttons ask on the button itself: the first click turns it into "Really …?" for 8 s,
 // and the second does the thing. `label` is the short verb phrase that question is built from.
 const confirmArm = new Map();   // key -> expiry (ms)
+let armedBtn = null;            // the one button currently asking "Really?"
 function confirmArmed(key) { return (confirmArm.get(key) || 0) > Date.now(); }
+/** Put the armed button back to what it said. */
+function disarmConfirm() {
+  const b = armedBtn;
+  armedBtn = null;
+  confirmArm.clear();
+  if (b && b.tagName === 'BUTTON' && document.body.contains(b) && b.dataset.label) {
+    b.textContent = b.dataset.label; b.classList.remove('confirm');
+  }
+}
+// A question you did not answer is a no: clicking anywhere else, or Escape, takes it back.
+document.addEventListener('click', (e) => { if (armedBtn && !e.composedPath().includes(armedBtn)) disarmConfirm(); }, true);
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') disarmConfirm(); });
 function confirmTwice(key, btn, label) {
-  if (confirmArmed(key)) { confirmArm.delete(key); btn.classList.remove('confirm'); return true; }
+  if (confirmArmed(key)) { confirmArm.delete(key); btn.classList.remove('confirm'); armedBtn = null; return true; }
   confirmArm.set(key, Date.now() + 8000);
   if (btn.tagName === 'BUTTON') {
     btn.dataset.label = btn.dataset.label || btn.textContent;
-    btn.textContent = 'Really ' + label + '?'; btn.classList.add('confirm');
+    btn.title = btn.title || label;
+    btn.textContent = 'Really?'; btn.classList.add('confirm');
+    armedBtn = btn;
   } else markSaved('Really ' + label + '? Choose it again', 8000);
-  setTimeout(() => { if (!confirmArmed(key)) { confirmArm.delete(key); if (btn.tagName === 'BUTTON' && document.body.contains(btn)) { btn.textContent = btn.dataset.label; btn.classList.remove('confirm'); } } }, 8100);
+  setTimeout(() => { if (!confirmArmed(key) && armedBtn === btn) disarmConfirm(); }, 8100);
   return false;
 }
 
@@ -1970,37 +1985,59 @@ $('#af-push').addEventListener('click', async e => {
 
 // ============================================================ firmware: the custom PX4 modules
 let fwLoaded = null, fwDirty = false;
-// The modules you have written, as the build sees them: a directory whose CMakeLists.txt adds a PX4
-// module. Picking one puts its sources in the editor below; the groups that are not modules — the
-// allocator overlay, the uORB messages — are listed the same way, because they are yours to edit too.
+// Your modules, as the build sees them: a directory whose CMakeLists.txt adds a PX4 module. Pick one and
+// its files are in the editor below. The groups that are not modules — the allocator overlay, the uORB
+// messages — are in the same list, because they are yours to edit too.
 let fwGroups = [], fwGroup = '';
 async function loadFirmwareModules(force = false) {
   if (fwGroups.length && !force) return;
   try { fwGroups = (await api_get('/api/firmware/modules')).groups || []; }
-  catch (e) { $('#fw-modules').innerHTML = `<div class="hint">${esc(e.message)}</div>`; return; }
+  catch (e) { $('#fw-note').textContent = e.message; return; }
+  const sel = $('#fw-module');
   const mods = fwGroups.filter(g => g.kind === 'module');
-  $('#fw-mod-count').textContent = `${mods.length} module${mods.length === 1 ? '' : 's'}`;
-  $('#fw-modules').innerHTML = fwGroups.map(g => `<div class="conn-row fw-group ${g.dir === fwGroup ? 'current' : ''}" data-dir="${esc(g.dir)}">
-      <div><b>${esc(g.name)}</b> <span class="hint">${g.kind === 'module' ? esc(g.module) : 'sources'} · ${g.files.length} file${g.files.length === 1 ? '' : 's'}</span>
-        <div class="hint">${g.user_command ? 'answers MAV_CMD_USER_1, so a mission can hand it a takeoff or a landing' : ''}
-          ${g.params.length ? `${g.params.length} parameters: ${esc(g.params.slice(0, 4).join(', '))}${g.params.length > 4 ? '…' : ''}` : ''}</div></div>
-      <button class="pill small" data-open="${esc(g.dir)}">Open</button></div>`).join('')
-    || '<div class="hint">No custom firmware sources under firmware/atlas.</div>';
-  $$('#fw-modules [data-open]').forEach(b => b.addEventListener('click', () => selectFirmwareGroup(b.dataset.open)));
-  $$('#fw-modules .fw-group').forEach(r => r.addEventListener('click', (e) => { if (e.target.tagName !== 'BUTTON') selectFirmwareGroup(r.dataset.dir); }));
-  if (!fwGroup && fwGroups.length) await selectFirmwareGroup((mods[0] || fwGroups[0]).dir);
+  const rest = fwGroups.filter(g => g.kind !== 'module');
+  const opt = (g) => `<option value="${esc(g.dir)}">${esc(g.name)}${g.kind === 'module' ? ` — ${g.files.length} files${g.user_command ? ', answers MAV_CMD_USER_1' : ''}` : ' (sources)'}</option>`;
+  sel.innerHTML = (mods.length ? `<optgroup label="Modules">${mods.map(opt).join('')}</optgroup>` : '')
+    + (rest.length ? `<optgroup label="Other sources">${rest.map(opt).join('')}</optgroup>` : '');
+  if (!fwGroups.some(g => g.dir === fwGroup)) fwGroup = (mods[0] || fwGroups[0] || {}).dir || '';
+  sel.value = fwGroup;
+  await selectFirmwareGroup(fwGroup, true);
 }
-async function selectFirmwareGroup(dir) {
+async function selectFirmwareGroup(dir, keepFile = false) {
   const g = fwGroups.find(x => x.dir === dir);
   if (!g) return;
+  const was = $('#fw-file').value;
   fwGroup = dir;
-  $$('#fw-modules .fw-group').forEach(r => r.classList.toggle('current', r.dataset.dir === dir));
-  $('#fw-where').textContent = g.name;
+  $('#fw-module').value = dir;
+  $('#fw-where').textContent = g.kind === 'module' ? `${g.module}${g.params.length ? ` · ${g.params.length} parameters` : ''}` : 'sources';
   const sel = $('#fw-file');
   sel.innerHTML = g.files.map(f => `<option value="${esc(f)}">${esc(f.startsWith(g.dir + '/') ? f.slice(g.dir.length + 1) : f)}</option>`).join('')
     || '<option value="">no files</option>';
-  if (sel.options.length && sel.value) await openFirmwareFile(sel.value);
+  const want = keepFile && g.files.includes(was) ? was : (g.files[0] || '');
+  if (want) { sel.value = want; await openFirmwareFile(want); }
+  else { $('#fw-text').value = ''; }
 }
+$('#fw-module').addEventListener('change', (e) => selectFirmwareGroup(e.target.value));
+$('#fw-new').addEventListener('click', () => {
+  const box = $('#fw-module'), btn = $('#fw-new');
+  const input = document.createElement('input');
+  input.type = 'text'; input.placeholder = 'module name, e.g. atlas_hover_guard'; input.className = 'name'; input.style.flex = '1';
+  box.replaceWith(input); input.focus();
+  const done = async (commit) => {
+    input.replaceWith(box);
+    if (!commit || !input.value.trim()) return;
+    btn.disabled = true;
+    try {
+      const r = await api('/api/firmware/module/new', { name: input.value.trim() });
+      logLine(`[firmware] new module ${r.name} in ${r.dir}`);
+      fwGroup = r.dir;
+      await loadFirmwareModules(true);
+    } catch (err) { logLine('[firmware] ' + err.message); }
+    btn.disabled = false;
+  };
+  input.onblur = () => done(true);
+  input.onkeydown = (ev) => { if (ev.key === 'Enter') done(true); if (ev.key === 'Escape') done(false); };
+});
 async function refreshFirmware() {
   await loadFirmwareModules();
   const fw = status.firmware || {};
