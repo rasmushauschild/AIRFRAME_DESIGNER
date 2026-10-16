@@ -35,3 +35,24 @@ def test_a_panel_is_flat_and_keeps_its_area():
         assert abs(float(np.dot(e_n, e_s))) < 1e-12
         assert np.linalg.norm(e_n) == pytest.approx(1.0, abs=1e-12)
     assert np.all(p["e_n"][:, 2] < 0)                             # and points up
+
+
+def test_the_root_offset_moves_both_halves_outward_not_sideways():
+    """What the Y box on a symmetric wing has to do: push the two roots apart, keeping the pair centred.
+
+    Putting that number in `pos` instead slides the whole wing sideways — both halves the same way — and
+    the aircraft is no longer symmetric, which is what it looked like in the 3D view.
+    """
+    w = Wing(span=2.0, root_chord=0.4, tip_chord=0.4, root_y=0.5, panels=3)
+    out = wing_outline(w)
+    right_root, left_root = np.array(out[0][0]), np.array(out[1][0])
+    assert right_root[1] == pytest.approx(0.5) and left_root[1] == pytest.approx(-0.5)
+    assert (right_root[1] + left_root[1]) == pytest.approx(0.0, abs=1e-12)      # centred
+
+    p = wing_panels(w)
+    assert p["pos"][:, 1].sum() == pytest.approx(0.0, abs=1e-12)                # every strip has its mirror
+
+    slid = Wing(span=2.0, root_chord=0.4, tip_chord=0.4, pos=[0.0, 0.5, 0.0], panels=3)
+    o2 = wing_outline(slid)
+    assert np.array(o2[0][0])[1] == pytest.approx(0.5) and np.array(o2[1][0])[1] == pytest.approx(0.5)
+    assert wing_panels(slid)["pos"][:, 1].sum() != pytest.approx(0.0, abs=1e-6)  # off centre, as pos means

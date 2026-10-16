@@ -635,7 +635,7 @@ const wingsOpen = new Set();   // indices whose coefficient row is expanded
 function renderWingTable() {
   const el = $('#wing-table');
   const rows = airframe.wings.map((w, i) => wingRowHtml(i, w)).join('');
-  el.innerHTML = `<table class="grid wings"><thead><tr><th>On</th><th>Name</th><th title="root leading edge on the centreline, structural frame, m">X</th><th>Y</th><th title="Z DOWN (+), like PX4: a wing above the reference point has negative Z">Z</th><th title="tip to tip (symmetric) or panel length (single panel), m">Span</th><th title="root chord, m">Root</th><th title="tip chord, m">Tip</th><th title="leading-edge sweep, back positive">Swp°</th><th title="whole-wing pitch: the entire wing rotated rigidly about the aircraft pitch axis through its root point, nose-up positive (with sweep the tips move up/down with it)">Pitch°</th><th title="dihedral, tips up positive; 90 + single panel = vertical fin">Dih°</th><th title="section incidence at the root: each section turned about the span line, leading edge up positive">Inc°</th><th title="extra incidence at the tip (washout negative)">Tw°</th><th title="symmetric: left + right halves">Sym</th><th>Model</th><th title="stall angle of attack">Stall°</th><th title="planform area m² · aspect ratio">Area · AR</th><th></th></tr></thead>
+  el.innerHTML = `<table class="grid wings"><thead><tr><th>On</th><th>Name</th><th title="root leading edge, structural frame, m">X</th><th title="symmetric: how far the root sits out from the centreline, the same on both sides. Single panel: the panel's own y">Y</th><th title="Z DOWN (+), like PX4: a wing above the reference point has negative Z">Z</th><th title="tip to tip (symmetric) or panel length (single panel), m">Span</th><th title="root chord, m">Root</th><th title="tip chord, m">Tip</th><th title="leading-edge sweep, back positive">Swp°</th><th title="whole-wing pitch: the entire wing rotated rigidly about the aircraft pitch axis through its root point, nose-up positive (with sweep the tips move up/down with it)">Pitch°</th><th title="dihedral, tips up positive; 90 + single panel = vertical fin">Dih°</th><th title="section incidence at the root: each section turned about the span line, leading edge up positive">Inc°</th><th title="extra incidence at the tip (washout negative)">Tw°</th><th title="symmetric: left + right halves">Sym</th><th>Model</th><th title="stall angle of attack">Stall°</th><th title="planform area m² · aspect ratio">Area · AR</th><th></th></tr></thead>
     <tbody>${rows || '<tr><td colspan="17" class="hint">No wings. A pure multirotor needs none.</td></tr>'}</tbody></table>`;
   el.querySelectorAll('tr[data-w]').forEach(tr => {
     const i = +tr.dataset.w;
@@ -672,7 +672,7 @@ function wingRowHtml(i, w) {
   const main = `<tr data-w="${i}" class="${w.enabled === false ? 'off' : ''}">
     <td><input type="checkbox" data-k="on" ${w.enabled === false ? '' : 'checked'}></td>
     <td><input type="text" class="name" data-k="name" value="${esc(w.name)}"></td>
-    <td>${n('x', 0.01, w.pos[0])}</td><td>${n('y', 0.01, w.pos[1])}</td><td>${n('z', 0.01, w.pos[2])}</td>
+    <td>${n('x', 0.01, w.pos[0])}</td><td>${n('y', 0.01, w.symmetric === false ? w.pos[1] : (w.root_y || 0))}</td><td>${n('z', 0.01, w.pos[2])}</td>
     <td>${n('span', 0.01, w.span)}</td><td>${n('root', 0.01, w.root_chord)}</td><td>${n('tip', 0.01, w.tip_chord)}</td>
     <td>${n('sweep', 1, w.sweep_deg)}</td><td>${n('pitch', 0.5, w.pitch_deg || 0)}</td><td>${n('dih', 1, w.dihedral_deg)}</td><td>${n('inc', 0.5, w.incidence_deg)}</td><td>${n('twist', 0.5, w.twist_deg)}</td>
     <td><input type="checkbox" data-k="sym" ${w.symmetric === false ? '' : 'checked'}></td>
@@ -709,10 +709,13 @@ function applyWingRow(i) {
   const g = (k) => parseFloat(tr.querySelector(`[data-k="${k}"]`).value) || 0;
   w.enabled = tr.querySelector('[data-k="on"]').checked;
   w.name = tr.querySelector('[data-k="name"]').value.trim() || ('wing' + (i + 1));
-  w.pos = [g('x'), g('y'), g('z')];
+  w.symmetric = tr.querySelector('[data-k="sym"]').checked;
+  // A symmetric wing is two halves about the centreline. Y is how far its root sits out from that line,
+  // the same on both sides; writing it into pos would slide the pair sideways and leave it off centre.
+  if (w.symmetric) { w.root_y = g('y'); w.pos = [g('x'), 0, g('z')]; }
+  else { w.root_y = 0; w.pos = [g('x'), g('y'), g('z')]; }
   w.span = Math.max(0, g('span')); w.root_chord = Math.max(0, g('root')); w.tip_chord = Math.max(0, g('tip'));
   w.sweep_deg = g('sweep'); w.pitch_deg = g('pitch'); w.dihedral_deg = g('dih'); w.incidence_deg = g('inc'); w.twist_deg = g('twist');
-  w.symmetric = tr.querySelector('[data-k="sym"]').checked;
   w.aero = w.aero || { ...WING_AERO_DEFAULT };
   const newModel = tr.querySelector('[data-k="model"]').value;
   const modelChanged = newModel !== w.aero.model;
@@ -2505,6 +2508,7 @@ const MISSION_ACTIONS = {
   land:    { label: 'Land', fields: [],
              phase: () => landMode() === 'px4' ? { type: 'land', timeout: 90 } : { type: 'module', action: 'land', timeout: 120 } },
 };
+let editingStep = -1;              // the step whose fields are open, or -1
 const missions = () => ((airframe && (airframe.design ||= {})).missions ||= []);
 const missionIndex = () => Math.max(0, Math.min(missions().length - 1, +(airframe?.design?.mission_index ?? 0)));
 const currentMission = () => missions()[missionIndex()];
@@ -2519,12 +2523,27 @@ function describeStep(a) {
   const bits = spec.fields.map(([k, label]) => `${a[k]} ${label.replace(/°$/, '°')}`).join(', ');
   return spec.label + (bits ? ' · ' + bits : '');
 }
+/** The fields of one action, as inputs. `values` pre-fills them when an existing step is being edited. */
+function actionFieldsHtml(kind, values) {
+  const spec = MISSION_ACTIONS[kind];
+  return (spec.fields || []).map(([k, label, dflt, options]) => {
+    const v = values && values[k] !== undefined ? values[k] : dflt;
+    return options
+      ? `<label>${esc(label)}<select data-f="${k}">${options.map(o => `<option${o === v ? ' selected' : ''}>${esc(o)}</option>`).join('')}</select></label>`
+      : `<label>${esc(label)}<input data-f="${k}" type="${typeof dflt === 'number' ? 'number' : 'text'}" step="any" value="${esc(v)}" style="width:${typeof dflt === 'number' ? 70 : 130}px"></label>`;
+  }).join('') || '<span class="hint">nothing to set</span>';
+}
+const readFields = (root, kind) => {
+  const spec = MISSION_ACTIONS[kind], out = { kind };
+  (spec.fields || []).forEach(([k, , dflt]) => {
+    const el = root.querySelector(`[data-f="${k}"]`);
+    if (!el) return;
+    out[k] = typeof dflt === 'number' ? (parseFloat(el.value) || 0) : el.value.trim();
+  });
+  return out;
+};
 function renderMissionFields() {
-  const spec = MISSION_ACTIONS[$('#mi-kind').value];
-  $('#mi-fields').innerHTML = (spec.fields || []).map(([k, label, dflt, options]) => options
-    ? `<label>${esc(label)}<select data-f="${k}">${options.map(o => `<option${o === dflt ? ' selected' : ''}>${esc(o)}</option>`).join('')}</select></label>`
-    : `<label>${esc(label)}<input data-f="${k}" type="${typeof dflt === 'number' ? 'number' : 'text'}" step="any" value="${esc(dflt)}" style="width:${typeof dflt === 'number' ? 70 : 130}px"></label>`).join('')
-    || '<span class="hint">nothing to set</span>';
+  $('#mi-fields').innerHTML = actionFieldsHtml($('#mi-kind').value);
 }
 function renderMissions() {
   if (!airframe || !$('#mi-pick')) return;
@@ -2535,14 +2554,41 @@ function renderMissions() {
   $('#mi-wind-speed').value = m.wind?.speed ?? 0;
   $('#mi-wind-dir').value = m.wind?.dir ?? 0;
   $('#mi-max').value = m.max_time ?? 180;
-  $('#mi-steps').innerHTML = m.steps.map((a, i) => `<div class="conn-row"><div><b>${i + 1}.</b> ${esc(describeStep(a))}</div>
+  $('#mi-steps').innerHTML = m.steps.map((a, i) => {
+    const open = i === editingStep;
+    const body = open
+      ? `<div class="row tight" data-edit="${i}"><b>${i + 1}.</b>
+           <select data-f="kind" style="width:130px">${Object.entries(MISSION_ACTIONS).map(([k, v]) =>
+             `<option value="${k}"${k === a.kind ? ' selected' : ''}>${esc(v.label)}</option>`).join('')}</select>
+           ${actionFieldsHtml(a.kind, a)}</div>`
+      : `<div class="step-text"><b>${i + 1}.</b> ${esc(describeStep(a))}</div>`;
+    return `<div class="conn-row step ${open ? 'editing' : ''}" data-step="${i}">${body}
       <div class="row tight"><button class="pill small" data-up="${i}" ${i ? '' : 'disabled'}>↑</button>
-      <button class="pill small" data-del="${i}">✕</button></div></div>`).join('')
-    || '<div class="hint">No actions yet. Add one below; they run in order.</div>';
-  $$('#mi-steps [data-del]').forEach(b => b.addEventListener('click', () => { m.steps.splice(+b.dataset.del, 1); renderMissions(); pushAirframe(true); }));
-  $$('#mi-steps [data-up]').forEach(b => b.addEventListener('click', () => {
-    const i = +b.dataset.up; [m.steps[i - 1], m.steps[i]] = [m.steps[i], m.steps[i - 1]]; renderMissions(); pushAirframe(true);
+      <button class="pill small" data-del="${i}">✕</button></div></div>`;
+  }).join('') || '<div class="hint">No actions yet. Add one below; they run in order. Click one to change it.</div>';
+  $$('#mi-steps [data-del]').forEach(b => b.addEventListener('click', (e) => {
+    e.stopPropagation(); m.steps.splice(+b.dataset.del, 1); editingStep = -1; renderMissions(); pushAirframe(true);
   }));
+  $$('#mi-steps [data-up]').forEach(b => b.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const i = +b.dataset.up; [m.steps[i - 1], m.steps[i]] = [m.steps[i], m.steps[i - 1]];
+    editingStep = editingStep === i ? i - 1 : editingStep === i - 1 ? i : editingStep;
+    renderMissions(); pushAirframe(true);
+  }));
+  // Click a step to open it; its fields are the same ones it was added with.
+  $$('#mi-steps .step-text').forEach(el => el.addEventListener('click', () => {
+    editingStep = +el.closest('.step').dataset.step; renderMissions();
+  }));
+  $$('#mi-steps [data-edit]').forEach(box => {
+    const i = +box.dataset.edit;
+    const kindSel = box.querySelector('[data-f="kind"]');
+    kindSel.addEventListener('change', () => { m.steps[i] = { kind: kindSel.value }; renderMissions(); pushAirframe(true); });
+    box.querySelectorAll('[data-f]:not([data-f="kind"])').forEach(inp => inp.addEventListener('change', () => {
+      m.steps[i] = readFields(box, kindSel.value); renderMissions(); pushAirframe(true);
+    }));
+    const first = box.querySelector('[data-f]:not([data-f="kind"])');
+    if (first && document.activeElement === document.body) first.focus();
+  });
   $('#mi-state').textContent = `${missions().length} mission${missions().length === 1 ? '' : 's'}`;
   if (!$('#mi-kind').options.length) {
     $('#mi-kind').innerHTML = Object.entries(MISSION_ACTIONS).map(([k, v]) => `<option value="${k}">${esc(v.label)}</option>`).join('');
@@ -2577,10 +2623,17 @@ $$('#mi-wind-speed, #mi-wind-dir, #mi-max').forEach(inp => inp.addEventListener(
 }));
 $('#mi-add').addEventListener('click', () => {
   const m = currentMission(); if (!m) return;
-  const kind = $('#mi-kind').value;
-  const step = { kind };
-  $$('#mi-fields [data-f]').forEach(el => { step[el.dataset.f] = el.tagName === 'SELECT' || el.type === 'text' ? el.value.trim() : (parseFloat(el.value) || 0); });
-  m.steps.push(step); renderMissions(); pushAirframe(true);
+  m.steps.push(readFields($('#mi-fields'), $('#mi-kind').value));
+  editingStep = -1;
+  renderMissions(); pushAirframe(true);
+});
+// Clicking anywhere else closes the open step, so the list goes back to reading as a list. The path is
+// read from the event, not from the target: opening a step re-renders the row, and by the time this runs
+// the element that was clicked is no longer in the document.
+document.addEventListener('click', (e) => {
+  if (editingStep < 0) return;
+  if (e.composedPath().some(n => n && n.id === 'mi-steps')) return;
+  editingStep = -1; renderMissions();
 });
 
 // ---- flying it: the mission becomes a scenario and the runner takes it from there

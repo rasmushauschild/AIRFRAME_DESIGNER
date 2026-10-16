@@ -241,7 +241,7 @@
       "enabled": true,
       "pos": [
         -0.377,
-        -0.14,
+        0.0,
         -0.103
       ],
       "root_y": 0.617,
@@ -493,7 +493,31 @@
       -1,
       0,
       0
-    ]
+    ],
+    "missions": [
+      {
+        "name": "First flight",
+        "wind": {
+          "speed": 0,
+          "dir": 0
+        },
+        "max_time": 180,
+        "steps": [
+          {
+            "kind": "takeoff",
+            "alt": 2
+          },
+          {
+            "kind": "hover",
+            "s": 42
+          },
+          {
+            "kind": "land"
+          }
+        ]
+      }
+    ],
+    "mission_index": 0
   },
   "notes": "120 kg baseline; OBJ-fitted UIUC wing revision of CONCEPT_04. Matched ATLAS_JO_05B (1).obj upper-shell leading/trailing edges with 16 mirrored wing segments at native OBJ scale (assumed metres). OBJ -Z forward, +X right, -Y down; pitch registration +23.081844 deg preserves the baseline root chord attitude. NACA23018/23012 UIUC sections retained, not arbitrary OBJ skins. Rear/cruise mount heights follow revised wing chord surfaces; contact pads follow nose/tips. Aerodynamics and ground posture require simulation revalidation. Revised 2026-09-23: UIUC NACA 66-018 double-arc centerbody fitted to upper and lower OBJ contours, smoothly blending into UIUC S1210 high-lift outer wings. 60 mm constraint withdrawn. Static predicted wing lift reaches weight near 24.25 deg body pitch at 50 km/h; this is NOT a demonstrated trimmed cruise condition. Current default allocator cruise result is thrust-supported and does not satisfy the wing-borne cruise target. ATLAS_MVP_07B: three motors per wing (two lift, one cruise), three front motors in a symmetric triangle. Motor 10 is 0.25 m aft of CG on centreline, Z=0; downward exhaust/upward thrust. Mass and inertia retained from baseline; motor-count mass change not estimated. Not flight tested. Centre motor moved aft between wing lift motors on the centreline. Front group changed to four motors in two symmetric pairs; other motors preserved from the active model. Front group now has three motors in a symmetric triangle; CG retained.",
   "cad": {

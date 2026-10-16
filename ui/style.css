@@ -550,3 +550,10 @@ table.grid tr.pair-top td:first-child::before, table.grid tr.pair-bottom td:firs
 table.grid tr.pair-top td:first-child::before { top: 4px; bottom: -1px; border-radius: 2px 2px 0 0; }
 table.grid tr.pair-bottom td:first-child::before { top: 0; bottom: 4px; border-radius: 0 0 2px 2px; }
 table.grid tr.pair-top input.sym, table.grid tr.pair-bottom input.sym { accent-color: var(--accent); }
+
+/* ---- mission steps: a line you can click to open */
+#mi-steps .step .step-text { flex: 1; cursor: pointer; padding: 2px 0; border-radius: 7px; }
+#mi-steps .step:hover .step-text { color: var(--text); }
+#mi-steps .step.editing { background: var(--sel-blk); border-radius: 10px; padding: 2px 6px; margin: 0 -6px; }
+#mi-steps .step [data-edit] { flex: 1; flex-wrap: wrap; row-gap: 4px; }
+#mi-steps .step + .step { margin-top: 2px; }
