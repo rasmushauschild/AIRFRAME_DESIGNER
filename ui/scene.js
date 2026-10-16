@@ -4,7 +4,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { TransformControls } from 'three/addons/controls/TransformControls.js';
-import { frameOffsetForCg, spanCurve, wingOutlinePoints } from './scene_math.js';
+import { frameOffsetForCg, spanCurve, wingOutlinePoints, builtAxis, mountError, axisToTiltCant, tiltCantToAxis } from './scene_math.js';
 
 export const frdToThree = (v) => new THREE.Vector3(v[0], -v[2], v[1]);
 export const threeToFrd = (v) => [v.x, v.z, -v.y];
@@ -64,7 +64,6 @@ export function createScene(canvas, handlers) {
   scene.add(vehicle);
   const frame = new THREE.Group();     // geometry only (edited)
   vehicle.add(frame);
-  const bodyMat = new THREE.MeshStandardMaterial({ color: theme.body, roughness: 0.6, metalness: 0.2 });
   const armMat = new THREE.MeshStandardMaterial({ color: theme.arm, roughness: 0.7 });
   const matCCW = new THREE.MeshStandardMaterial({ color: 0x34c759, transparent: true, opacity: 0.35, side: THREE.DoubleSide, depthWrite: false });
   const matCW = new THREE.MeshStandardMaterial({ color: 0xff9500, transparent: true, opacity: 0.35, side: THREE.DoubleSide, depthWrite: false });
@@ -74,7 +73,6 @@ export function createScene(canvas, handlers) {
   const bodyAxes = new THREE.AxesHelper(0.25);
   frame.add(bodyAxes);
 
-  let body = null;
   let rotorNodes = [];   // { group, disc, motor, arrow, label, ring, rotorIndex }
   let legNodes = [];
   let wingNodes = [];
@@ -103,6 +101,8 @@ export function createScene(canvas, handlers) {
   const cgMat = new THREE.MeshStandardMaterial({ color: 0xff2d92, emissive: 0xff2d92, emissiveIntensity: 0.5, roughness: 0.4 });
   const pxMat = new THREE.MeshStandardMaterial({ color: 0xff9500, emissive: 0xff9500, emissiveIntensity: 0.25, roughness: 0.5 });
   const pxNoseMat = new THREE.MeshStandardMaterial({ color: 0xfff1d6, emissive: 0xffd28a, emissiveIntensity: 0.4, roughness: 0.5 });
+  const flowMat = new THREE.MeshStandardMaterial({ color: 0x00c7be, emissive: 0x00c7be, emissiveIntensity: 0.35, roughness: 0.45 });
+  const flowBeamMat = new THREE.MeshBasicMaterial({ color: 0x00c7be, transparent: true, opacity: 0.13, side: THREE.DoubleSide, depthWrite: false });
   const OFF_OPACITY = 0.22;   // disabled rotors
   let airframe = null;
   let selected = -1;
@@ -182,8 +182,16 @@ export function createScene(canvas, handlers) {
     const n = rotorNodes[selected];
     const r = airframe.rotors[selected];
     r.pos = threeToFrd(n.group.position).map(v => +v.toFixed(4));
-    const ax = UP.clone().applyQuaternion(n.group.quaternion);
-    r.axis = threeToFrd(ax).map(v => +v.toFixed(4));
+    // The gizmo turns the rotor as it is built; what it writes is the design, with the mounting error
+    // taken back off, so dragging a crooked rotor moves the drawing and leaves the crookedness alone.
+    const ax = threeToFrd(UP.clone().applyQuaternion(n.group.quaternion)).map(v => +v.toFixed(4));
+    const [dt, dc] = mountError(r);
+    if (!dt && !dc) r.axis = ax;
+    else {
+      const [t, c] = axisToTiltCant(ax, r.pos[1]);
+      r.axis = tiltCantToAxis(t - dt, c - dc, r.pos[1]);
+    }
+    showDesignGhost(n, r);
     updateArm(n, r);
     handlers.onRotorChanged && handlers.onRotorChanged(selected, r, false);
   }
@@ -210,18 +218,17 @@ export function createScene(canvas, handlers) {
     for (const a of wingArrows) if (a) frame.remove(a);
     wingArrows = [];
     for (const c of cgNodes) frame.remove(c);
-    if (body) frame.remove(body);
     rotorNodes = []; legNodes = []; wingNodes = []; cgNodes = [];
 
-    const size = (af.body && af.body.size) || [0.16, 0.16, 0.06];
-    const [bx, by, bz] = size.map(v => Math.max(0.005, +v || 0));
-    body = new THREE.Mesh(new THREE.BoxGeometry(bx, bz, by), bodyMat);
-    frame.add(body);
+    // body.size is not drawn: it is a block the inertia estimate uses, not the shape of the aircraft, and
+    // a black box over the CAD only ever hid the real thing.
 
     (af.rotors || []).forEach((r, i) => {
       const group = new THREE.Group();
       group.position.copy(frdToThree(r.pos));
-      group.quaternion.setFromUnitVectors(UP, frdToThree(r.axis).normalize());
+      // where this rotor really pushes, not where it was drawn: a mounting error is a fact about the
+      // aircraft, and the view is of the aircraft
+      group.quaternion.setFromUnitVectors(UP, frdToThree(builtAxis(r)).normalize());
       const rad = Math.max(0.03, (r.diameter ?? r.prop_diameter ?? 0.25) / 2);
       const disc = new THREE.Mesh(new THREE.CylinderGeometry(rad, rad, 0.004, 40), (r.km >= 0 ? matCCW : matCW).clone());
       disc.position.y = 0.02;
@@ -239,9 +246,11 @@ export function createScene(canvas, handlers) {
       ductHolder.add(disc, motor, spinArrow);
       const label = makeSprite(String(i + 1), document.documentElement.dataset.theme === 'dark' ? '#fafafa' : '#171717');
       label.position.set(0, 0.09, 0);
-      group.add(ductHolder, arrow, label);
+      const ghost = makeDesignGhost();                 // where PX4 thinks it points, when that is elsewhere
+      group.add(ductHolder, arrow, label, ghost);
       const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 1, 8), armMat);
-      const node = { group, disc, motor, arrow, ring, label, arm, spinArrow, ductHolder, rad, rotorIndex: i, enabled: r.enabled !== false };
+      const node = { group, disc, motor, arrow, ring, label, arm, spinArrow, ductHolder, ghost, rad, rotorIndex: i, enabled: r.enabled !== false };
+      showDesignGhost(node, r);
       updateArm(node, r);
       setRotorEnabled(node, r.enabled !== false);
       frame.add(group, arm);
@@ -332,6 +341,34 @@ export function createScene(canvas, handlers) {
       fc.renderOrder = 3;
       frame.add(fc);
       cgNodes.push(fc);
+    }
+
+    // H-flow sensor: the lens where it sits, and the cone it looks down. Its own axes are turned into
+    // structural axes by roll-pitch-yaw exactly as geometry/airframe.py mount_rotation() does it, so what
+    // is drawn here is the sensor the simulation reads and the one PX4 is told about.
+    const fl = af.design && af.design.flow_sensor;
+    if (fl && fl.enabled && (fl.position || []).length === 3) {
+      const [rr, rp, ry] = [0, 1, 2].map(i => (((fl.rotation || [])[i] || 0) * Math.PI) / 180);
+      const [cr, sr, cp, sp, cy, sy] = [Math.cos(rr), Math.sin(rr), Math.cos(rp), Math.sin(rp), Math.cos(ry), Math.sin(ry)];
+      const ex = [cy * cp, sy * cp, -sp];                                        // the sensor's own x, in structural axes
+      const ez = [cy * sp * cr + sy * sr, sy * sp * cr - cy * sr, cp * cr];      // and the way it looks
+      const g = new THREE.Group();
+      const look = frdToThree(ez).normalize(), fwd = frdToThree(ex).normalize();
+      g.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(fwd, look, fwd.clone().cross(look)));
+      const lens = new THREE.Mesh(new THREE.CylinderGeometry(0.013, 0.013, 0.006, 20), flowMat);   // the lens faces the way it looks
+      const tick = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.005, 0.004), flowMat);            // and this is its own forward
+      tick.position.x = 0.017;
+      const L = 0.3;                        // the cone shows which way it looks, not how far it reads
+      const beam = new THREE.Mesh(new THREE.ConeGeometry(L * Math.tan(0.37), L, 24, 1, true), flowBeamMat);
+      beam.position.y = L / 2; beam.rotation.x = Math.PI;        // apex at the lens, opening out along the look
+      const label = makeSprite('FLOW', '#00a79e');
+      label.scale.set(0.06, 0.06, 1);
+      g.add(lens, tick, beam);
+      g.position.copy(frdToThree(fl.position));
+      g.renderOrder = 3;
+      label.position.copy(g.position).add(new THREE.Vector3(0, 0.05, 0));
+      frame.add(g, label);
+      cgNodes.push(g, label);
     }
 
     syncCad(af);
@@ -445,7 +482,8 @@ export function createScene(canvas, handlers) {
     const n = rotorNodes[i];
     if (!n) return;
     n.group.position.copy(frdToThree(r.pos));
-    n.group.quaternion.setFromUnitVectors(UP, frdToThree(r.axis).normalize());
+    n.group.quaternion.setFromUnitVectors(UP, frdToThree(builtAxis(r)).normalize());
+    showDesignGhost(n, r);
     const m = r.km >= 0 ? matCCW : matCW;
     n.disc.material = m.clone();
     updateArm(n, r);
@@ -541,7 +579,7 @@ export function createScene(canvas, handlers) {
     scene.add(grid, gridCoarse);
     axesInset.setTheme(name);
     windInset.setTheme(name);
-    bodyMat.color.set(theme.body); armMat.color.set(theme.arm); motorMat.color.set(theme.motor); legMat.color.set(theme.arm); legMatOff.color.set(theme.arm);
+    armMat.color.set(theme.arm); motorMat.color.set(theme.motor); legMat.color.set(theme.arm); legMatOff.color.set(theme.arm);
     rotorNodes.forEach(n => { n.label.material.map = makeSprite(String(n.rotorIndex + 1), name === 'dark' ? '#fafafa' : '#171717', name === 'dark').material.map; });
   }
   setTheme(document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light');
@@ -591,6 +629,27 @@ function makeForceArrow(mat) {
   g.renderOrder = 2;
   setThrustArrow(g, ARROW_BASE, 0);
   return g;
+}
+// The axis PX4 was given, drawn only when the rotor is not mounted on it: a thin dashed stick out of the
+// hub, so the gap between what the aircraft does and what its controller believes is a visible angle.
+const ghostMat = new THREE.LineDashedMaterial({ color: 0xff9500, dashSize: 0.012, gapSize: 0.008, transparent: true, opacity: 0.9 });
+function makeDesignGhost() {
+  const geo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0.16, 0)]);
+  const line = new THREE.Line(geo, ghostMat);
+  line.computeLineDistances();
+  line.visible = false;
+  line.renderOrder = 4;
+  return line;
+}
+function showDesignGhost(node, r) {
+  const g = node.ghost;
+  if (!g) return;
+  const [dt, dc] = mountError(r);
+  g.visible = !!(dt || dc) && node.enabled !== false;
+  if (!g.visible) return;
+  // the group is already turned to the built axis, so the design is a direction inside it
+  const design = frdToThree(r.axis).normalize().applyQuaternion(node.group.quaternion.clone().invert());
+  g.quaternion.setFromUnitVectors(UP, design);
 }
 function makeThrustArrow() {
   const g = makeForceArrow(arrowMat);
@@ -728,7 +787,10 @@ function makeSprite(text, color = '#171717', dark = document.documentElement.dat
   const g = c.getContext('2d');
   g.fillStyle = dark ? 'rgba(18,19,23,0.92)' : 'rgba(255,255,255,0.92)'; g.beginPath(); g.arc(32, 32, 28, 0, Math.PI * 2); g.fill();
   g.strokeStyle = dark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.12)'; g.lineWidth = 2; g.stroke();
-  g.fillStyle = color; g.font = '700 32px -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  const font = (px) => `700 ${px}px -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif`;
+  g.fillStyle = color; g.font = font(32); g.textAlign = 'center'; g.textBaseline = 'middle';
+  const wide = g.measureText(text).width;                     // a longer word shrinks to fit the badge
+  if (wide > 48) g.font = font(Math.floor(32 * 48 / wide));
   g.fillText(text, 32, 34);
   const tex = new THREE.CanvasTexture(c);
   const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false }));

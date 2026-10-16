@@ -222,6 +222,19 @@ class RunStore:
         recorder.saved_at = len(recorder.rows)
         return {"ok": True, **self._entry(doc)}
 
+    def save_doc(self, doc: dict, run_id: str) -> dict:
+        """Write a run that was not recorded here - a log read off the flight controller - under its own id."""
+        path = self._path(run_id)
+        n = 1
+        while path is not None and path.exists():
+            n += 1
+            path = self._path(f"{run_id}-{n}")
+        if path is None:
+            return {"ok": False, "error": "bad run id"}
+        doc = {**doc, "id": path.stem}
+        path.write_text(json.dumps(doc, separators=(",", ":")))
+        return {"ok": True, **self._entry(doc)}
+
     @staticmethod
     def _entry(doc: dict) -> dict:
         return {"id": doc["id"], "name": doc.get("name", ""), "started": doc.get("started", 0),

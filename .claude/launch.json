@@ -14,9 +14,7 @@
         "1",
         "--no-browser",
         "--mode",
-        "auto",
-        "--airframe",
-        "airframes/atlas_09.json"
+        "auto"
       ],
       "port": 8081
     },
@@ -31,9 +29,7 @@
         "127.0.0.1:8095",
         "--no-browser",
         "--px4-instance",
-        "5",
-        "--airframe",
-        "airframes/atlas_09.json"
+        "5"
       ],
       "port": 8095
     }

@@ -42,6 +42,7 @@ class Simulator:
         self.wind = WindModel()
         self._last_flow: dict = {}       # the last H-flow reading, for the recorder
         self._tele_t: float | None = None    # wall clock of the last telemetry sample (real flight)
+        self._flow_quiet: float | None = None   # when a real flight started without any optical flow arriving
         self.speed = speed
         self.lockstep = (link is not None and link.mode == "sitl") if lockstep is None else bool(lockstep)
         self.time_usec = 0
@@ -113,33 +114,78 @@ class Simulator:
             if self.link is not None:
                 self.link.clear_actuators()
 
+    @staticmethod
+    def _reported(st: dict, key: str) -> np.ndarray | None:
+        """A vector the aircraft actually reported, or None.
+
+        PX4 publishes its local position whether or not the estimate is valid, and an invalid one is NaN.
+        Copying that into the vehicle's state loses the aircraft from the 3D view, poisons the recording,
+        and - because NaN is not JSON - stops every websocket frame and every status reply dead. An
+        aircraft that has not said where it is simply has not said."""
+        v = st.get(key)
+        if v is None:
+            return None
+        a = np.asarray(v, float)
+        return a if a.size and bool(np.all(np.isfinite(a))) else None
+
     def _follow_telemetry(self, link, dt: float) -> None:
         """Put the aircraft where the vehicle says it is, and record that. No physics, no sensors."""
         now = time.perf_counter()
+        if self._tele_t is None:
+            self._flow_quiet = time.time()        # if nothing flows in ten seconds, say so once
         elapsed = min(0.5, max(0.0, now - (self._tele_t or now)))
         self._tele_t = now
         st = dict(getattr(link, "board_state", {}) or {})
         with self.lock:
             s = self.sim
-            if st.get("pos"):
-                s.pos = np.asarray(st["pos"], float)
-            if st.get("vel"):
-                s.vel = np.asarray(st["vel"], float)
-            if st.get("q"):
-                s.q = q_normalize(np.asarray(st["q"], float))
-            elif st.get("euler"):
-                s.q = q_from_euler(*[float(v) for v in st["euler"]])
-            if st.get("rates"):
-                s.rates = np.asarray(st["rates"], float)
+            pos, vel, q, euler, rates = (self._reported(st, k) for k in ("pos", "vel", "q", "euler", "rates"))
+            if pos is not None:
+                s.pos = pos
+            if vel is not None:
+                s.vel = vel
+            if q is not None:
+                s.q = q_normalize(q)
+            elif euler is not None:
+                s.q = q_from_euler(*[float(v) for v in euler])
+            if rates is not None:
+                s.rates = rates
             s.on_ground = bool(-float(s.pos[2]) < 0.4)
             s.breakdown = {}
             self.time_usec += int(round(elapsed * 1e6))
             try:
                 self.recorder.sample(self.time_usec / 1e6, s, self._link_status(link),
-                                     self.battery_percent(), motors=list(getattr(link, "board_motors", []) or []))
+                                     self.battery_percent(), motors=list(getattr(link, "board_motors", []) or []),
+                                     extra=self._flight_extra(link, s))
             except Exception as e:
                 self.log(f"[sim] recorder failed: {e}")
         self._idle()
+
+    def _flight_extra(self, link, s) -> dict:
+        """What the aircraft's *sensors* report, for the columns the simulated run fills the same way.
+
+        Without this the H-flow columns of a real flight are flat zero, which reads as a sensor that sees
+        nothing rather than one nobody asked about. The rate conversion is the one in sensors/models.py,
+        so flow_x in a recording means the same thing whether the flight happened here or outside.
+        """
+        now = time.time()
+        fresh = lambda d, age=2.0: bool(d) and now - d.get("t", 0.0) < age      # noqa: E731
+        flow, rng, alt = getattr(link, "board_flow", None), getattr(link, "board_range", None), getattr(link, "board_alt", None)
+        extra: dict = {}
+        if fresh(flow):
+            extra["flow_rate"] = flow["rate"]
+            extra["flow_quality"] = flow["quality"]
+            if flow.get("range", -1.0) >= 0:
+                extra["flow_range"] = flow["range"]
+        if "flow_range" not in extra and fresh(rng):
+            extra["flow_range"] = rng["m"]
+        extra["alt_baro"] = alt["relative"] if fresh(alt, 5.0) else float(-s.pos[2])
+        if not fresh(flow) and self._flow_quiet is not None and now - self._flow_quiet > 10.0:
+            self._flow_quiet = None
+            self.log("[link] the aircraft is not sending optical flow. Either no flow sensor is running on it "
+                     "(nothing publishes vehicle_optical_flow), or this firmware has no OPTICAL_FLOW_RAD stream.")
+        elif fresh(flow) and self._flow_quiet is not None:
+            self._flow_quiet = None
+        return extra
 
     @staticmethod
     def _link_status(link) -> dict:

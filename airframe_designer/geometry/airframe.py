@@ -12,7 +12,7 @@ from __future__ import annotations
 import copy
 import json
 import math
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
 
@@ -94,11 +94,16 @@ class Airframe:
         c, s = math.cos(phi), math.sin(phi)
         return np.array([[c, 0.0, s], [0.0, 1.0, 0.0], [-s, 0.0, c]])
 
-    def rotors_in_px4_frame(self) -> list[tuple[list[float], list[float]]]:
-        """(position relative to the CG, thrust axis) of every enabled rotor in PX4's hover frame."""
+    def rotors_in_px4_frame(self, built: bool = False) -> list[tuple[list[float], list[float]]]:
+        """(position relative to the CG, thrust axis) of every enabled rotor in PX4's hover frame.
+
+        ``built`` asks for the axes the aircraft really has instead of the ones it was drawn with. The export
+        never uses it - PX4 is told the design - but a question about what the aircraft can actually do does.
+        """
         R = self.hover_rotation()
         cg = self.cg
-        return [((R @ (np.asarray(r.pos, float) - cg)).tolist(), (R @ np.asarray(unit(r.axis), float)).tolist())
+        return [((R @ (np.asarray(r.pos, float) - cg)).tolist(),
+                 (R @ np.asarray(r.built_axis if built else unit(r.axis), float)).tolist())
                 for r in self.active_rotors()]
 
     def total_max_thrust(self) -> float:
@@ -211,7 +216,15 @@ class Airframe:
         zero = [r.name or f"M{i + 1}" for i, r in enumerate(self.active_rotors()) if r.max_thrust <= 0]
         if zero:
             problems.append(f"rotor(s) {', '.join(zero)} have max thrust 0")
+        # A mounting error is deliberate, so this is not a fault to fix - but it is a lie the aircraft is
+        # telling its flight controller, and nobody should discover it halfway through a run.
+        off = [f"{r.name or f'M{i + 1}'} {' and '.join(b for b in (f'{r.tilt_error_deg:+g}° tilt' if r.tilt_error_deg else '', f'{r.cant_error_deg:+g}° cant' if r.cant_error_deg else '') if b)}"
+               for i, r in enumerate(self.rotors) if r.mis_mounted]
+        if off:
+            problems.append(f"built off its design on purpose: {', '.join(off)}. The simulation flies that; "
+                            f"PX4 is told the design. Clear it under Mounting errors when you are done.")
         problems += self._pair_problems()
+        problems += self.override_warnings()
         if any(i <= 0 for i in self.mass.inertia):
             problems.append("inertia diagonal must be positive")
         try:
@@ -245,11 +258,31 @@ class Airframe:
         return problems
 
     # -------------------------------------------------------- PX4 export
-    def px4_params(self, hitl: bool = True) -> dict[str, float | int]:
-        """Parameters that make PX4 fly this exact geometry. Rotor i (enabled ones, in order) is PX4 Motor i+1."""
-        p: dict[str, float | int] = {}
-        for k, v in (self.px4_overrides or {}).items():
-            p[k] = int(v) if isinstance(v, bool) else v
+    def px4_params(self, hitl: bool = True, overrides: bool = True) -> dict[str, float | int]:
+        """Parameters that make PX4 fly this exact geometry. Rotor i (enabled ones, in order) is PX4 Motor i+1.
+
+        An override set by hand is applied *last* and wins, even over a value the geometry works out. The
+        geometry is the app's opinion; a number you typed is yours, and silently overwriting it - which is
+        what putting the overrides first did - makes the Parameters table a liar. ``overrides=False`` asks
+        what the geometry alone would set, which is how a row that has been taken over can show what it was
+        taken over from.
+
+        Every parameter here can be overridden, including the allocator and the ground sequence's own
+        minimums - it is your aircraft. What the app will not do is keep quiet about it: a row that has
+        been taken over says what the geometry would have set, `validate()` names any override that goes
+        against what the nose-lift sequence needs, and one click puts a row back.
+        """
+        ov = {k: (int(v) if isinstance(v, bool) else v) for k, v in (self.px4_overrides or {}).items()}
+        # The overrides go in twice on purpose: first so the parts of the export that *read* a parameter
+        # (the nose-lift block reads NLF_ENABLE) see what you set, and again at the end so nothing the
+        # geometry writes can quietly beat it.
+        off = self.modules_off_params()            # parameters of a firmware module this design does not use
+        p: dict[str, float | int] = {k: v for k, v in ov.items() if k not in off} if overrides else {}
+        # Minimums the ground sequence insists on. An override may raise one of these; it may not lower it,
+        # because a takeoff ramp shorter than this pitches the aircraft over on its own legs. Every other
+        # parameter in the export is yours to set outright.
+        floors: dict[str, float] = {}
+        forced: dict[str, float | int] = {}        # and the few an override may not touch at all
         rotors = self.active_rotors()
         p["CA_AIRFRAME"] = 0
         p["CA_ROTOR_COUNT"] = len(rotors)
@@ -263,7 +296,8 @@ class Airframe:
             p[f"CA_ROTOR{i}_KM"] = round(r.km, 4)
         # The flight controller is mounted in the structural frame; PX4 reads its IMU in the hover frame.
         from .ground_sequence import ground_sequence_params
-        p.update(ground_sequence_params(self))
+        if "NLF_ENABLE" not in off:                # the nose-lift module is switched off for this design
+            p.update(ground_sequence_params(self))
         if p.get("NLF_ENABLE") == 1:
             # Lift target: 10 deg below the hover pitch unless a takeoff pitch was set. PX4's hover allocation wants more
             # front-fan thrust than the ground floor, so its takeover step pitches the nose up by several degrees
@@ -271,24 +305,24 @@ class Airframe:
             # (measured on ATLAS_09: ground slide 0.36 m at level, 0.10 m at -7 deg, 0.03-0.06 m at -10 deg).
             p.setdefault("NLF_TARGET", round(float(self.hover_pitch_deg) - float(self.design.get("nose_lift_below_hover_deg", 10.0)), 2))
             # A short stock takeoff ramp can pitch the grounded aircraft past its envelope at handoff.
-            p["MPC_TKO_RAMP_T"] = max(0.8, float(p.get("MPC_TKO_RAMP_T", 0.8)))   # quick rear thrust: as little time on the feet as possible
+            p["MPC_TKO_RAMP_T"] = floors["MPC_TKO_RAMP_T"] = max(0.8, float(p.get("MPC_TKO_RAMP_T", 0.8)))   # quick rear thrust: as little time on the feet as possible
             p.setdefault("NLF_DWELL", 0.5)            # settle check after the nose reaches its target, s
             p.setdefault("MPC_TKO_SPEED", 2.0)        # climb away briskly once airborne
             # PX4's land detector reads a slow nose lift as "landed" (no thrust setpoint, near-zero velocities), so
             # the stock 2 s auto-disarm fires mid-lift; the module disarms itself after nose contact, these are backups.
-            p["COM_DISARM_LAND"] = max(60.0, float(p.get("COM_DISARM_LAND", 0.0)))
-            p["COM_DISARM_PRFLT"] = max(40.0, float(p.get("COM_DISARM_PRFLT", 0.0)))
+            p["COM_DISARM_LAND"] = floors["COM_DISARM_LAND"] = max(60.0, float(p.get("COM_DISARM_LAND", 0.0)))
+            p["COM_DISARM_PRFLT"] = floors["COM_DISARM_PRFLT"] = max(40.0, float(p.get("COM_DISARM_PRFLT", 0.0)))
             if p.get("NLF_RC_THR") == 1:
-                p["COM_DISARM_LAND"] = max(120.0, float(p["COM_DISARM_LAND"]))
+                p["COM_DISARM_LAND"] = floors["COM_DISARM_LAND"] = max(120.0, float(p["COM_DISARM_LAND"]))
             if int(p.get("NLF_PILOT", 0) or 0):
                 # Pilot handover (no GPS): the nose is held up while the pilot waits with the throttle at minimum, which
                 # PX4's land detector reads as "landed, not taking off". Neither auto-disarm may fire meanwhile.
-                p["COM_DISARM_LAND"] = max(120.0, float(p["COM_DISARM_LAND"]))
-                p["COM_DISARM_PRFLT"] = max(120.0, float(p["COM_DISARM_PRFLT"]))
+                p["COM_DISARM_LAND"] = floors["COM_DISARM_LAND"] = max(120.0, float(p["COM_DISARM_LAND"]))
+                p["COM_DISARM_PRFLT"] = floors["COM_DISARM_PRFLT"] = max(120.0, float(p["COM_DISARM_PRFLT"]))
                 # Airmode lets the allocator trade collective thrust for pitch authority. On the legs, nose 35 deg below
                 # PX4's level, that runs the front fans up and the rear fans down at any throttle: the aircraft cannot
                 # lift off, the nose cannot be lowered, and the pilot's throttle stops being the collective. Off.
-                p["MC_AIRMODE"] = 0
+                p["MC_AIRMODE"] = forced["MC_AIRMODE"] = 0
                 # Stabilized maps the throttle stick's centre to the hover thrust parameter (MPC_THR_CURVE 0 until the
                 # hover thrust estimator has run). PX4 sees commands, not thrust (THR_MDL_FAC 0) and the motors are
                 # quadratic: the rotor with the largest hover share is commanded the collective itself, so the hover
@@ -298,7 +332,7 @@ class Airframe:
                 if shares and util and util[int(np.argmax(shares))]:
                     p.setdefault("MPC_THR_HOVER", round(min(0.8, max(0.2, float(np.sqrt(util[int(np.argmax(shares))])))), 2))
             # the module commands the front fans as sqrt(thrust fraction) and checks that PX4 applies no thrust curve
-            p["THR_MDL_FAC"] = 0.0
+            p["THR_MDL_FAC"] = forced["THR_MDL_FAC"] = 0.0
             # stick override is built into this PX4: a stick moved faster than MAN_OVERRIDE_SPD (normalised travel per
             # second, 1.0 = full deflection within a second) switches Offboard/auto modes to Position; keep it enabled
             p.setdefault("MAN_OVERRIDE_SPD", 1.0)
@@ -316,6 +350,13 @@ class Airframe:
             p[f"HIL_ACT_FUNC{n}"] = 101 + (n - 1) if n <= len(rotors) else 0
         if hitl:
             p["SYS_HITL"] = 1
+        object.__setattr__(self, "_sequence_wants",     # not a field: a note from the last export
+                           {**{k: ("at least", v) for k, v in floors.items()},
+                            **{k: ("exactly", v) for k, v in forced.items()}})
+        if overrides:
+            p.update(ov)
+        for k in off:          # a module this design has switched off configures nothing, override or not
+            p.pop(k, None)
         return p
 
     def flow_sensor(self) -> dict | None:
@@ -339,7 +380,16 @@ class Airframe:
         if f is None:
             return {"EKF2_OF_CTRL": 0, "EKF2_RNG_CTRL": 0}
         offset = self.hover_rotation() @ (f["position"] - self.cg)
-        p: dict[str, float | int] = {"EKF2_OF_CTRL": 1, "EKF2_RNG_CTRL": 1}
+        # Indoors there is no GPS and there never will be, so the aircraft is told to stop waiting for one:
+        # the H-flow is the horizontal aiding and the rangefinder is the height, with the barometer and the
+        # IMU fused underneath them as PX4 does by default. Without this the estimator keeps the barometer
+        # as its height reference and has no position source at all, which is an aircraft that cannot hold
+        # still indoors however good the flow is.
+        indoor = bool(self.design.get("indoor"))
+        p: dict[str, float | int] = {"EKF2_OF_CTRL": 1, "EKF2_RNG_CTRL": 2 if indoor else 1}
+        if indoor:
+            p["EKF2_HGT_REF"] = 2        # the rangefinder is the height reference, not the barometer
+            p["EKF2_GPS_CTRL"] = 0       # and nothing waits for a GPS that is not coming
         for axis, value in zip("XYZ", offset):
             p[f"EKF2_OF_POS_{axis}"] = round(float(value), 4)
             p[f"EKF2_RNG_POS_{axis}"] = round(float(value), 4)
@@ -369,25 +419,164 @@ class Airframe:
                 lines.append(f"1\t1\t{k}\t{float(v):.6f}\t9")
         return "\n".join(lines) + "\n"
 
+    def override_warnings(self) -> list[str]:
+        """Overrides that contradict what the ground sequence needs. Not refused - said out loud."""
+        self.px4_params(hitl=True)                      # fills _sequence_wants for this design
+        out = []
+        for name, (how, want) in (getattr(self, "_sequence_wants", None) or {}).items():
+            got = (self.px4_overrides or {}).get(name)
+            if got is None:
+                continue
+            if (how == "at least" and float(got) < float(want)) or (how == "exactly" and float(got) != float(want)):
+                out.append(f"{name} is set to {got}, and the nose-lift sequence needs {how} {want:g}")
+        return out
+
+    def modules_off_params(self) -> set[str]:
+        """Every parameter belonging to a firmware module this design has switched off.
+
+        A module that is not part of this aircraft has no business configuring it: its parameters leave
+        the export, and with them the Parameters table, until it is switched back on. Which names belong
+        to which module comes from the module's own params.yaml - the server reads it and keeps the list
+        with the design, so a batch run or another machine exports exactly the same thing.
+        """
+        off = (self.design.get("modules_off") or {})
+        return {name for names in off.values() for name in (names or [])}
+
     def geometry_param_names(self) -> set[str]:
         return {k for k in self.px4_params(hitl=True) if k not in (self.px4_overrides or {})} | {"SYS_HITL"}
 
     # ------------------------------------------------- PX4 hover feasibility
-    def effectiveness(self) -> np.ndarray:
+    def effectiveness(self, built: bool = False) -> np.ndarray:
         """PX4's 6 x n effectiveness matrix (unit thrust): rows = torque xyz, force xyz, in the hover frame."""
         rows = []
-        for r, (pos, axis) in zip(self.active_rotors(), self.rotors_in_px4_frame()):
+        for r, (pos, axis) in zip(self.active_rotors(), self.rotors_in_px4_frame(built)):
             p, ax = np.array(pos, float), np.array(axis, float)
             rows.append(np.concatenate([np.cross(p, ax) - r.km * ax, ax]))
         return np.array(rows).T if rows else np.zeros((6, 0))
 
-    def hover_check(self) -> dict:
-        """Reproduce PX4's pseudo-inverse allocation for a pure-thrust hover and flag what it cannot do."""
+    # ------------------------------------------------- built, not drawn
+    def hover_trim_as_built(self, lean_limit_deg: float = 15.0, thrust_limit: float = 1.0) -> dict:
+        """Can the aircraft as built hold a hover, and with how much to spare?
+
+        Four things have to come out right - no net torque about any axis, and lift equal to the weight -
+        and that is exactly what a set of rotors has to give. A leftover *side* force is not a failure in
+        itself: the aircraft leans into it and carries on, which is what every multirotor does all day -
+        but only so far, and ``lean_limit_deg`` is how far. A leftover torque is a failure, and so is a
+        thrust a motor has not got. ``thrust_limit`` is how much of a motor may go into simply holding
+        still: 1.0 asks whether it can hover at all, 0.85 (the figure the hover check uses) whether it can
+        hover and still have something left to fly with.
+        """
+        rotors = self.active_rotors()
+        if not rotors:
+            return {"ok": False, "why": "no rotors", "worst": float("inf"), "residual_torque": 0.0, "lean_deg": 0.0}
+        name = lambda k: rotors[k].name or f"M{k + 1}"                                       # noqa: E731
+        E6 = self.effectiveness(built=True)
+        E = E6[[0, 1, 2, 5], :]                                      # roll, pitch, yaw, lift
+        want = np.array([0.0, 0.0, 0.0, -1.0])
+        u = np.linalg.pinv(E) @ want
+        resid = float(np.abs(E @ u - want).max())
+        lift = float(-(E[3] @ u))
+        if lift <= 1e-9:
+            return {"ok": False, "why": "no mix of thrusts lifts the aircraft", "worst": float("inf"),
+                    "residual_torque": resid, "lean_deg": 0.0}
+        F = E6[3:6] @ u                                              # what is left over sideways: a lean
+        lean = math.degrees(math.atan2(float(math.hypot(F[0], F[1])), max(1e-9, float(-F[2]))))
+        thrust = u * (self.mass.mass * G / lift)
+        util = [float(t / r.effective_max_thrust()) if r.effective_max_thrust() > 0 else float("inf")
+                for t, r in zip(thrust, rotors)]
+        worst = max(util)
+        low = min(range(len(util)), key=lambda k: util[k])
+        high = max(range(len(util)), key=lambda k: util[k])
+        if resid > 1e-3:
+            why = f"no mix of thrusts balances the torque (residual {resid:.3f} per unit of lift)"
+        elif util[low] < -1e-6:
+            why = f"{name(low)} would have to pull downwards"
+        elif worst > thrust_limit:
+            why = (f"{name(high)} would need {worst:.0%} of its thrust just to hold the hover"
+                   if thrust_limit >= 1.0 else
+                   f"{name(high)} would be at {worst:.0%} in the hover, with nothing left to fly with")
+        elif lean > lean_limit_deg:
+            why = f"it would have to hover leaning {lean:.0f}° away from its hover attitude"
+        else:
+            why = ""
+        return {"ok": not why, "why": why, "worst": worst, "residual_torque": resid, "lean_deg": lean,
+                "utilisation": util, "thrust": [float(t) for t in thrust]}
+
+    def mount_margin(self, limit_deg: float = 45.0, tol_deg: float = 0.25) -> dict:
+        """How far out of true each rotor could be mounted before it costs the aircraft something.
+
+        Two angles per direction, from the same arithmetic as the hover check, run on the aircraft as built:
+
+        * the **margin** - past this the aircraft still hovers, but a motor is over 85% doing it and there
+          is nothing left for the controller to fly with;
+        * the **wall** - past this there is no mix of thrusts that holds it still at all: a motor would
+          have to pull downwards, or run past its maximum, or the aircraft would have to hover leaning.
+
+        One rotor at a time, with everything else left exactly as it is, and the two directions searched
+        separately, because leaning a rotor outward is rarely as bad as leaning it in. Both are static
+        limits and generous ones: PX4 is flying a model that says the error is not there, so its own trim
+        and its margins go first. The wall is the wall, not the tolerance.
+        """
+        # Winding an error up and down is a question asked of a copy: the live airframe may be flying, and
+        # nothing here is allowed to be visible from the loop.
+        af = copy.copy(self)
+        af.rotors = [replace(r) for r in self.rotors]
+
+        def search(rotor, axis: str, thrust_limit: float) -> tuple[list[float], str]:
+            ends, why = [], ""
+            for sign in (-1.0, 1.0):
+                lo, hi = 0.0, float(limit_deg)
+                setattr(rotor, f"{axis}_error_deg", sign * hi)
+                if af.hover_trim_as_built(thrust_limit=thrust_limit)["ok"]:
+                    ends.append(sign * hi)                      # still fine at the edge of where we look
+                    continue
+                why = why or af.hover_trim_as_built(thrust_limit=thrust_limit)["why"]
+                while hi - lo > tol_deg:
+                    mid = 0.5 * (lo + hi)
+                    setattr(rotor, f"{axis}_error_deg", sign * mid)
+                    lo, hi = (mid, hi) if af.hover_trim_as_built(thrust_limit=thrust_limit)["ok"] else (lo, mid)
+                ends.append(sign * lo)
+            return [round(min(ends), 1), round(max(ends), 1)], why
+
+        rows = []
+        base = af.hover_trim_as_built()
+        for i, r in enumerate(af.rotors):
+            row = {"rotor": i, "name": r.name or f"M{i + 1}", "tilt_error_deg": r.tilt_error_deg,
+                   "cant_error_deg": r.cant_error_deg, "tilt": None, "cant": None,
+                   "tilt_wall": None, "cant_wall": None, "why": ""}
+            if r.enabled is False:
+                row["why"] = "disabled"
+                rows.append(row)
+                continue
+            keep = (r.tilt_error_deg, r.cant_error_deg)
+            try:
+                r.tilt_error_deg = r.cant_error_deg = 0.0
+                if not af.hover_trim_as_built()["ok"]:
+                    row["why"] = "the aircraft does not hover even with this one mounted true"
+                    rows.append(row)
+                    continue
+                for axis in ("tilt", "cant"):
+                    r.tilt_error_deg, r.cant_error_deg = keep
+                    setattr(r, f"{axis}_error_deg", 0.0)
+                    row[axis], _ = search(r, axis, 0.85)
+                    row[f"{axis}_wall"], why = search(r, axis, 1.0)
+                    row["why"] = row["why"] or why
+            finally:
+                r.tilt_error_deg, r.cant_error_deg = keep
+            rows.append(row)
+        return {"limit_deg": limit_deg, "rotors": rows, "built": base}
+
+    def hover_check(self, built: bool = False) -> dict:
+        """Reproduce PX4's pseudo-inverse allocation for a pure-thrust hover and flag what it cannot do.
+
+        ``built`` runs the same arithmetic over the aircraft as it really is (mounting errors and all) rather
+        than over the design PX4 was given, which is how far the two have drifted apart.
+        """
         rotors = self.active_rotors()
         n = len(rotors)
         if n == 0:
             return {"ok": False, "problems": ["no rotors"], "shares": []}
-        E = self.effectiveness()
+        E = self.effectiveness(built)
         sp = np.array([0, 0, 0, 0, 0, -1.0])
         u = np.linalg.pinv(E) @ sp
         resid = E @ u - sp

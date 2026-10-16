@@ -1,0 +1,12 @@
+#!/bin/sh
+# One PX4/NuttX shell command on whatever the running app is linked to (SITL, HITL or the aircraft
+# over the radio). `listener`, `param show`, `uorb top -1`, `ver all` - the board's own shell, reached
+# through the app, because the app is holding the serial port and nothing else can open it.
+#
+#   ./px4sh listener vehicle_land_detected 3
+#   ./px4sh uorb top -1
+#   PX4_UI_PORT=8080 ./px4sh ver all
+#
+# Set PX4_SH_TIMEOUT for a slow radio and a chatty command (default 15 seconds).
+exec curl -sG "http://127.0.0.1:${PX4_UI_PORT:-8081}/api/px4/shell" \
+     --data-urlencode "c=$*" --data-urlencode "timeout=${PX4_SH_TIMEOUT:-15}"

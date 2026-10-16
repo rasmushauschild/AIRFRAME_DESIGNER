@@ -267,6 +267,19 @@ class ConnectionManager:
             out["relaunched"] = True
         return out
 
+    RADIO_BAUD = 57600
+
+    def port_baud(self, device: str, ports: list[dict] | None = None) -> int:
+        """How fast to open this port when nobody said.
+
+        A Pixhawk on USB takes whatever the box says (its USB serial has no real speed). Anything else on a
+        serial port, in this app, is a telemetry radio, and a radio's serial side is 57600 - open it at USB
+        speed and not one byte comes back, which looks exactly like an aircraft that is switched off.
+        """
+        ports = ports if ports is not None else self.list_ports_cached()
+        looks_px4 = any(p["device"] == device and p["likely_px4"] for p in ports)
+        return int(self.args.baud) if looks_px4 else self.RADIO_BAUD
+
     def connect_hitl(self, serial: str | None = None, baud: int | None = None) -> dict:
         if self.firmware_job.running() and self.firmware_job.action == "upload":
             self.error = "firmware upload in progress; the link reconnects by itself when it is done"
@@ -278,10 +291,10 @@ class ConnectionManager:
                 if not serial:
                     cands = [p for p in ports if p["likely_px4"]] or ports
                     if not cands:
-                        self.error = "No serial port found. Plug the Pixhawk in over USB and rescan."
+                        self.error = "No flight controller or telemetry radio on USB. Plug one in and rescan."
                         return self.status()
                     serial = cands[0]["device"]
-                self.baud = baud or self.baud
+                self.baud = int(baud) if baud else self.port_baud(serial, ports)
                 self.stop_px4()
                 self._close_link()
                 link = PX4Link("hitl", serial, baud=self.baud, qgc_proxy=self.args.qgc or None, log=self.log)
@@ -624,63 +637,87 @@ class ConnectionManager:
         return {"ok": True, "steps": steps}
 
     _reset_busy_until = 0.0
+    _reset_gen = 0
+    _mode_gen = 0
+    _mode_job: dict = {"mode": "", "state": "", "step": "", "error": "", "since": 0.0}
 
     def reset_all(self) -> dict:
-        """Put the whole simulation back to zero, fast: force-disarm, forget motor commands, vehicle back on the
-        ground at its hover attitude, PX4 messages cleared, and PX4 brought back to an armable state. Only when the
-        commander is in termination/failsafe (which nothing but a reboot clears) is the board rebooted."""
-        if time.time() < self._reset_busy_until:
-            return {"ok": True, "steps": [f"reset already in progress ({self._reset_busy_until - time.time():.0f} s left)"]}
-        link = self.link
-        steps = []
+        """Put the whole simulation back to zero.
+
+        Reset is a stop button, so the half of it you can see - motors forgotten, the vehicle back on the
+        ground at its hover attitude - happens on this call, every time, with nothing to wait for. The other
+        half goes through the flight controller (force-disarm, estimator restart, and a reboot or a relaunch
+        when the commander is in termination, which nothing else clears); that takes seconds to half a minute
+        and runs behind this, so pressing Reset again never finds the door locked - it resets the vehicle
+        again at once and the new tail supersedes whatever the old one was still doing."""
         from .link import mavlink
+        link = self.link
+        self._reset_gen += 1
+        gen = self._reset_gen
+        steps = []
         if link is not None and link.ctl_connected:
             if link.armed:
                 link.send_command_long(mavlink.MAV_CMD_COMPONENT_ARM_DISARM, 0.0, 21196.0)
                 steps.append("force-disarmed")
-                time.sleep(0.6)
             link.recent_events.clear()
         self.sim.reset()
         steps.append("vehicle reset")
         if link is None or not link.ctl_connected:
+            self._reset_busy_until = 0.0
             return {"ok": True, "steps": steps}
-        main_mode = (link.custom_mode >> 16) & 0xFF
+        terminated = ((link.custom_mode >> 16) & 0xFF) == 10
         if self.mode == "hitl":
             # HITL: always reboot. Termination needs it, and it is the only estimator reset that works on the
             # board (see _post_boot_ekf_restart); the sim is already at rest so EKF2 aligns on good data.
             self._reset_busy_until = time.time() + 20
-            link.reboot()
-            self._after_reboot(link)
-            steps.append("board rebooted (was in flight termination)" if main_mode == 10 else "board rebooted")
+            steps.append("board rebooting (was in flight termination)" if terminated else "board rebooting")
+        elif terminated and self.px4_running() and self.args.launch_px4:
+            self._reset_busy_until = time.time() + 20
+            steps.append("PX4 SITL relaunching (was in flight termination)")
         else:
-            with self._lock:
-                if main_mode == 10 and self.px4_running() and self.args.launch_px4:
-                    self._reset_busy_until = time.time() + 20
-                    self.stop_px4(); time.sleep(1.0)
-                    self.px4_process = self._launch_sitl(self.px4_instance or 0)
-                    steps.append("PX4 SITL relaunched (was in flight termination)")
-                else:
-                    self._reset_busy_until = time.time() + 8
-                    threading.Thread(target=self._settle_after_reset, args=(link,), daemon=True).start()
-                    steps.append("estimator restarting")
+            self._reset_busy_until = time.time() + 8
+            steps.append("estimator restarting")
+        threading.Thread(target=self._reset_tail, args=(link, gen, terminated), daemon=True).start()
         return {"ok": True, "steps": steps}
 
-    def _settle_after_reset(self, link) -> None:
+    def _reset_tail(self, link, gen: int, terminated: bool) -> None:
+        """Everything in a reset that has to talk to the flight controller, off the request thread. It gives up
+        the moment another reset starts or the link is replaced: the newest press is the one that counts."""
+        try:
+            if self.mode == "hitl":
+                link.reboot()
+                self._after_reboot(link)
+            elif terminated and self.px4_running() and self.args.launch_px4:
+                with self._lock:
+                    if self._reset_gen != gen or self.link is not link:
+                        return
+                    self.stop_px4(); time.sleep(1.0)
+                    self.px4_process = self._launch_sitl(self.px4_instance or 0)
+            else:
+                self._settle_after_reset(link, gen)
+        except Exception as e:
+            self.log(f"[px4] reset: {e}")
+
+    def _settle_after_reset(self, link, gen: int | None = None) -> None:
         """Let the fresh sensor data flow for a moment, then restart EKF2 so it re-aligns on the reset vehicle."""
         time.sleep(2.0)
+        if gen is not None and self._reset_gen != gen:
+            return
         if self.link is link:
             ok = False
             try:
                 ok = link.restart_estimator()
             except Exception as e:
                 self.log(f"[px4] estimator restart failed: {e}")
-        self._select_default_mode(link)
+        self._select_default_mode(link, gen=gen)
 
-    def _select_default_mode(self, link, timeout: float = 40.0) -> None:
+    def _select_default_mode(self, link, timeout: float = 40.0, gen: int | None = None) -> None:
         """Default mode is Takeoff: once PX4 reports it could arm for takeoff, request it (retry until accepted)."""
         from .link import mavlink
         t0 = time.time()
         while time.time() - t0 < timeout and self.link is link and link.ctl_connected:
+            if gen is not None and self._reset_gen != gen:
+                return
             summary = None
             for x in reversed(list(link.recent_events)):
                 if x.get("name") == "commander_arming_check_summary":
@@ -706,6 +743,113 @@ class ConnectionManager:
             return {"ok": True, "error": None}
         ok = link.restart_estimator()
         return {"ok": ok, "error": None if ok else "no reply from the board's shell; use Reset to reboot the board"}
+
+    # ------------------------------------------------------- one switch, three modes
+    # Pressing SITL, HITL or FLIGHT is a statement about what the aircraft *is*, and the app's job is to
+    # make that true however it was left: a board in HITL has its own sensors switched off and cannot fly
+    # for real, and a board on its own sensors cannot be driven by the simulator. Both take a parameter, a
+    # save and a reboot, and neither is something anyone should have to remember.
+    #
+    # Everything here is bounded and idempotent. Nothing waits forever, a mode already reached costs one
+    # heartbeat, and a newer press supersedes an older one instead of queueing behind it.
+    MODE_SETTLE_S = 150.0
+
+    def mode_state(self) -> dict:
+        return dict(self._mode_job)
+
+    def set_mode(self, mode: str, serial: str | None = None, baud: int | None = None,
+                 gen: int | None = None) -> dict:
+        """Put the whole thing - app, link and board - into one of sitl / hitl / real."""
+        def step(text: str) -> bool:
+            """Report where we are, and say whether this attempt is still the current one."""
+            if gen is not None and gen != self._mode_gen:
+                return False
+            self._mode_job.update(step=text)
+            self.log(f"[mode] {mode}: {text}")
+            return True
+
+        def fail(why: str) -> dict:
+            self._mode_job.update(state="failed", error=why)
+            self.log(f"[mode] {mode}: {why}")
+            return {"ok": False, "error": why}
+
+        self._mode_job.update(mode=mode, state="running", step="starting", error="", since=time.time())
+        try:
+            if mode == "sitl":
+                if not step("starting PX4 here"):
+                    return {"ok": True, "superseded": True}
+                self.connect_sitl(True)
+                self._mode_job.update(state="done", step="PX4 is flying the simulation")
+                return {"ok": True}
+
+            want_hil = mode == "hitl"
+            link = self.link
+            if self.mode != "hitl" or link is None or not link.ctl_connected or serial:
+                if not step("opening the link to the aircraft"):
+                    return {"ok": True, "superseded": True}
+                self.connect_hitl(serial, baud)
+                link = self.link
+                if link is None:
+                    return fail(self.error or "no flight controller or radio on USB")
+            # A heartbeat, not just a link: `hil_enabled` is read off the heartbeat and starts false on a
+            # new link object, so asking before one has arrived says "already on its own sensors" about a
+            # board that is sitting in HITL - and then nothing gets switched.
+            if not self._wait_for(lambda: self.link is not None and self.link.ctl_connected
+                                  and time.time() - self.link.heartbeat_time < 3.0, 25.0, gen):
+                return fail("the aircraft did not answer on that link (powered? paired? right port?)")
+            link = self.link
+
+            if link.armed:
+                return fail("the aircraft is armed; disarm before changing mode")
+            if link.hil_enabled != want_hil:
+                if not step("the board is the other way round: changing SYS_HITL and rebooting it"):
+                    return {"ok": True, "superseded": True}
+                r = link.set_param("SYS_HITL", 1 if want_hil else 0, timeout=6.0)
+                if not r.get("ok"):
+                    return fail(f"could not set SYS_HITL on the board: {r.get('error', 'no acknowledgement')}")
+                link.preflight_storage(True)
+                time.sleep(0.5)
+                link.block_hil = not want_hil      # never inject into a board that is about to fly for real
+                link.reboot()
+                self._own_reboot_until = time.time() + 60.0
+                if not step("waiting for the flight controller to come back"):
+                    return {"ok": True, "superseded": True}
+                if not self._wait_for(lambda: (self.link is not None and self.link.ctl_connected
+                                               and self.link.hil_enabled == want_hil
+                                               and time.time() - self.link.heartbeat_time < 3.0),
+                                      self.MODE_SETTLE_S, gen):
+                    return fail("the board did not come back in the new mode; try again, or power-cycle it")
+                link = self.link
+
+            link.block_hil = not want_hil
+            if not step("asking the aircraft for its telemetry" if not want_hil else "setting the board up to be flown"):
+                return {"ok": True, "superseded": True}
+            try:
+                if want_hil:
+                    link.trim_telemetry()
+                else:
+                    link.request_flight_telemetry()
+            except Exception as e:
+                self.log(f"[mode] telemetry rates: {e}")
+            self._mode_job.update(state="done", step="the board is flying the simulation" if want_hil
+                                  else "listening to the aircraft on its own sensors")
+            return {"ok": True}
+        except Exception as e:
+            return fail(str(e))
+
+    def _wait_for(self, cond, timeout: float, gen: int | None = None) -> bool:
+        """Wait for something to become true, or give up. Never longer than it says."""
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            if gen is not None and gen != self._mode_gen:
+                return True                       # superseded: let the newer attempt decide
+            try:
+                if cond():
+                    return True
+            except Exception:
+                pass
+            time.sleep(0.25)
+        return False
 
     def enable_hitl(self) -> dict:
         """Set SYS_HITL=1 on the board, save, reboot. The serial link reconnects by itself."""
@@ -818,9 +962,13 @@ class ConnectionManager:
         if link is None or link.mode != "hitl" or not link.param_count or len(link.params) < link.param_count:
             return {"ok": False, "error": "board parameters not fully downloaded yet"}
         differ, skipped = [], 0
+        # A module switched off in this design is not this design's: its parameters are gone from the
+        # export and from the list, so the second half of the push must not put them back from a SITL
+        # run that happened to have the module built in.
+        off = self.sim.airframe.modules_off_params() if getattr(self.sim, "airframe", None) else set()
         for name, sv in ref["params"].items():
             bp = link.params.get(name)
-            if bp is None:
+            if bp is None or name in off:
                 continue
             if self.SYNC_EXCLUDE.match(name):
                 if abs(float(bp["value"]) - float(sv)) > 1e-6:
@@ -923,8 +1071,18 @@ class ConnectionManager:
         from .real_flight import flight_params, check_board, apply_verified
         try:
             check_board(self.link)
-            if self.link.params.get("SYS_AUTOSTART", {}).get("value") != 4001:
-                raise ValueError("Real-flight setup currently supports the Generic Multicopter base airframe (SYS_AUTOSTART=4001)")
+            # Ask the board if it has not already said. Over a radio the full parameter list is not
+            # downloaded, and "I have not looked" must never be read as "it is not 4001".
+            auto = self.link.params.get("SYS_AUTOSTART", {}).get("value")
+            if auto is None:
+                got = self.link.get_param("SYS_AUTOSTART", timeout=4.0)
+                auto = got["value"] if got else None
+            if auto is None:
+                raise ValueError("the aircraft did not answer when asked which base airframe it is set to "
+                                 "(SYS_AUTOSTART); try again, or Refresh the parameters first")
+            if int(auto) != 4001:
+                raise ValueError(f"Real-flight setup currently supports the Generic Multicopter base airframe "
+                                 f"(SYS_AUTOSTART = 4001); this board is set to {int(auto)}")
             params = flight_params(self.sim.airframe)
             self.log("[real flight] updating ATLAS firmware if needed; aircraft remains disarmed")
             result = self.update_board_firmware()
@@ -1049,6 +1207,13 @@ class ConnectionManager:
                                 pass
                     if keep:
                         self.log(f"[params] board rebooted by us: keeping the {len(link.params)} cached parameters")
+                    elif link.link_budget_bps() is not None:
+                        # Over a radio the whole list is ~50 kB: a minute of the link to itself, during
+                        # which the live telemetry arrives in lumps. It is a download you ask for, with
+                        # Refresh on the Parameters section, not one that happens to you on connect.
+                        self.log(f"[params] radio link: the vehicle's {link.param_count or 'full'} parameters are not "
+                                 f"downloaded automatically (it would take about a minute and the graph with it). "
+                                 f"Press Refresh under Parameters when you want them.")
                     else:
                         link.fetch_all_params()
                     if link.mode != "hitl" and self.ensure_native_module():
@@ -1059,12 +1224,18 @@ class ConnectionManager:
                     self.log(f"[params] fetch failed: {e}")
                 if link.mode == "sitl" and link.param_count and len(link.params) >= link.param_count:
                     self.save_sitl_reference()      # what "identical to the SITL" means for a board
-                if link.mode == "hitl" and link.param_count:
-                    try:
+                try:
+                    if link.listening:
+                        # A real flight has its own streams, and they must be the last word: trim_telemetry
+                        # is the HITL throttle and it switches off the two - the quaternion and the local
+                        # position - that the 3D view and the graph are made of.
+                        link.request_flight_telemetry()
+                    elif link.mode == "hitl" and link.param_count:
                         link.trim_telemetry()
-                    except Exception as e:
-                        self.log(f"[link] telemetry throttle failed: {e}")
-                if not link.param_count or len(link.params) < link.param_count:
+                except Exception as e:
+                    self.log(f"[link] telemetry rates failed: {e}")
+                skipped = link.link_budget_bps() is not None and not keep
+                if not skipped and (not link.param_count or len(link.params) < link.param_count):
                     # the board was still booting (or the link hiccupped): try again on the next pass
                     self.log("[params] incomplete download, retrying")
                     fetched_for = -1

@@ -1,6 +1,6 @@
 {
   "schema": 2,
-  "name": "ATLAS_09B",
+  "name": "SMALL_SCALE_V2",
   "mass": {
     "mass": 12.125,
     "cg": [
@@ -75,19 +75,13 @@
         -0.9063133908792761
       ],
       "km": 0.01,
-      "max_thrust": 36,
+      "max_thrust": 33.399969610296026,
+      "max_power_w": 0.0,
       "tau": 0.12,
       "diameter": 0.08,
       "thrust_exponent": 2,
-      "kind": "ducted",
-      "ram_drag": true,
-      "duct_axis": [
-        1.0,
-        0.0,
-        0.0
-      ],
-      "turn_loss": 0.1,
-      "enabled": true
+      "enabled": true,
+      "pair": ""
     },
     {
       "name": "M2",
@@ -102,19 +96,13 @@
         -0.9063133908792761
       ],
       "km": 0.01,
-      "max_thrust": 36,
+      "max_thrust": 33.399969610296026,
+      "max_power_w": 0.0,
       "tau": 0.12,
       "diameter": 0.08,
       "thrust_exponent": 2,
-      "kind": "ducted",
-      "ram_drag": true,
-      "duct_axis": [
-        1.0,
-        0.0,
-        0.0
-      ],
-      "turn_loss": 0.1,
-      "enabled": true
+      "enabled": true,
+      "pair": ""
     },
     {
       "name": "M3",
@@ -129,19 +117,13 @@
         -0.8660190526287391
       ],
       "km": 0.01,
-      "max_thrust": 36,
+      "max_thrust": 33.6000291112331,
+      "max_power_w": 0.0,
       "tau": 0.12,
       "diameter": 0.08,
       "thrust_exponent": 2,
-      "kind": "ducted",
-      "ram_drag": true,
-      "duct_axis": [
-        1.0,
-        0.0,
-        0.0
-      ],
-      "turn_loss": 0.1,
-      "enabled": true
+      "enabled": true,
+      "pair": ""
     },
     {
       "name": "M4",
@@ -156,19 +138,13 @@
         -0.8660190526287391
       ],
       "km": 0.01,
-      "max_thrust": 36,
+      "max_thrust": 33.6000291112331,
+      "max_power_w": 0.0,
       "tau": 0.12,
       "diameter": 0.08,
       "thrust_exponent": 2,
-      "kind": "ducted",
-      "ram_drag": true,
-      "duct_axis": [
-        1.0,
-        0.0,
-        0.0
-      ],
-      "turn_loss": 0.1,
-      "enabled": true
+      "enabled": true,
+      "pair": ""
     },
     {
       "name": "M5",
@@ -183,19 +159,13 @@
         -0.8191567496653964
       ],
       "km": 0.01,
-      "max_thrust": 36,
+      "max_thrust": 33.79998119868452,
+      "max_power_w": 0.0,
       "tau": 0.12,
       "diameter": 0.08,
       "thrust_exponent": 2,
-      "kind": "ducted",
-      "ram_drag": true,
-      "duct_axis": [
-        1.0,
-        0.0,
-        0.0
-      ],
-      "turn_loss": 0.1,
-      "enabled": true
+      "enabled": true,
+      "pair": ""
     },
     {
       "name": "M6",
@@ -210,19 +180,13 @@
         -0.8191567496653964
       ],
       "km": 0.01,
-      "max_thrust": 36,
+      "max_thrust": 33.79998119868452,
+      "max_power_w": 0.0,
       "tau": 0.12,
       "diameter": 0.08,
       "thrust_exponent": 2,
-      "kind": "ducted",
-      "ram_drag": true,
-      "duct_axis": [
-        1.0,
-        0.0,
-        0.0
-      ],
-      "turn_loss": 0.1,
-      "enabled": true
+      "enabled": true,
+      "pair": ""
     },
     {
       "name": "M7",
@@ -237,19 +201,13 @@
         -0.8660190526287391
       ],
       "km": 0.01,
-      "max_thrust": 36,
+      "max_thrust": 33.6000291112331,
+      "max_power_w": 0.0,
       "tau": 0.12,
       "diameter": 0.08,
       "thrust_exponent": 2,
-      "kind": "ducted",
-      "ram_drag": true,
-      "duct_axis": [
-        1.0,
-        0.0,
-        0.0
-      ],
-      "turn_loss": 0.1,
-      "enabled": true
+      "enabled": true,
+      "pair": ""
     },
     {
       "name": "M8",
@@ -264,19 +222,13 @@
         -0.7660199780615452
       ],
       "km": 0.01,
-      "max_thrust": 36,
+      "max_thrust": 34.00008722711677,
+      "max_power_w": 0.0,
       "tau": 0.12,
       "diameter": 0.08,
       "thrust_exponent": 2,
-      "kind": "ducted",
-      "ram_drag": true,
-      "duct_axis": [
-        1.0,
-        0.0,
-        0.0
-      ],
-      "turn_loss": 0.1,
-      "enabled": true
+      "enabled": true,
+      "pair": ""
     },
     {
       "name": "M9",
@@ -292,14 +244,12 @@
       ],
       "km": 0.01,
       "max_thrust": 36,
+      "max_power_w": 0.0,
       "tau": 0.12,
       "diameter": 0.08,
       "thrust_exponent": 2,
-      "kind": "ducted",
-      "ram_drag": true,
-      "duct_axis": null,
-      "turn_loss": 0.1,
-      "enabled": true
+      "enabled": true,
+      "pair": ""
     },
     {
       "name": "M10",
@@ -315,14 +265,12 @@
       ],
       "km": 0.01,
       "max_thrust": 36,
+      "max_power_w": 0.0,
       "tau": 0.12,
       "diameter": 0.08,
       "thrust_exponent": 2,
-      "kind": "ducted",
-      "ram_drag": true,
-      "duct_axis": null,
-      "turn_loss": 0.1,
-      "enabled": true
+      "enabled": true,
+      "pair": ""
     }
   ],
   "wings": [],
@@ -341,7 +289,8 @@
       "stiffness": 3000,
       "damping": 150,
       "friction": 0.8,
-      "enabled": true
+      "enabled": true,
+      "pair": ""
     },
     {
       "name": "L",
@@ -357,7 +306,8 @@
       "stiffness": 3000,
       "damping": 150,
       "friction": 0.8,
-      "enabled": true
+      "enabled": true,
+      "pair": ""
     },
     {
       "name": "R",
@@ -373,7 +323,8 @@
       "stiffness": 3000,
       "damping": 150,
       "friction": 0.8,
-      "enabled": true
+      "enabled": true,
+      "pair": ""
     }
   ],
   "hover_pitch_deg": 23.0,
@@ -522,6 +473,7 @@
     ],
     "scale": 1.0,
     "visible": true,
+    "visual_only": false,
     "bodies": [
       {
         "id": "0:PID RIG MOUNT",

@@ -17,6 +17,7 @@ from __future__ import annotations
 import os
 import socket
 import struct
+import queue
 import threading
 import time
 from collections import deque
@@ -99,6 +100,18 @@ class PX4Link:
         self.recent_events = deque(maxlen=60)
         self._last_event_text: dict[str, float] = {}
         self.rx_count = 0
+        self.rx_bytes = 0
+        self.asked_rates: dict = {}          # what this link last asked the aircraft to send
+        self._rate: dict = {"msg_s": 0.0, "bytes_s": 0.0}     # what is actually arriving
+        self._rate_mark = (time.time(), 0, 0)
+        self.radio: dict = {}                # RADIO_STATUS from the telemetry radio on this computer
+        self._last_interval_id = 0           # which stream the last SET_MESSAGE_INTERVAL was about
+        self._mav_rate: float | None = None  # MAV_<n>_RATE: the aircraft's own cap on this port
+        self.board_flow: dict = {}           # the aircraft's own H-flow, as it reports it
+        self.board_range: dict = {}          # and its rangefinder
+        self.board_alt: dict = {}            # ALTITUDE: height above where it started, from the board
+        self.log_entries: "queue.Queue" = queue.Queue()   # LOG_ENTRY / LOG_DATA, drained by px4/logs.py
+        self.log_chunks: "queue.Queue" = queue.Queue()
         self.last_rx_time = 0.0
         self._qgc_sock = None
         self._qgc_addr = None
@@ -211,14 +224,212 @@ class PX4Link:
 
     # Listening to a real flight: the streams that say where the aircraft is and what its motors are doing,
     # at a rate the graph can use. Nothing is written to the vehicle beyond asking for these.
-    FLIGHT_RATES_HZ = {30: 25, 31: 25, 32: 25, 105: 20, 36: 10, 291: 5, 147: 2, 74: 5, 24: 2, 33: 5}
-    #                  ATTITUDE, ATT_QUAT, LOCAL_POS, HIGHRES_IMU, SERVO_OUT, ESC_STATUS, BATTERY, VFR_HUD, GPS, GLOBAL_POS
+    # A SiK radio reports its own signal strength over the same link. It is not the aircraft.
+    RADIO_OWN = ("RADIO_STATUS", "RADIO")
+
+    # On a cable there is no reason to be shy: USB carries ~92 kB/s and this is ~12. Pose at 50 Hz is as
+    # fast as the recorder keeps it, so nothing below is thrown away.
+    FLIGHT_RATES_HZ = {30: 50, 31: 50, 32: 50, 105: 50, 375: 20, 106: 20, 132: 10, 141: 5,
+                       291: 5, 147: 2, 74: 5, 24: 2, 33: 5}
+    #                  ..., OPTICAL_FLOW_RAD, DISTANCE_SENSOR, ALTITUDE
+    #                  ATTITUDE, ATT_QUAT, LOCAL_POS, HIGHRES_IMU, ACTUATOR_OUT, ESC_STATUS, BATTERY, VFR_HUD, GPS, GLOBAL_POS
+    # 375 is ACTUATOR_OUTPUT_STATUS, which is what `board_motors` reads and therefore what fills the motor
+    # columns of a real flight. SERVO_OUTPUT_RAW (36) was asked for instead and is not read by anything.
+
+    # What each of those costs on the wire, bytes per message including MAVLink v2 framing. Close enough to
+    # divide a link up with: the point is the ratio between a 148-byte actuator report and a 32-byte VFR_HUD.
+    MSG_BYTES = {30: 40, 31: 46, 32: 40, 105: 74, 375: 148, 106: 56, 132: 50, 141: 44,
+                 291: 60, 147: 66, 74: 32, 24: 64, 33: 40}
+
+    # When there is not enough link for all of it, this is the order things are given up in: the last one
+    # standing is where the aircraft is and which way it is pointing, because that is the 3D view and the
+    # graph. ATTITUDE goes first and always - the quaternion beside it says the same thing.
+    GIVE_UP_ORDER = [30, 24, 291, 147, 105, 141, 74, 33, 132, 106, 375, 31, 32]
+
+    # Enough of each to be worth having at all, and then the order the rest of the link is spent in.
+    # Position and attitude rise together, because a pose is both of them at the same instant.
+    # Enough of each to be worth having at all. Kept small, because a floor is money taken from the pose
+    # before anything is decided, and on a radio there is not much money.
+    FLOOR_HZ = {30: 0, 32: 5, 31: 5, 106: 2, 375: 1, 132: 1, 147: 1, 141: 1, 74: 1, 33: 1, 105: 0, 291: 0, 24: 0}
+
+    # Then the rest of the link is spent in this order, each step up to the rate beside it (None = as much
+    # as a cable would get). Position and attitude rise together - a pose is both at the same instant -
+    # first to something you can fly a view with, then the H-flow to something you can see tracking in,
+    # then the motors, and only after all that does the pose climb towards the cable's rate.
+    CORE = (32, 31)                 # where it is and which way it is pointing: the pose, and it rises as one
+    SPEND_ORDER = [((32, 31), 10), ((106,), 10), ((375,), 2), ((132,), 2), ((32, 31), None), ((105,), None),
+                   ((33,), None), ((74,), None), ((141,), None), ((291,), None), ((147,), None), ((24,), None)]
+
+    # What PX4 sends down a telemetry link without being asked, and this app never reads. On a radio it is
+    # a third of the traffic - the graph is choppy because the link is busy carrying RC channels and
+    # mission status - so when the budget is tight these are switched off by name. Anything the app does
+    # use (STATUSTEXT, COMMAND_ACK, PARAM_VALUE, HEARTBEAT, the streams above) is never touched.
+    SILENCE_ON_RADIO = {65: "RC_CHANNELS", 36: "SERVO_OUTPUT_RAW", 42: "MISSION_CURRENT",
+                        245: "EXTENDED_SYS_STATE", 29: "SCALED_PRESSURE", 230: "ESTIMATOR_STATUS",
+                        241: "VIBRATION", 83: "ATTITUDE_TARGET", 85: "POSITION_TARGET_LOCAL_NED",
+                        87: "POSITION_TARGET_GLOBAL_INT", 62: "NAV_CONTROLLER_OUTPUT", 331: "ODOMETRY",
+                        242: "HOME_POSITION", 26: "SCALED_IMU", 140: "ACTUATOR_CONTROL_TARGET",
+                        25: "GPS_STATUS", 250: "DEBUG_VECT", 61: "ATTITUDE_QUATERNION_COV"}
+
+    SLOW_LINK_BAUD = 115200          # at or below this, the far end is a radio, not a board on a cable
+    SHARES = {"light": 0.12, "balanced": 0.28, "full": 0.45}
+    # As much of a narrow link as the telemetry can have without the link falling over. The measured rate
+    # sits next to the dial, so when it starts falling short of what was asked you can see it and step
+    # down; starting low only hides resolution that was there for the taking.
+    share = "full"
+
+    def board_send_cap(self) -> float:
+        """Bytes per second the *aircraft* will put on this port, whatever we ask for.
+
+        PX4 caps each MAVLink instance at `MAV_<n>_RATE` and simply does not send what does not fit; the
+        streams that lose are the big ones, so asking a board capped at 1200 B/s for a 2.5 kB/s pose
+        leaves you with the cheap messages arriving and the position and attitude never turning up at all.
+        Read once per link: it is a parameter, not a measurement.
+        """
+        if self._mav_rate is None and self.ctl_connected:
+            try:
+                # Which MAVLink instance is ours is not something the protocol says, and guessing wrong
+                # reads another port's cap: the board's own status names the one that can hear us.
+                import re
+                out = self.shell("mavlink status", timeout=6.0)
+                mine = None
+                for n, body in re.findall(r"instance #(\d+):(.*?)(?=instance #|\Z)", out, re.S):
+                    if "GCS heartbeat valid" in body:
+                        mine = int(n)
+                        break
+                if mine is None:
+                    return 0.0                      # no answer: ask again next time rather than assume
+                rate = self.get_param(f"MAV_{mine}_RATE", timeout=3.0)
+                if rate is None:
+                    return 0.0
+                # 0 means PX4 picks baud/20 for itself, which is more than a radio carries anyway
+                self._mav_rate = float(rate["value"]) if float(rate["value"]) > 0 else 0.0
+                if self._mav_rate:
+                    self.log(f"[link] the aircraft will send at most {self._mav_rate:.0f} B/s on this port "
+                             f"(MAV_{mine}_RATE); asking for no more than that")
+                else:
+                    self.log(f"[link] the aircraft sets no limit of its own on this port (MAV_{mine}_RATE = 0)")
+            except Exception:
+                pass
+        return self._mav_rate or 0.0
+
+    def link_budget_bps(self) -> float | None:
+        """Bytes per second the telemetry may use, or None for a cable (which is not the bottleneck).
+
+        A serial line carries baud/10 bytes a second and a radio carries rather less than its serial side
+        suggests, so only a fraction of it is handed out. Fill the line and nothing is lost exactly - it
+        queues, and arrives a second late, which is worse: the graph lies about when things happened.
+        """
+        if not (self.mode == "hitl" and self.baud and int(self.baud) <= self.SLOW_LINK_BAUD):
+            return None
+        ours = (int(self.baud) / 10.0) * self.SHARES.get(self.share, self.SHARES["balanced"])
+        cap = float(self._mav_rate or 0.0)   # what the aircraft is willing to send, when it has told us
+        return min(ours, cap) if cap else ours
+
+    def flight_rates(self) -> dict[int, float]:
+        """The streams to ask the aircraft for, scaled to what the link can actually carry."""
+        budget = self.link_budget_bps()
+        if budget is None:
+            return dict(self.FLIGHT_RATES_HZ)
+        wish = self.FLIGHT_RATES_HZ
+        rates = {m: 0.0 for m in wish}
+        cost = lambda: sum(self.MSG_BYTES[m] * hz for m, hz in rates.items())      # noqa: E731
+        # The pose comes first and comes whole: a position without the attitude of the same instant is not
+        # a pose, and the two have to be asked for at the same rate or the 3D view stutters between them.
+        for m in self.CORE:
+            rates[m] = float(min(self.FLOOR_HZ.get(m, 1), wish[m]))
+        if cost() > budget:                            # narrower than even that: shrink the pair together
+            k = budget / cost()
+            for m in self.CORE:
+                rates[m] = max(0.5, int(rates[m] * k * 2) / 2)      # down to the half hertz, never up
+        for m in reversed(self.GIVE_UP_ORDER):         # then the extras, inside their share of the link
+            hz = float(min(self.FLOOR_HZ.get(m, 1), wish[m]))
+            if m in self.CORE or not hz:
+                continue
+            if cost() + self.MSG_BYTES[m] * hz <= 0.6 * budget:
+                rates[m] = hz
+        for group, cap in self.SPEND_ORDER:            # then the rest of the link, in that order
+            top = {m: (wish[m] if cap is None else min(cap, wish[m])) for m in group}
+            step = 0.5 * sum(self.MSG_BYTES[m] for m in group)
+            while cost() + step <= budget and all(rates[m] + 0.5 <= top[m] for m in group):
+                for m in group:
+                    rates[m] += 0.5
+        return rates
+
+    def set_message_interval(self, msg_id: int, hz: float, timeout: float = 1.5, retries: int = 3) -> bool:
+        """Ask for one stream at one rate, and make sure the aircraft heard.
+
+        Over a radio this matters more than anything else here. The commands used to go out in a burst of
+        twenty in half a second; a radio drops most of them, there is no retry in MAV_CMD_SET_MESSAGE_
+        INTERVAL, and a stream that never heard keeps whatever rate PX4 booted with - so the link stays
+        full of things nobody reads while the pose arrives twice a second. PX4 acknowledges every one of
+        these, so each is sent, waited for, and sent again if the answer does not come.
+        """
+        interval = -1.0 if hz <= 0 else 1e6 / hz
+        self._last_interval_id = int(msg_id)
+        for _ in range(retries):
+            self.last_ack = {}
+            self.send_command_long(mavlink.MAV_CMD_SET_MESSAGE_INTERVAL, float(msg_id), interval)
+            t0 = time.time()
+            while time.time() - t0 < timeout:
+                ack = self.last_ack
+                if ack.get("command") == mavlink.MAV_CMD_SET_MESSAGE_INTERVAL:
+                    return ack.get("result") == 0
+                time.sleep(0.02)
+        return False
 
     def request_flight_telemetry(self) -> None:
-        for msg_id, hz in self.FLIGHT_RATES_HZ.items():
-            self.send_command_long(mavlink.MAV_CMD_SET_MESSAGE_INTERVAL, float(msg_id), 1e6 / hz)
-            time.sleep(0.02)
-        self.log("[link] asked the aircraft for position, attitude and motor telemetry")
+        if self.mode == "hitl" and self.baud and int(self.baud) <= self.SLOW_LINK_BAUD:
+            self.board_send_cap()          # ask the aircraft its own limit before dividing the link up
+        rates = self.flight_rates()
+        budget = self.link_budget_bps()
+        wanted = dict(rates)
+        if budget is not None:
+            # Silence only what is actually arriving and nobody reads. A blind list of twenty is twenty
+            # round trips down a link that has no room for them, and most of it was never being sent.
+            seen = {t for t, n in self.rx_types.items() if n}
+            wanted.update({m: 0.0 for m, name in self.SILENCE_ON_RADIO.items()
+                           if m not in rates and name in seen})
+        missed = [m for m, hz in wanted.items() if not self.set_message_interval(m, hz)]
+        self.asked_rates = {m: hz for m, hz in wanted.items() if m in self.MSG_BYTES}
+        asked = sum(self.MSG_BYTES[m] * hz for m, hz in self.asked_rates.items())
+        self.log("[link] asked the aircraft for position, attitude and motor telemetry"
+                 + (f" at {self.share} radio rates: {asked:.0f} B/s of the {budget:.0f} B/s this link is given"
+                    if budget else "")
+                 + (f"; {len(missed)} of {len(wanted)} requests went unanswered" if missed else ""))
+
+    def measured_rate(self) -> dict:
+        """What is actually arriving, averaged over the last second or so. Asked-for and received are two
+        different numbers over a radio, and the gap between them is the whole story."""
+        t, n, b = self._rate_mark
+        dt = time.time() - t
+        if dt >= 1.0:
+            self._rate = {"msg_s": round((self.rx_count - n) / dt, 1), "bytes_s": round((self.rx_bytes - b) / dt)}
+            self._rate_mark = (time.time(), self.rx_count, self.rx_bytes)
+        return dict(self._rate)
+
+    def quiet_streams(self) -> None:
+        """Stop the telemetry for a moment. A parameter write is a question and an answer, and over a radio
+        it waits behind whatever is already queued; nothing is worth more than the write going through."""
+        for msg_id, hz in (self.asked_rates or self.FLIGHT_RATES_HZ).items():
+            if hz:
+                self.set_message_interval(msg_id, 0, timeout=1.0, retries=2)
+        self.log("[link] telemetry paused while the parameters go out")
+
+    def _own_radio(self, msg, t: str) -> bool:
+        """The telemetry radio on this computer talking about itself, rather than the aircraft.
+
+        A SiK radio sends RADIO_STATUS whether or not anything is on the far end. Taking that for the
+        aircraft would light the link green over an empty sky and - worse - address every command to the
+        radio's own system id. Its signal numbers are worth keeping, so they are kept here.
+        """
+        if t not in self.RADIO_OWN:
+            return False
+        self.radio = {"rssi": getattr(msg, "rssi", None), "remrssi": getattr(msg, "remrssi", None),
+                      "noise": getattr(msg, "noise", None), "txbuf": getattr(msg, "txbuf", None),
+                      "t": time.time()}
+        return True
+
 
     @property
     def listening(self) -> bool:
@@ -370,6 +581,14 @@ class PX4Link:
                     self.log(f"[link] {name} lost")
                 continue
             self.rx_count += 1
+            try:
+                self.rx_bytes += len(msg.get_msgbuf())
+            except Exception:
+                pass
+            t = msg.get_type()
+            self.rx_types[t] = self.rx_types.get(t, 0) + 1
+            if self._own_radio(msg, t):
+                continue
             if is_hil:
                 self.last_rx_time = time.time()
                 if not self.connected:
@@ -381,8 +600,6 @@ class PX4Link:
                     self.ctl_connected = True
                     self.target_system = msg.get_srcSystem()
                     self.log(f"[link] PX4 {name} up (sysid {msg.get_srcSystem()} compid {msg.get_srcComponent()})")
-            t = msg.get_type()
-            self.rx_types[t] = self.rx_types.get(t, 0) + 1
             if t == "HIL_ACTUATOR_CONTROLS":
                 with self._act_cond:
                     self.actuators = list(msg.controls)
@@ -415,6 +632,26 @@ class PX4Link:
                                         rates=[msg.rollspeed, msg.pitchspeed, msg.yawspeed], t_att=time.time())
             elif t == "LOCAL_POSITION_NED":
                 self.board_state.update(pos=[msg.x, msg.y, msg.z], vel=[msg.vx, msg.vy, msg.vz], t_pos=time.time())
+            elif t == "OPTICAL_FLOW_RAD":
+                # The same quantity the simulator sends as HIL_OPTICAL_FLOW, turned into a rate the same
+                # way (sensors/models.py), so the flow columns mean one thing whether a run was flown here
+                # or out there: the negated line-of-sight rate, in the sensor's own axes.
+                span = max(1e-6, float(msg.integration_time_us) * 1e-6)
+                self.board_flow = {"rate": (-float(msg.integrated_x) / span, -float(msg.integrated_y) / span),
+                                   "quality": float(msg.quality), "range": float(msg.distance),
+                                   "gyro": [float(msg.integrated_xgyro) / span, float(msg.integrated_ygyro) / span,
+                                            float(msg.integrated_zgyro) / span], "t": time.time()}
+            elif t == "DISTANCE_SENSOR":
+                self.board_range = {"m": float(msg.current_distance) / 100.0, "t": time.time(),
+                                    "min": float(msg.min_distance) / 100.0, "max": float(msg.max_distance) / 100.0}
+            elif t == "ALTITUDE":
+                self.board_alt = {"relative": float(msg.altitude_relative), "amsl": float(msg.altitude_amsl),
+                                  "terrain": float(msg.altitude_terrain), "t": time.time()}
+            elif t == "LOG_ENTRY":
+                self.log_entries.put({"id": msg.id, "num_logs": msg.num_logs, "last_log_num": msg.last_log_num,
+                                      "time_utc": msg.time_utc, "size": msg.size})
+            elif t == "LOG_DATA":
+                self.log_chunks.put({"id": msg.id, "ofs": msg.ofs, "data": bytes(bytearray(msg.data)[:msg.count])})
             elif t == "ACTUATOR_OUTPUT_STATUS":
                 self.board_motors = [float(v) for v in list(msg.actuator)[:max(0, int(msg.active))]]
 
@@ -435,7 +672,12 @@ class PX4Link:
                          5: "in progress", 6: "cancelled"}
                 cmds = {400: "arm/disarm", 176: "set mode", 22: "takeoff", 21: "land", 246: "reboot", 245: "save params"}
                 self.last_ack = {"command": msg.command, "result": msg.result, "t": time.time()}
-                if msg.result != 0:
+                if msg.result != 0 and msg.command == mavlink.MAV_CMD_SET_MESSAGE_INTERVAL:
+                    # A stream this firmware has not got. Worth one quiet line naming it, not an error:
+                    # the app asks for a few that only newer PX4 builds publish.
+                    self.log(f"[link] this firmware does not stream message {self._last_interval_id} "
+                             f"({names.get(msg.result, msg.result)})")
+                elif msg.result != 0:
                     self.log(f"[px4] command {cmds.get(msg.command, msg.command)} {names.get(msg.result, msg.result)}")
             elif t == "AUTOPILOT_VERSION":
                 v = msg.flight_sw_version
@@ -599,14 +841,87 @@ class PX4Link:
         return {"name": name, "ok": False, "error": "no matching PARAM_VALUE ack",
                 "value": self._param_set_result.get(name, {}).get("value")}
 
-    def set_params(self, values: dict[str, float | int], progress: Callable[[str, dict], None] | None = None) -> list[dict]:
-        results = []
-        for k, v in values.items():
-            r = self.set_param(k, v)
-            results.append(r)
+    def set_params(self, values: dict[str, float | int], progress: Callable[[str, dict], None] | None = None,
+                   timeout: float = 2.0, pace: float | None = None) -> list[dict]:
+        """Write them all, pipelined.
+
+        One at a time is one round trip each, and over a radio a hundred parameters is a minute of
+        waiting with nothing to look at. PX4 echoes every accepted PARAM_SET as a PARAM_VALUE whether or
+        not anyone is waiting for it, so the writes go out as a paced stream and the echoes are collected
+        as they arrive; whatever has not echoed when the stream ends is sent again, twice. Same result,
+        a fraction of the wall clock, and `progress` fires as each one lands so it can be counted.
+
+        A type has to be right or PX4 refuses the write (it answers with an error, not an echo): the one
+        this link has already seen is used, and otherwise int for an int and float for a float, which is
+        the same rule the .params export has always used.
+        """
+        want: dict[str, tuple[float, int, float]] = {}
+        done: dict[str, dict] = {}
+        pace = pace if pace is not None else (0.04 if self.link_budget_bps() else 0.004)
+
+        def plan(name, ptype):
+            """How this one goes on the wire: PX4 carries an int32 in the float's bits."""
+            v = values[name]
+            if ptype == PARAM_TYPE_INT32:
+                target = int(round(float(v)))
+                want[name] = (_int_bits_to_float(target), ptype, target)
+            else:
+                want[name] = (float(v), ptype, float(v))
+
+        for name, v in values.items():
+            info = self.params.get(name)
+            plan(name, info["type"] if info else (PARAM_TYPE_INT32 if isinstance(v, (bool, int)) else PARAM_TYPE_REAL32))
+
+        todo = list(values)
+        for attempt in range(3):
+            if not todo:
+                break
+            if attempt:
+                # Whatever did not echo was most likely refused for its type: PX4 rejects a float sent as
+                # an int outright (MPC_MAN_TILT_MAX set to 12 is an int in Python and a float on the
+                # board). Ask what it really is - only for the few that failed - and send it again.
+                for name in list(todo):
+                    info = self.get_param(name, timeout=2.0)
+                    if info is None:
+                        done[name] = {"name": name, "ok": False,
+                                      "error": "this firmware has no parameter of that name"}
+                        if progress:
+                            progress(name, done[name])
+                        todo.remove(name)
+                        continue
+                    plan(name, info["type"])
+            for name in todo:
+                wire, ptype, _ = want[name]
+                self._param_set_result.pop(name, None)
+                with self._ctl_lock:
+                    self.ctl.mav.param_set_send(self.target_system, self.target_component,
+                                                name.encode()[:16], wire, ptype)
+                time.sleep(pace)
+            deadline = time.time() + timeout + pace * len(todo)
+            while time.time() < deadline and len(done) < len(values):
+                for name in list(todo):
+                    if name in done:
+                        continue
+                    res = self._param_set_result.get(name)
+                    if res is None:
+                        continue
+                    _, ptype, target = want[name]
+                    got = res["value"]
+                    ok = (got == target) if ptype == PARAM_TYPE_INT32 else abs(float(got) - target) <= 1e-5 * max(1.0, abs(target))
+                    done[name] = ({"name": name, "ok": True, "value": got} if ok else
+                                  {"name": name, "ok": False, "value": got, "error": f"the aircraft kept {got}"})
+                    if progress:
+                        progress(name, done[name])
+                if all(n in done for n in todo):
+                    break
+                time.sleep(0.01)
+            todo = [n for n in todo if n not in done]
+        for name in todo:
+            done[name] = {"name": name, "ok": False, "error": "no answer from the aircraft (unknown parameter, "
+                                                             "read-only, or the wrong type for this firmware)"}
             if progress:
-                progress(k, r)
-        return results
+                progress(name, done[name])
+        return [done[name] for name in values]
 
     # --------------------------------------------------------------- commands
     def shell(self, command: str, timeout: float = 3.0, idle: float = 0.4) -> str:
@@ -654,6 +969,19 @@ class PX4Link:
     def request_autopilot_version(self) -> None:
         self.send_command_long(mavlink.MAV_CMD_REQUEST_MESSAGE, float(mavlink.MAVLINK_MSG_ID_AUTOPILOT_VERSION))
 
+    # ----------------------------------------------------------------- the board's own flight logs
+    def send_log_request_list(self, start: int = 0, end: int = 0xFFFF) -> None:
+        with self._ctl_lock:
+            self.ctl.mav.log_request_list_send(self.target_system, self.target_component, start, end)
+
+    def send_log_request_data(self, log_id: int, ofs: int, count: int) -> None:
+        with self._ctl_lock:
+            self.ctl.mav.log_request_data_send(self.target_system, self.target_component, log_id, ofs, count)
+
+    def send_log_request_end(self) -> None:
+        with self._ctl_lock:
+            self.ctl.mav.log_request_end_send(self.target_system, self.target_component)
+
     def preflight_storage(self, save: bool = True) -> None:
         """MAV_CMD_PREFLIGHT_STORAGE: 1 = write params to storage."""
         self.send_command_long(mavlink.MAV_CMD_PREFLIGHT_STORAGE, 1.0 if save else 0.0)
@@ -697,6 +1025,11 @@ class PX4Link:
             "rx_types": dict(sorted(self.rx_types.items(), key=lambda kv: -kv[1])[:25]),
             "events": [e for e in list(self.recent_events)[-12:]],
             "listening": self.listening,
+            "radio": dict(self.radio, age=round(time.time() - self.radio["t"], 2)) if self.radio else None,
+            "telemetry": {**self.measured_rate(), "share": self.share, "budget_bps": self.link_budget_bps(),
+                          "board_cap_bps": self._mav_rate or 0,
+                          "asked_bps": round(sum(self.MSG_BYTES.get(m, 40) * hz for m, hz in self.asked_rates.items())),
+                          "asked": {str(m): hz for m, hz in self.asked_rates.items() if hz}},
             # how long ago the aircraft last said where it is: a real flight is only "working" while this
             # keeps arriving, and over a radio it is the first thing to go
             "telemetry_age": round(time.time() - max(self.board_state.get("t_pos", 0.0),

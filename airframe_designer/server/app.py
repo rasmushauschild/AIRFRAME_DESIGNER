@@ -6,6 +6,7 @@ import json
 import re
 import shutil
 import subprocess
+import threading
 import time
 from collections import deque
 from pathlib import Path
@@ -67,6 +68,19 @@ def json_safe(x):
     return x
 
 
+class SafeJSON(JSONResponse):
+    """Every response goes out as JSON a browser can actually parse.
+
+    A single non-finite float - a rate before the first sample, a telemetry field the aircraft has not
+    filled in - makes the encoder refuse the whole response, and what reaches the user is "Internal Server
+    Error" with no clue which number it was. There is a `json_safe` call at most of the places that can
+    produce one; this is the place that cannot be forgotten.
+    """
+
+    def render(self, content) -> bytes:
+        return json.dumps(json_safe(content), ensure_ascii=False, allow_nan=False, separators=(",", ":")).encode("utf-8")
+
+
 class _NoLink:
     """Stand-in while no PX4 link exists so the endpoints degrade gracefully."""
     mode = "none"
@@ -106,7 +120,7 @@ class AppState:
 
 
 def build_app(state: AppState) -> FastAPI:
-    app = FastAPI(title="AIRFRAME_DESIGNER")
+    app = FastAPI(title="AIRFRAME_DESIGNER", default_response_class=SafeJSON)
     app.mount("/static", StaticFiles(directory=str(UI_DIR)), name="static")
 
     @app.middleware("http")
@@ -120,8 +134,18 @@ def build_app(state: AppState) -> FastAPI:
     sim = state.simulator
 
     class _LinkProxy:
+        """Always the current link, for reading *and* writing.
+
+        Without the setter, `link.share = x` quietly lands on the proxy and the real link never hears it -
+        the attribute is then shadowed for the rest of the session, because __getattr__ is only consulted
+        when normal lookup fails.
+        """
+
         def __getattr__(self, name):
             return getattr(state.link, name)
+
+        def __setattr__(self, name, value):
+            setattr(state.link, name, value)
 
     link = _LinkProxy()   # always resolves to the current link
 
@@ -204,7 +228,7 @@ def build_app(state: AppState) -> FastAPI:
 
     # ----------------------------------------------------------- airframe
     AUTOSAVE = AIRFRAME_DIR / "_autosave.json"
-    _autosave_t = [0.0]
+    _autosave = {"t": 0.0, "timer": None}
 
     def preset_path_for(name: str) -> Path:
         slug = re.sub(r"[^a-z0-9]+", "_", (name or "").strip().lower()).strip("_")
@@ -221,16 +245,29 @@ def build_app(state: AppState) -> FastAPI:
         There is no Save button and no unsaved state: the file on disk is always what the app is flying. A
         version is a different thing entirely, taken on purpose and pushed to GitHub, and never overwritten
         by this.
+
+        An edit that lands inside that half second is not dropped, it is held: the last change in a burst -
+        the checkbox you ticked and then stopped touching - is exactly the one that must reach the disk.
         """
-        now = time.time()
-        if now - _autosave_t[0] < 0.5:
+        def write() -> None:
+            _autosave["t"] = time.time()
+            _autosave["timer"] = None
+            try:
+                AIRFRAME_DIR.mkdir(exist_ok=True)
+                af.save(preset_path(af))
+            except Exception as e:
+                state.log(f"[ui] autosave failed: {e}")
+
+        if _autosave["timer"] is not None:
+            _autosave["timer"].cancel()                  # a newer edit replaces the one waiting
+            _autosave["timer"] = None
+        wait = 0.5 - (time.time() - _autosave["t"])
+        if wait <= 0:
+            write()
             return
-        _autosave_t[0] = now
-        try:
-            AIRFRAME_DIR.mkdir(exist_ok=True)
-            af.save(preset_path(af))
-        except Exception as e:
-            state.log(f"[ui] autosave failed: {e}")
+        _autosave["timer"] = threading.Timer(wait, write)
+        _autosave["timer"].daemon = True
+        _autosave["timer"].start()
 
     @app.get("/api/airframe")
     async def get_airframe():
@@ -255,6 +292,15 @@ def build_app(state: AppState) -> FastAPI:
     @app.get("/api/airframe/hover_check")
     async def hover_check():
         return json_safe(sim.airframe.hover_check())
+
+    @app.get("/api/airframe/mount_margin")
+    async def mount_margin():
+        """How far each rotor could be mounted out of true, and what the aircraft as built can do now.
+
+        Tens of milliseconds of arithmetic on a copy of the rotors, so it is asked for when the section
+        that shows it is open, not on every poll.
+        """
+        return json_safe(await run_in_threadpool(sim.airframe.mount_margin))
 
     @app.get("/api/airframes")
     async def list_airframes():
@@ -566,6 +612,7 @@ def build_app(state: AppState) -> FastAPI:
     async def connect(body: dict):
         mode = body.get("mode", "sitl")
         sim.paused = False          # a paused loop sends PX4 nothing; connecting while paused can only fail
+        sim.recorder.sample_hz = 20.0      # the simulation's own rate; only a real flight on a cable beats it
         if mode == "hitl":
             r = await run_in_threadpool(state.conn.connect_hitl, body.get("serial"), body.get("baud"))
         else:
@@ -579,22 +626,81 @@ def build_app(state: AppState) -> FastAPI:
         The simulator stops being the aircraft's world the moment this is on - `PX4Link.listening` - and the
         loop follows the telemetry instead of its own physics."""
         dev = body.get("serial") or None
-        # A telemetry radio is a plain serial port at 57600 unless told otherwise; a Pixhawk on USB takes
-        # whatever the box says. Guessing wrong here looks exactly like "no link", so it is worth guessing.
-        baud = body.get("baud")
-        if dev and not baud:
-            looks_px4 = any(p["device"] == dev and p["likely_px4"] for p in state.conn.list_ports_cached())
-            baud = None if looks_px4 else 57600
+        baud = body.get("baud")          # left out = let the port decide (ConnectionManager.port_baud)
         if state.conn.mode != "hitl" or not link.ctl_connected or dev:
             r = await run_in_threadpool(state.conn.connect_hitl, dev, baud)
         else:
             r = state.conn.status()
         state.link.block_hil = True
+        sim.paused = False                 # the loop is what follows the telemetry: a paused app watches nothing
+        # A cable can feed the recorder as fast as it keeps samples; a radio cannot, and sampling faster
+        # than the aircraft speaks only writes the same number down five times. The cost of the fast one
+        # is the session buffer: 120k samples is 40 minutes at 50 Hz instead of 100 at 20.
+        sim.recorder.sample_hz = 20.0 if link.link_budget_bps() else 50.0
         sim.motor_override = None
         sim.stop_nose_lift()
         await run_in_threadpool(state.link.request_flight_telemetry)
         state.log("[link] real flight: the simulator is only listening; no sensors are sent to the aircraft")
         return r
+
+    # ------------------------------------------------- the switch: one press, whatever it takes
+    mode_job: dict = {"thread": None}
+
+    @app.post("/api/connection/mode")
+    async def set_mode(body: dict):
+        """SITL, HITL or FLIGHT, arranged in the background so the click never waits on a reboot.
+
+        The simulator's own housekeeping belongs here rather than in the connection manager: what the loop
+        does with the link is this app's business, not the board's.
+        """
+        mode = str(body.get("mode", ""))
+        if mode not in ("sitl", "hitl", "real"):
+            return JSONResponse({"ok": False, "error": "mode must be sitl, hitl or real"}, status_code=400)
+        if mode == "real" and not body.get("confirmed", True):
+            return JSONResponse({"ok": False, "error": "not confirmed"}, status_code=409)
+        state.conn._mode_gen += 1
+        gen = state.conn._mode_gen
+        dev = body.get("serial") or None
+        baud = body.get("baud")
+        sim.paused = False                 # a paused loop neither flies the simulation nor follows a flight
+        sim.motor_override = None
+        sim.stop_nose_lift()
+        cancel_live("mode change")
+
+        def work():
+            r = state.conn.set_mode(mode, dev, baud, gen=gen)
+            if gen != state.conn._mode_gen:
+                return                     # someone pressed something else; their job owns the state now
+            if r.get("ok") and mode == "real":
+                state.link.block_hil = True
+                sim.recorder.sample_hz = 20.0 if state.link.link_budget_bps() else 50.0
+                state.log("[link] real flight: the simulator is only listening; no sensors are sent to the aircraft")
+            elif r.get("ok"):
+                sim.recorder.sample_hz = 20.0
+
+        t = threading.Thread(target=work, name=f"mode-{mode}", daemon=True)
+        mode_job["thread"] = t
+        t.start()
+        return {"ok": True, "job": state.conn.mode_state()}
+
+    @app.get("/api/connection/mode")
+    async def get_mode():
+        return {"ok": True, "job": state.conn.mode_state()}
+
+    @app.post("/api/connection/telemetry")  # noqa: E301
+    async def set_telemetry(body: dict):
+        """How much of a narrow link the telemetry may have: light, balanced or full.
+
+        Over a radio this is the resolution dial. The rates are worked out from the link's own speed, so
+        the same choice means more on a faster radio.
+        """
+        share = str(body.get("share", "balanced"))
+        if share not in link.SHARES:
+            return JSONResponse({"ok": False, "error": f"share must be one of {', '.join(link.SHARES)}"}, status_code=400)
+        link.share = share
+        if link.listening and link.ctl_connected:      # HITL has its own streams; this is the real-flight one
+            await run_in_threadpool(link.request_flight_telemetry)
+        return {"ok": True, "telemetry": link.status().get("telemetry")}
 
     @app.post("/api/connection/disconnect")
     async def disconnect():
@@ -652,6 +758,32 @@ def build_app(state: AppState) -> FastAPI:
             return None
         return p
 
+    @app.post("/api/firmware/modules/enable")
+    async def firmware_module_enable(body: dict):
+        """Switch a firmware module on or off for this design.
+
+        Off means two things and the second is the point: the build stops being the only question, and the
+        module's parameters leave the export - so the Parameters table stops showing settings for a module
+        this aircraft does not use. The names come from the module's own params.yaml and are kept with the
+        design, so the export is the same wherever it runs.
+        """
+        d = str(body.get("dir", ""))
+        on = bool(body.get("on", True))
+        groups = firmware_modules()["groups"]
+        g = next((x for x in groups if x.get("dir") == d and x.get("kind") == "module"), None)
+        if g is None:
+            return JSONResponse({"ok": False, "error": f"no module at {d}"}, status_code=404)
+        off = dict(sim.airframe.design.get("modules_off") or {})
+        if on:
+            off.pop(d, None)
+        else:
+            off[d] = list(g.get("params") or [])
+        sim.airframe.design["modules_off"] = off
+        autosave(sim.airframe)
+        state.log(f"[firmware] {g['name']} is {'in' if on else 'not in'} this design"
+                  + ("" if on else f" ({len(off[d])} parameters leave the export)"))
+        return {"ok": True, "modules_off": off}
+
     @app.get("/api/firmware/modules")
     def firmware_modules():
         """The custom modules in firmware/atlas, with their sources.
@@ -674,6 +806,7 @@ def build_app(state: AppState) -> FastAPI:
             src = "\n".join((FW_ROOT / f).read_text(errors="replace") for f in files if f.endswith((".cpp", ".hpp", ".h")))
             groups.append({"kind": "module", "name": d.name, "module": str(name),
                            "dir": str(d.relative_to(FW_ROOT)), "files": files,
+                           "enabled": str(d.relative_to(FW_ROOT)) not in (sim.airframe.design.get("modules_off") or {}),
                            "user_command": "MAV_CMD_USER_1" in src,
                            "params": sorted({m for m in re.findall(r"^\s{0,4}([A-Z][A-Z0-9_]{2,15}):", 
                                                                    (d / "params.yaml").read_text(errors="replace"), re.M)})
@@ -973,12 +1106,41 @@ target_link_libraries(external__{name} PRIVATE px4_work_queue)
 
     @app.get("/api/px4/export")
     async def get_export():
-        params = export_params()
+        try:
+            params = export_params()
+        except ValueError as e:
+            # A design the real-flight set cannot be built for (motors not wired to ports yet, more motors
+            # than the board has outputs). That is a sentence to read, not a 500 to stare at.
+            return JSONResponse({"ok": False, "error": str(e), "params": {}, "current": {}, "overrides": {},
+                                 "geometry_keys": [], "file": "",
+                                 "problems": [str(e)] + sim.airframe.validate()}, status_code=409)
         current = {k: link.params.get(k, {}).get("value") for k in params}
         ov = sim.airframe.px4_overrides or {}
+        geometry = sim.airframe.px4_params(hitl=link.mode == "hitl", overrides=False)
         return json_safe({"params": params, "current": current, "problems": sim.airframe.validate() + sim.airframe.hover_check()["problems"],
                 "file": "\n".join(["# AIRFRAME_DESIGNER parameters", *[f"1\t1\t{k}\t{v}\t{6 if isinstance(v, int) else 9}" for k, v in export_params().items()]]) + "\n",
-                "overrides": ov, "geometry_keys": [k for k in params if k not in ov]})
+                # "geometry dependent" is not a curated list: it is exactly the set the design works out
+                # and keeps working out, so a row sits in that section whether or not you have taken it
+                # over, and the value beside it is what the geometry would say if you had not.
+                "overrides": ov, "geometry": geometry, "geometry_keys": [k for k in geometry if k not in ov],
+                # parameters of a module this design has switched off: not exported, and not shown either -
+                # the value is kept, so switching the module back on brings it back as it was
+                "modules_off": sorted(sim.airframe.modules_off_params()),
+                # and what the same design is when it is a real aircraft rather than a simulation, so a
+                # row can say "this one is not what you will be flying" before you find out in the air
+                **flight_view()})
+
+    def flight_view() -> dict:
+        """The real-flight set beside the simulator's, and why each parameter is or is not in both."""
+        from ..px4.real_flight import flight_note, flight_params
+        sitl = sim.airframe.px4_params_sitl()
+        try:
+            flight = flight_params(sim.airframe)
+            error = ""
+        except ValueError as e:
+            flight, error = {}, str(e)
+        return {"flight": flight, "flight_error": error, "sitl": sitl,
+                "flight_notes": {k: flight_note(k) for k in sitl if k not in flight}}
 
     @app.get("/api/px4/export.params")
     async def get_export_file():
@@ -995,48 +1157,63 @@ target_link_libraries(external__{name} PRIVATE px4_work_queue)
         r = await run_in_threadpool(state.conn.update_firmware, (body or {}).get("relaunch", True))
         return r if r.get("ok") else JSONResponse(r, status_code=500)
 
+    push_job: dict = {"total": 0, "done": 0, "failed": 0, "running": False, "step": ""}
+
     @app.post("/api/px4/push")
     async def push_params(body: dict | None = None):
         body = body or {}
+        push_job.update(total=0, done=0, failed=0, running=True, step="getting ready")
         fw_res = {"ok": True, "rebuilt": False, "relaunched": False, "flashed": False}
         # Listening to a real flight: the parameters go out over whatever link there is (USB or a radio) and
         # nothing is built or flashed - that needs the board on a cable, and the aircraft is not on one.
         firmware_wanted = bool(body.get("firmware", True)) and not link.listening
         if firmware_wanted and state.conn.mode == "sitl" and getattr(state.args, "launch_px4", False):
             if link.armed:
+                push_job.update(running=False, step='')
                 return JSONResponse({"ok": False, "error": "vehicle is armed; disarm before updating PX4"}, status_code=409)
             fw_res = await run_in_threadpool(state.conn.update_firmware)
             if not fw_res.get("ok"):
+                push_job.update(running=False, step='')
                 return JSONResponse({"ok": False, "error": fw_res.get("error"), "firmware": fw_res}, status_code=500)
         elif firmware_wanted and state.conn.mode == "hitl" and (export_params().get("NLF_ENABLE") == 1):
             b = state.conn.board_firmware_status()
             if b["needs_rebuild"] or b["needs_flash"]:
                 if link.armed:
+                    push_job.update(running=False, step='')
                     return JSONResponse({"ok": False, "error": "vehicle is armed; disarm before flashing"}, status_code=409)
                 fw_res = await run_in_threadpool(state.conn.update_board_firmware)
                 if not fw_res.get("ok"):
+                    push_job.update(running=False, step='')
                     return JSONResponse({"ok": False, "error": fw_res.get("error"), "firmware": fw_res}, status_code=500)
         if not link.ctl_connected:
+            push_job.update(running=False, step='')
             return JSONResponse({"ok": False, "error": "PX4 control link not connected"}, status_code=409)
         if link.armed:
+            push_job.update(running=False, step='')
             return JSONResponse({"ok": False, "error": "vehicle is armed; disarm before updating PX4"}, status_code=409)
         params = export_params()
         only = body.get("only")
         if only:
             params = {k: v for k, v in params.items() if k in only}
-        if link.mode == "hitl" and link.params.get("SYS_HITL", {}).get("value") == 0:
+        complete = bool(link.params) and link.param_count and link.status().get("params_loaded", 0) >= link.param_count
+        if link.mode == "hitl" and link.params.get("SYS_HITL", {}).get("value") == 0 and complete:
+            # Only a complete list proves an output is absent. Over a radio the list is not downloaded
+            # unless you ask for it, and "I have not looked" is not "it is not there".
             missing_outputs = [k for k in params if k.startswith("PWM_") and k not in link.params]
             if missing_outputs:
+                push_job.update(running=False, step='')
                 return JSONResponse({"ok": False, "error": "Real-flight setup incomplete; missing outputs: " + ", ".join(missing_outputs)}, status_code=409)
         # skip params this firmware does not have (HIL_ACT on SITL, the NLF_* nose-lift module on a stock board).
         # While the parameter list is still downloading, keep the NLF_* ones: they belong to the ATLAS SITL build and
         # are simply not listed yet.
-        complete = bool(link.params) and link.param_count and link.status().get("params_loaded", 0) >= link.param_count
         # PX4 lists a module's parameters only once something has used them; the nose-lift model parameters
         # (NLF_MASS, NLF_MOM, ...) are read by param_find at takeoff, so they are settable but not yet listed.
         has_module = "NLF_ENABLE" in (link.params or {})
-        if link.params:
-            keep = lambda k: k in link.params or (k.startswith("NLF_") and (has_module or not complete))
+        if link.params and complete:
+            keep = lambda k: k in link.params or (k.startswith("NLF_") and has_module)
+            # Only a complete list is evidence that a parameter is absent. With a partial one - a radio
+            # link, where the download is not automatic - every parameter is tried and the ones this
+            # firmware has not got come back as individual failures, which is the honest answer anyway.
             missing = [k for k in params if not keep(k)]
             params = {k: v for k, v in params.items() if keep(k)}
             if complete and any(k.startswith("NLF_") for k in missing):
@@ -1045,12 +1222,26 @@ target_link_libraries(external__{name} PRIVATE px4_work_queue)
         else:
             missing = []
         state.export_log.clear()
+        push_job.update(total=len(params), done=0, failed=0, running=True, step="writing parameters")
         rot_before = link.params.get("SENS_BOARD_Y_OFF", {}).get("value")
 
         def progress(name, res):
             state.export_log.append({"t": time.time(), **res})
+            push_job["done"] += 1
+            push_job["failed"] += 0 if res.get("ok") else 1
 
-        results = await run_in_threadpool(link.set_params, params, progress)
+        # Over a radio every write waits for its echo behind whatever telemetry is already queued, and the
+        # answer can take longer than the wait. So the streams stop for the duration and start again after:
+        # a hundred parameters that all arrive beats a live graph during the ten seconds it takes.
+        narrow = link.listening and link.link_budget_bps() is not None
+        if narrow:
+            await run_in_threadpool(link.quiet_streams)
+        try:
+            results = await run_in_threadpool(link.set_params, params, progress,
+                                              *( (6.0,) if narrow else () ))
+        finally:
+            if narrow and link.ctl_connected and link.listening:
+                await run_in_threadpool(link.request_flight_telemetry)
         ok = all(r["ok"] for r in results)
         if body.get("save", True) and ok:
             link.preflight_storage(True)
@@ -1064,12 +1255,94 @@ target_link_libraries(external__{name} PRIVATE px4_work_queue)
         failed = [r for r in results if not r["ok"]]
         state.log(f"[export] pushed {len(results) - len(failed)}/{len(results)} params to PX4"
                   + (f", failed: {[r['name'] for r in failed]}" if failed else ""))
-        return {"ok": ok, "results": results, "missing": missing, "firmware": fw_res}
+        # Then everything else: a board is meant to be the simulator you tuned in, and a parameter this
+        # design never mentions is still a parameter that has to match. What is never copied from a
+        # simulator to an aircraft is the aircraft's own truth - calibration, RC, serial links, battery,
+        # safety checks, failsafes and the mode slots (ConnectionManager.SYNC_EXCLUDE); writing those
+        # would hand a flying machine a laptop's idea of where its sensors point.
+        rest = {"written": 0, "skipped": 0, "why": ""}
+        if body.get("rest", True) and link.mode == "hitl" and not link.armed:
+            # To know what differs the board's list has to be read. On a cable that is seconds, so it is
+            # simply done; over a radio it is ten minutes and is left to the Refresh button to ask for.
+            if not complete and link.link_budget_bps() is None:
+                await run_in_threadpool(link.fetch_all_params)
+            diff = state.conn.sitl_diff()
+            if not diff.get("ok"):
+                rest["why"] = diff.get("error", "")
+            elif diff["differ"]:
+                r2 = await run_in_threadpool(state.conn.sync_to_sitl)
+                rest = {"written": r2.get("written", 0), "skipped": r2.get("skipped", 0),
+                        "why": "" if r2.get("ok") else f"{len(r2.get('failed', []))} would not write",
+                        "failed": r2.get("failed", [])}
+            else:
+                rest["skipped"] = diff.get("skipped", 0)
+        push_job.update(running=False, step="done")
+        return {"ok": ok, "results": results, "missing": missing, "firmware": fw_res, "rest": rest}
 
     # ---------------------------------------------------------- parameters
+    @app.get("/api/px4/push/progress")
+    async def push_progress():
+        """How far Update PX4 has got. Polled while the push itself is still in flight, so a hundred
+        parameters over a radio is a number going up rather than a button that looks stuck."""
+        return {"ok": True, **push_job}
+
     @app.get("/api/params")
     async def get_params():
         return {"count": link.param_count, "params": link.params}
+
+    @app.get("/api/params/one")
+    async def get_one_param(name: str):
+        """Read one parameter straight from the vehicle. One round trip, which over a radio is the
+        difference between an answer and a ten-minute download of all of them."""
+        if not link.ctl_connected:
+            return JSONResponse({"ok": False, "error": "no link to the aircraft"}, status_code=409)
+        info = await run_in_threadpool(link.get_param, name)
+        if info is None:
+            return JSONResponse({"ok": False, "error": f"the vehicle has no parameter {name}"}, status_code=404)
+        return {"ok": True, "name": name, "value": info["value"], "type": info.get("type")}
+
+    @app.get("/api/px4/shell")
+    async def px4_shell(c: str, timeout: float = 8.0):
+        """Run one PX4/NuttX shell command on whatever is on the other end of the link.
+
+        `PX4Link.shell` has always been here - `mavlink status` is how `board_send_cap` finds out which
+        instance can hear us - but only the app could reach it. A bench test is mostly `listener`, and
+        `listener` lives in the flight controller, so it needs a door: one command in, its output back as
+        plain text, over the same radio the app is already holding (nothing else can open that port).
+        It works on a listening link: SERIAL_CONTROL asks the aircraft a question, it does not fly it.
+        """
+        if not link.ctl_connected:
+            return PlainTextResponse("no link to the aircraft\n", status_code=409)
+        out = await run_in_threadpool(link.shell, c, timeout)
+        return PlainTextResponse(out if out else "(no output: the command printed nothing, or the link "
+                                                "dropped the reply - try a longer timeout)\n")
+
+    @app.post("/api/px4/bench")
+    async def px4_bench(body: dict | None = None):
+        """Stop (or start) the aircraft's land detector, so a bench test can move it by hand.
+
+        Nothing about a hand-carried aircraft is in the air, and PX4 knows it: `vehicle_land_detected`
+        says `at_rest` while it is landed and turning slower than 3 degrees a second (hardcoded in
+        LandDetector.cpp, not a parameter), and `ZeroVelocityUpdate` then fuses a zero velocity every
+        200 ms. That observation is far stronger than the flow, so the position is pinned and the H-flow
+        looks broken when it is working. Without the module publishing, EKF2's own default for the flag
+        is false (`systemFlagUpdate.at_rest`), so the flow is the only thing left saying how fast the
+        aircraft is going - which is the measurement we came to look at.
+
+        It is `land_detector stop` over the link: nothing is written to flash and a reboot restores it.
+        """
+        on = bool((body or {}).get("on", True))
+        if not link.ctl_connected:
+            return JSONResponse({"ok": False, "error": "no link to the aircraft"}, status_code=409)
+        if link.armed:
+            return JSONResponse({"ok": False, "error": "the aircraft is armed: this is a bench test"}, status_code=409)
+        out = await run_in_threadpool(link.shell, f"land_detector {'stop' if on else 'start'}", 8.0)
+        status = await run_in_threadpool(link.shell, "land_detector status", 8.0)
+        running = "running" in status and "not running" not in status
+        state.log(f"[bench] land detector {'stopped' if not running else 'running'}"
+                  + (" - the estimator will no longer hold the aircraft still, and cannot detect a landing" if not running else ""))
+        return {"ok": True, "land_detector": "running" if running else "stopped", "wanted_off": on,
+                "out": (out + status).strip()}
 
     @app.post("/api/params/refresh")
     async def refresh_params():
@@ -1426,6 +1699,128 @@ target_link_libraries(external__{name} PRIVATE px4_work_queue)
         return RUNS.save(sim.recorder, airframe=sim.airframe.to_dict(), params=params,
                          name=name or sim.airframe.name, note=note, log=log)
 
+    # ------------------------------------------------- the board's own flight logs (.ulg)
+    # The aircraft logs everything it knows at the rate it knows it - two hundred times a second, against
+    # the ten or twenty a radio carries. This brings one over the same link and turns it into a run, so it
+    # is plotted, scrubbed and compared exactly like a flight watched live.
+    LOG_DIR = PROJECT_DIR / "results" / "logs"
+    log_job: dict = {"job": None, "cancel": False, "thread": None, "entries": [], "listed": 0.0,
+                     "measured_bps": 0.0}      # what the last finished download actually managed
+
+    def log_entry_name(e: dict) -> str:
+        t = e.get("time_utc") or 0
+        when = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(t)) if t else f"log {e['id']}"
+        return f"{when} · {e['size'] / 1e6:.1f} MB"
+
+    @app.get("/api/logs")
+    async def logs_list(refresh: int = 0):
+        """What is on the board's card. Cached, because asking costs a round trip per log."""
+        from ..px4.logs import list_logs
+        if not link.ctl_connected:
+            return JSONResponse({"ok": False, "error": "no link to the aircraft"}, status_code=409)
+        # Listing 384 logs is 17 kB down the radio: asked for, not done on a timer behind your back.
+        if refresh or not log_job["entries"]:
+            entries = await run_in_threadpool(list_logs, state.link)
+            log_job["entries"] = [e.as_dict() for e in entries]
+            log_job["listed"] = time.time()
+            state.log(f"[logs] the aircraft has {len(entries)} log(s) on its card")
+        rate = (link.status().get("telemetry") or {}).get("bytes_s") or 0
+        # The only honest basis for "how long will this take" is how fast the last one actually came down
+        # this link. Until there has been one: whatever the telemetry is managing right now is a floor the
+        # link has demonstrated, and a paused telemetry hands most of the rest over - but not the round
+        # trips, so a quarter more is as optimistic as this is allowed to be.
+        budget = link.link_budget_bps()
+        free = log_job["measured_bps"] or (max(rate, (budget or 0) * 0.9) * 1.25 if budget else 60_000.0)
+        free = max(300.0, free)
+        return {"ok": True, "logs": [{**e, "label": log_entry_name(e), "eta_s": round(e["size"] / free)}
+                                     for e in log_job["entries"]],
+                "rate_now": rate, "assumed_bps": round(free), "measured": bool(log_job["measured_bps"]),
+                "job": (log_job["job"] or {}) and log_job["job"].as_dict()}
+
+    @app.get("/api/logs/job")
+    async def logs_job():
+        job = log_job["job"]
+        return {"ok": True, "job": job.as_dict() if job else None}
+
+    @app.post("/api/logs/cancel")
+    async def logs_cancel():
+        log_job["cancel"] = True
+        return {"ok": True}
+
+    def run_from_ulog(path: Path, note: str) -> dict:
+        """Parse a .ulg and file it as a run, with the design currently loaded for reference."""
+        from ..sim.ulog_import import ulog_to_run
+        doc = ulog_to_run(path)
+        rid = time.strftime("%Y%m%d-%H%M%S", time.localtime(path.stat().st_mtime)) + "-log"
+        entry = RUNS.save_doc({
+            "name": f"{sim.airframe.name} · {path.stem}", "started": path.stat().st_mtime,
+            "scenario": "", "note": note or f"flight log {path.name}",
+            "airframe": sim.airframe.to_dict(), "params": {}, "log": [],
+            **{k: v for k, v in doc.items() if k not in ("source", "motors", "topics", "logged_hz")},
+        }, rid)
+        state.log(f"[logs] {path.name}: {doc['duration']:.0f} s, {doc['samples']} samples at {doc['sample_hz']:.0f} Hz "
+                  f"(the board logged up to {doc['logged_hz']:.0f} Hz), {doc['motors']} motors")
+        return entry
+
+    @app.post("/api/logs/download")
+    async def logs_download(body: dict):
+        """Fetch one log over the link, in the background, and turn it into a run when it lands."""
+        from ..px4.logs import LogEntry, Download, download_log
+        if not link.ctl_connected:
+            return JSONResponse({"ok": False, "error": "no link to the aircraft"}, status_code=409)
+        if log_job["thread"] is not None and log_job["thread"].is_alive():
+            return JSONResponse({"ok": False, "error": "a log is already coming down"}, status_code=409)
+        want = int(body.get("id", -1))
+        e = next((x for x in log_job["entries"] if x["id"] == want), None)
+        if e is None:
+            return JSONResponse({"ok": False, "error": "unknown log; refresh the list"}, status_code=404)
+        entry = LogEntry(id=e["id"], size=e["size"], time_utc=e["time_utc"])
+        stamp = time.strftime("%Y%m%d-%H%M%S", time.localtime(entry.time_utc or time.time()))
+        path = LOG_DIR / f"log_{entry.id}_{stamp}.ulg"
+        job = Download(log_id=entry.id, size=entry.size, path=path)
+        log_job.update(job=job, cancel=False)
+        narrow = link.link_budget_bps() is not None
+
+        def work():
+            try:
+                if narrow and link.listening:
+                    state.link.quiet_streams()          # the log gets the link to itself
+                download_log(state.link, entry, path, job, cancelled=lambda: log_job["cancel"])
+                if job.state == "done" and job.bps > 1:
+                    log_job["measured_bps"] = job.bps
+                if job.state == "done":
+                    job.run_id = run_from_ulog(path, f"downloaded from the aircraft ({entry.size / 1e6:.1f} MB)")["id"]
+            except Exception as exc:
+                job.state, job.error = "failed", str(exc)
+                state.log(f"[logs] download failed: {exc}")
+            finally:
+                if narrow and link.ctl_connected and link.listening:
+                    try:
+                        state.link.request_flight_telemetry()
+                    except Exception:
+                        pass
+
+        t = threading.Thread(target=work, name="log-download", daemon=True)
+        log_job["thread"] = t
+        t.start()
+        state.log(f"[logs] downloading log {entry.id} ({entry.size / 1e6:.1f} MB)")
+        return {"ok": True, "job": job.as_dict()}
+
+    @app.post("/api/logs/import")
+    async def logs_import(request: Request):
+        """A .ulg from the SD card, dropped in. Same result as a download, without the wait."""
+        form = await request.form()
+        f = form.get("file")
+        if f is None:
+            return JSONResponse({"ok": False, "error": "no file"}, status_code=400)
+        LOG_DIR.mkdir(parents=True, exist_ok=True)
+        path = LOG_DIR / Path(str(f.filename or "flight.ulg")).name
+        path.write_bytes(await f.read())
+        try:
+            return {"ok": True, "run": await run_in_threadpool(run_from_ulog, path, f"imported from {path.name}")}
+        except Exception as exc:
+            return JSONResponse({"ok": False, "error": f"could not read {path.name}: {exc}"}, status_code=400)
+
     @app.get("/api/runs")
     async def runs_list():
         return {"runs": RUNS.list(), "recording": {"samples": len(sim.recorder.rows),
@@ -1613,7 +2008,11 @@ target_link_libraries(external__{name} PRIVATE px4_work_queue)
 
         rx_task = asyncio.create_task(receive_loop())
         try:
-            await websocket.send_text(json.dumps({"type": "airframe", "airframe": sim.airframe.to_dict()}))
+            # json.dumps writes a bare NaN by default and the browser's JSON.parse refuses the whole
+            # frame, so the view simply stops updating with nothing to show for it. Everything goes out
+            # through json_safe, as the REST responses do.
+            send = lambda m: websocket.send_text(json.dumps(json_safe(m), allow_nan=False))   # noqa: E731
+            await send({"type": "airframe", "airframe": sim.airframe.to_dict()})
             while True:
                 now = time.time()
                 msg: dict[str, Any] = {"type": "state", "state": sim.snapshot()}
@@ -1627,7 +2026,7 @@ target_link_libraries(external__{name} PRIVATE px4_work_queue)
                 if new_logs:
                     msg["log"] = new_logs
                     last_log = new_logs[-1][0]
-                await websocket.send_text(json.dumps(msg))
+                await send(msg)
                 await asyncio.sleep(1 / 30)
         except WebSocketDisconnect:
             pass

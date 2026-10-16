@@ -2,6 +2,19 @@
 import time
 import threading
 from .geometry.landing import apply_landed_pitch
+
+
+def landed_pitch_if_possible(airframe, log=None) -> None:
+    """Work out the resting pitch, and shrug if the legs cannot say.
+
+    A leg being edited passes through shapes that have no resting pitch at all - two feet, three in a line -
+    and an airframe you cannot save while you move a leg is worse than a stale angle. The last good value
+    stays, and the reason is logged."""
+    try:
+        apply_landed_pitch(airframe)
+    except ValueError as e:
+        if log:
+            log(f"[geometry] landed pitch unchanged ({airframe.landed_pitch_deg:g} deg): {e}")
 from .sim.simulator import Simulator
 from .px4.connection import ConnectionManager
 from .px4.sitl import launch_px4
@@ -10,12 +23,12 @@ from .batch.worker import BATCH_PX4_DEFAULTS, px4_param_types
 class NativeSimulator(Simulator):
     def __init__(self,*args,**kwargs):
         frame = args[0] if args else kwargs['airframe']
-        apply_landed_pitch(frame)
+        landed_pitch_if_possible(frame)
         kwargs.update(physics_substeps=4,seed=1)
         super().__init__(*args,**kwargs)
     def set_airframe(self, airframe):
         before = self.airframe.px4_params_sitl()
-        apply_landed_pitch(airframe)
+        landed_pitch_if_possible(airframe, self.log)
         result = super().set_airframe(airframe)
         if before != self.airframe.px4_params_sitl():
             callback = getattr(self, "on_model_parameters_changed", None)
@@ -61,7 +74,7 @@ class NativeConnectionManager(ConnectionManager):
 
     def _launch_sitl(self, instance):
         current = self.sim.airframe
-        apply_landed_pitch(current)
+        landed_pitch_if_possible(current, self.log)
         return launch_px4(self.args.px4_dir, self.args.px4_model, self.log,
             instance=instance, rootfs=self.args.px4_rootfs,
             params={**BATCH_PX4_DEFAULTS, **current.px4_params_sitl(), 'NLF_LAND_ANG': current.landed_pitch_deg},
@@ -101,15 +114,42 @@ class NativeConnectionManager(ConnectionManager):
                     self.sim.start()
 
     def reset_all(self):
+        """Reset is a stop button. The vehicle is on the ground before this call returns, whatever else was
+        going on - a sequence, a nose lift, an armed and flying aircraft, even another reset a second ago.
+
+        Behind that, PX4 is relaunched: the simulation clock goes back to zero and no flight controller can
+        follow time running backwards. That takes a few seconds, so it does not happen in the click. A second
+        press resets the vehicle again at once and its relaunch replaces the one still in flight."""
         if self.mode != 'sitl' or not self.args.launch_px4:
             return super().reset_all()
-        with self._lock:
-            if time.time() < self._reset_busy_until:
-                return {"ok": True, "steps": ["reset already in progress"]}
-            self._reset_busy_until = time.time() + 8
-            try:
-                self.connect_sitl(True)
-                return {"ok": True, "steps": ["simulation clock and vehicle reset", "owned PX4 SITL relaunched"]}
-            except Exception:
+        from .px4.link import mavlink
+        self._reset_gen += 1
+        gen = self._reset_gen
+        link = self.link
+        if link is not None and link.ctl_connected and link.armed:
+            link.send_command_long(mavlink.MAV_CMD_COMPONENT_ARM_DISARM, 0.0, 21196.0)
+        self.sim.stop_nose_lift()
+        self.sim.motor_override = None
+        self.sim.reset()
+        if self._model_timer:                 # the relaunch loads the current model anyway
+            self._model_revision += 1
+            self._model_timer.cancel()
+            self._model_timer = None
+        self._reset_busy_until = time.time() + 25
+        threading.Thread(target=self._relaunch_after_reset, args=(gen,), daemon=True).start()
+        return {"ok": True, "steps": ["vehicle reset", "PX4 SITL relaunching"]}
+
+    def _relaunch_after_reset(self, gen):
+        """The slow half of a reset, off the request thread; it gives up as soon as a newer reset exists."""
+        if self._reset_gen != gen:
+            return
+        try:
+            self.connect_sitl(True)
+            if self._reset_gen == gen:
+                self.log("[PX4] reset: SITL relaunched")
+                self._reset_busy_until = time.time() + 1
+        except Exception as exc:
+            if self._reset_gen == gen:
+                self.error = str(exc)
                 self._reset_busy_until = 0
-                raise
+                self.log(f"[PX4] reset: could not relaunch SITL: {exc}")

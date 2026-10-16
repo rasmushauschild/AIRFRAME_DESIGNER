@@ -133,7 +133,7 @@ def generate_model(af: Airframe, name: str, v_ref: float = 20.0) -> Path:
     x.append('<propulsion/>')
     x.append('<external_reactions>')
     for i, r in enumerate(rotors):
-        ax = unit(r.axis)
+        ax = unit(r.built_axis)          # where this rotor really pushes, mounting error and all
         x.append(f'<force name="rotor{i}" frame="BODY"><location unit="IN">{loc(r.pos)}</location><direction><x>{_s(ax[0])}</x><y>{_s(ax[1])}</y><z>{_s(ax[2])}</z></direction></force>')
     for nm, d in (("extfx", (1, 0, 0)), ("extfy", (0, 1, 0)), ("extfz", (0, 0, 1))):     # injected body forces at the CG
         x.append(f'<force name="{nm}" frame="BODY"><location unit="IN">{loc(cg)}</location><direction><x>{d[0]}</x><y>{d[1]}</y><z>{d[2]}</z></direction></force>')

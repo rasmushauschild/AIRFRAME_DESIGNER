@@ -59,11 +59,11 @@
         </div>
         <span class="panel-spacer"></span>
         <select id="run-pick" class="preset-select run-pick" title="a saved run; pick one to scrub through it"><option value="">Live</option></select>
+        <button class="pill small" id="run-rename" title="rename the selected run" hidden>Rename</button>
         <input id="run-name" type="text" class="run-name" hidden maxlength="60" placeholder="name this run">
         <button class="pill small primary" id="scrub-resume" hidden title="leave the recording and let the simulation run again">Resume</button>
         <button class="pill small" id="run-save" title="save what is plotted, with the design and parameters that produced it, and start the graph again from zero">Save run</button>
         <button class="pill small danger" id="run-reset" title="throw away what is plotted and start the graph again; the simulation keeps running">Reset</button>
-        <button class="pill small" id="run-rename" title="rename the selected run" hidden>Rename</button>
         <button class="pill small danger" id="run-delete" title="delete the selected run" hidden>Delete</button>
         <button class="pill small" id="run-load" title="load the airframe this run was flown with" hidden>Load design</button>
       </div>
@@ -103,6 +103,7 @@
       <button class="pill small icon-btn danger" id="af-delete" aria-label="Delete" title="delete this design (the app opens another one first)"><svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2.8 4.2h10.4M6.4 4.2V2.9h3.2v1.3M4.2 4.2l.7 8.3a1.4 1.4 0 0 0 1.4 1.3h3.4a1.4 1.4 0 0 0 1.4-1.3l.7-8.3"/><path d="M6.8 6.8v4.4M9.2 6.8v4.4"/></svg></button>
       <span class="bar-gap"></span>
       <select id="af-version" class="preset-select boxed" title="versions of this design pushed to GitHub"></select>
+      <button class="pill small icon-btn" id="af-revert" aria-label="Revert" title="go back to the version selected on the left: everything changed since is lost"><svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7.5h7.2a3.3 3.3 0 0 1 0 6.6H6.4"/><path d="M5.9 4.3 2.7 7.5l3.2 3.2"/></svg></button>
       <button class="pill small" id="af-push" title="push this design to GitHub as a new version: geometry, every parameter, and the firmware sources">Push version</button>
     </div>
     <nav class="tabs">
@@ -121,9 +122,9 @@
         <div class="sec-body">
           <div class="row tight">
             <input id="cad-file" type="file" accept=".step,.stp,.obj,.stl,.STEP,.STP,.OBJ,.STL" hidden>
-            <button id="cad-import" class="pill small primary" title="STEP: every solid becomes a body you can give a mass, with its centroid and inertia from the geometry. OBJ or STL: triangles only, a shape to look at with no mass.">Import model…</button>
-            <button id="cad-remove-all" class="pill small danger" title="forget this model and every body it brought with it" hidden>Remove model</button>
-            <button id="cad-reset-offsets" class="pill small" title="put every body back where the CAD file has it">Reset drags</button>
+            <button id="cad-import" class="pill small primary" title="STEP: every solid becomes a body you can give a mass, with its centroid and inertia from the geometry. OBJ or STL: triangles only, a shape to look at with no mass.">Import model</button>
+            <button id="cad-remove-all" class="pill small danger icon-btn" aria-label="Remove model" title="forget this model and every body it brought with it" hidden><svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2.8 4.2h10.4M6.4 4.2V2.9h3.2v1.3M4.2 4.2l.7 8.3a1.4 1.4 0 0 0 1.4 1.3h3.4a1.4 1.4 0 0 0 1.4-1.3l.7-8.3"/><path d="M6.8 6.8v4.4M9.2 6.8v4.4"/></svg></button>
+            <button id="cad-reset-offsets" class="pill small" title="you can drag a body in the 3D view to move it from where the CAD file put it; this puts them all back">Put bodies back</button>
             <span class="panel-spacer"></span>
             <label class="row" title="Show CAD bodies instead of generic motor-to-CG tubes. Heavier bodies are redder; the heaviest is red."><input id="cad-show" type="checkbox" checked> In 3D</label>
             <label class="row" title="compute the aircraft mass, CG and inertia from the CAD bodies (plus any mass items) instead of the numbers typed above"><input id="cad-use" type="checkbox"> Mass from bodies</label>
@@ -159,6 +160,12 @@
           <label>Izz <input id="af-izz" type="number" step="0.001" min="0"></label>
           <button id="af-estimate" class="pill small" title="Estimate inertia from mass, rotor layout, wings and legs">Estimate</button>
         </div>
+        <div class="row" title="the fuselage block Estimate puts 55% of the mass into: length, width and height, m. Nothing else uses it - it is not drawn and it has no part in drag.">
+          <label>Body L <input id="af-bx" type="number" step="0.01" min="0"></label>
+          <label>Body W <input id="af-by" type="number" step="0.01" min="0"></label>
+          <label>Body H <input id="af-bz" type="number" step="0.01" min="0"></label>
+          <span class="hint">for Estimate only</span>
+        </div>
         <div class="row">
           <label title="Nose-up angle before takeoff. Edits the simulator target in SITL or the PX4 firmware target in HITL. Editable while connected and disarmed; does not change hover pitch.">Takeoff pitch° <input id="af-takeoff" type="number" step="any" value="25" disabled></label>
           <label title="Nose-up pitch of the airframe in hover. PX4 treats this attitude as level: the geometry is exported rotated into that frame and SENS_BOARD_Y_OFF is set to match.">Hover pitch° <input id="af-hover" type="number" step="1" min="-90" max="90"></label>
@@ -193,6 +200,7 @@
             <label>Pitch° <input id="flow-rp" type="number" step="5"></label>
             <label>Yaw° <input id="flow-ry" type="number" step="45"></label>
           </div>
+          <label class="row flow-fields" title="Indoors there is no GPS and there never will be. The export then makes the rangefinder the height reference (EKF2_HGT_REF = 2) and the H-flow the horizontal aiding (EKF2_RNG_CTRL = 2, EKF2_GPS_CTRL = 0), with the barometer and the IMU fused underneath as PX4 does anyway. Without it the estimator keeps the barometer as its height and has no position source at all indoors."><input id="flow-indoor" type="checkbox"> Indoors: no GPS, fly on the H-flow</label>
         </div>
       </details>
 
@@ -205,6 +213,21 @@
           <button id="rotor-add" class="pill small">+ Rotor</button>
         </div>
       
+        </div>
+      </details>
+
+      <details class="sec" id="sec-mount">
+        <summary>Mounting errors <span class="sum-spacer"></span><span class="hint" id="mount-note"></span></summary>
+        <div class="sec-body">
+          <p class="hint">What the aircraft really is, when that is not what it was built to be. An angle here
+            turns that rotor's thrust axis in the simulation and nowhere else: the table above, the export and
+            PX4 all still have the design, so the controller flies an aircraft it believes is perfect. Put a
+            motor 10° out and fly it.</p>
+          <div id="mount-table"></div>
+          <p class="hint" id="mount-why"></p>
+          <div class="row tight">
+            <button id="mount-clear" class="pill small">Mount them all true</button>
+          </div>
         </div>
       </details>
 
@@ -249,13 +272,8 @@
       </details>
 
       <details class="sec" id="sec-body-drag">
-        <summary>Body, drag</summary>
+        <summary>Body drag</summary>
         <div class="sec-body">
-          <div class="row">
-            <label>Body L <input id="af-bx" type="number" step="0.01" min="0"></label>
-            <label>Body W <input id="af-by" type="number" step="0.01" min="0"></label>
-            <label>Body H <input id="af-bz" type="number" step="0.01" min="0"></label>
-          </div>
           <div class="row">
             <label title="quadratic body drag per body axis, N/(m/s)²">Drag x <input id="af-dragx" type="number" step="0.01" min="0"></label>
             <label>Drag y <input id="af-dragy" type="number" step="0.01" min="0"></label>
@@ -285,7 +303,6 @@
           <div class="pills" role="group" id="conn-modes">
             <button class="pill small" id="conn-sitl" data-link="sitl" title="PX4 running on this computer, flying the simulated aircraft">SITL</button>
             <button class="pill small" id="conn-hitl" data-link="hitl" title="the Pixhawk over USB, flying the simulated aircraft: HITL">HITL</button>
-            <button class="pill small" id="conn-real" data-link="real" title="the Pixhawk on its own sensors and its own outputs: the real aircraft">Real flight</button>
           </div>
           <div id="conn-current"></div>
           <div id="conn-ports"></div>
@@ -293,20 +310,55 @@
             <button class="pill small" id="conn-rescan" title="look for a flight controller on USB again">Rescan</button>
             <button class="pill small" id="conn-disconnect">Disconnect</button>
             <button class="pill small" id="conn-reboot" title="Reboot the flight controller; the link reconnects by itself">Reboot board</button>
+            <button class="pill small" id="conn-real" title="write this design's real-flight parameter set to the board over USB: SYS_HITL off, the simulator's bypasses removed, the outputs wired to the motors. It does not change which mode the app is in - the switch over the 3D view does that.">Set up for real flight</button>
             <button class="pill small danger" id="conn-hw-ok" hidden title="NLF_HW_OK: let the ground sequence run the motors on the real aircraft">Allow motors</button>
             <span class="panel-spacer"></span>
-            <label class="row hint" title="serial speed for the USB link to the board">Baud <input id="conn-baud" type="number" value="921600" style="width:84px"></label>
+            <label class="row hint" title="serial speed of the link. A Pixhawk on USB takes this; a telemetry radio is opened at 57600 by itself unless you change this box, because that is what a radio's serial side almost always runs at.">Baud <input id="conn-baud" type="number" value="921600" style="width:84px"></label>
+          </div>
+          <div class="row tight" id="tele-row" hidden>
+            <label class="row hint" title="How much of a telemetry radio's bandwidth the aircraft's streams may use. Over a radio this is the resolution dial: the rates are worked out from the link's own speed, so the same choice gives more on a faster radio. Watch the figures beside it — if what arrives falls short of what was asked for, or the radio's buffer drops below 100%, the link is full.">Telemetry
+              <select id="tele-share" style="width:92px">
+                <option value="light">Light</option>
+                <option value="balanced">Balanced</option>
+                <option value="full" selected>Full</option>
+              </select>
+            </label>
+            <span class="hint" id="tele-now"></span>
           </div>
           <div id="conn-error" class="problems"></div>
           <p id="real-flight-result" class="hint"></p>
         </div>
       </details>
 
-      <details class="sec" id="sync-card" open hidden>
-        <summary>Board vs SITL <span id="sync-text" class="hint"></span></summary>
+      <details class="sec" id="sec-bench">
+        <summary>Bench test <span class="sum-spacer"></span><span class="hint" id="bench-state"></span></summary>
         <div class="sec-body">
-          <div class="row tight"><button id="sync-btn" class="pill small primary" title="write every parameter that differs from the last SITL run to the board (calibration, links, safety and RC settings are left alone)">Sync board to SITL</button></div>
-          <div id="sync-list" class="hint mono"></div>
+          <div class="row tight">
+            <button class="pill small" id="bench-on" title="stop the land detector so the estimator stops holding the aircraft still">Let it move in my hands</button>
+            <button class="pill small" id="bench-off" title="start the land detector again">Back to normal</button>
+            <span class="panel-spacer"></span>
+            <span class="hint" id="bench-note"></span>
+          </div>
+          <p class="hint">Carried by hand, PX4 fuses a zero-velocity observation every 200 ms (its land detector says
+            <em>at rest</em>: landed, and turning slower than 3°/s), so the H-flow can be tracking perfectly and the
+            model still will not move. This stops the land detector for as long as the board stays powered, which
+            leaves <em>at rest</em> false and lets the flow drive the position. It is not written to flash and a
+            reboot undoes it. <b>Put it back before the aircraft flies</b> — without a land detector PX4 cannot tell
+            that it has landed.</p>
+        </div>
+      </details>
+
+      <details class="sec" id="sec-logs">
+        <summary>Flight logs <span class="sum-spacer"></span><span class="hint" id="logs-note"></span></summary>
+        <div class="sec-body">
+          <div class="row tight">
+            <button class="pill small" id="logs-refresh" title="ask the aircraft what is on its card">List logs</button>
+            <input id="logs-file" type="file" accept=".ulg,.ULG" hidden>
+            <button class="pill small" id="logs-import" title="read a .ulg you already have: off the SD card, or downloaded with QGroundControl">Open a .ulg</button>
+            <span class="panel-spacer"></span>
+            <span class="hint" id="logs-rate"></span>
+          </div>
+          <div id="logs-table"></div>
         </div>
       </details>
 
@@ -340,6 +392,7 @@
           <div class="row tight">
             <label class="row hint" style="flex:1" title="your own PX4 modules, and the other sources under firmware/atlas">Module
               <select id="fw-module" style="flex:1"></select></label>
+            <label class="row hint" id="fw-use-wrap" title="whether this aircraft uses the module. Off and its parameters leave the export and the Parameters list: a module this design does not fly with has no business configuring it."><input id="fw-use" type="checkbox" checked> In this design</label>
             <button class="pill small" id="fw-new" title="start a new PX4 module: a directory, a CMakeLists.txt that adds it to the build, and a source file that compiles">New module</button>
           </div>
           <div class="row tight">

@@ -52,6 +52,19 @@ airframes/    schema-2 JSON (docs/SCHEMA.md);  scenarios/  studies/  results/ (g
   their geometry mirrored about y as either is edited. They stay two separate things — two PX4 outputs, two
   names, two spin directions, two contact points — so nothing downstream has to know about the link.
   `Airframe.validate()` reports a token that is not on exactly two items.
+* A rotor can be mounted crooked on purpose. `axis` is the design - the Rotors table, the optimiser, the
+  analysis and, above all, the PX4 export all keep it - and `tilt_error_deg` / `cant_error_deg` are how far
+  that rotor really sits from it. Only the forces read the sum (`Rotor.built_axis`, used by
+  `aero/rotor_aero.py` and by the per-rotor force directions in the JSBSim model), so the controller flies
+  an aircraft it believes is perfect and the simulation flies the one you built. It is for exactly that
+  experiment and nothing else: `validate()` says so out loud while any error is set, the 3D view turns the
+  disc to where the rotor really pushes and draws a dashed amber stick along the axis PX4 was given, and
+  `ui/scene_math.js` holds the same arithmetic as `geometry/propulsion.py` (pinned to each other by
+  tests/data/rotor_axes.json). The Mounting errors section on the Geometry tab also says how far each rotor
+  *could* be out: `Airframe.mount_margin()` winds one rotor's error up on a copy until
+  `hover_trim_as_built()` gives out - first with nothing left to spare (a motor over 85%), then at all (a
+  motor pulling downwards, past its maximum, or the aircraft having to hover leaning more than 15°). Both
+  are static limits and generous ones: PX4's own trim runs out first, because it does not know.
 * Ground contact damping is clamped per step to the integrator's stable range (dynamics/contact.py); without it a
   light, low-inertia airframe jitters on its legs and the fake gyro noise makes PX4's estimator refuse to arm.
 * `sim/nose_lift.py` is the pre-arm ground sequence (motor floors under PX4's commands); it is a simulator hook,
@@ -84,7 +97,16 @@ airframes/    schema-2 JSON (docs/SCHEMA.md);  scenarios/  studies/  results/ (g
     is then a row you edit. Update PX4 writes those parameters to the vehicle *and* saves them to its flash
     (`/api/px4/push` ends in `preflight_storage`), so the section has no Save-to-flash button; Fetch
     descriptions appears only when this computer has no metadata for the firmware that is running.
-    **Firmware modules** holds Build and Flash beside the modules they build:
+    **Firmware modules** has a switch per module - *In this design* - because a module this aircraft does
+    not fly with has no business configuring it: switched off, every parameter in its own `params.yaml`
+    leaves the export and the Parameters table, the ground-sequence block stops running with them, and
+    the values stay in the design so switching it back on brings them back as they were
+    (`design.modules_off`, `Airframe.modules_off_params`, `/api/firmware/modules/enable`). Two things add
+    a module's parameters by name *after* `px4_params` has filtered them, and both ask as well: the
+    real-flight interlock (`NLF_HW_OK` in `real_flight.flight_params`, which a firmware built without the
+    module has not got) and the half of Update PX4 that copies everything else from the SITL reference
+    (`sitl_diff`) - a SITL built with the module must not put it back on an aircraft flying without it.
+    It also holds Build and Flash beside the modules they build:
     modules come from `/api/firmware/modules` (a directory whose CMakeLists.txt calls px4_add_module) and
     their sources are edited in the tab or opened in VS Code (`/api/firmware/open`).
   - **Sequences** holds who does the takeoff and the landing — `design.flight.takeoff` / `.land`, either
@@ -112,21 +134,143 @@ airframes/    schema-2 JSON (docs/SCHEMA.md);  scenarios/  studies/  results/ (g
   now - its length and its colour are the speed (pale grey to deep blue, full at 12 m/s) and there is no text
   in it, because the overlay already carries the number. It is hidden while you are inside a recording: the
   recorder keeps the wind's strength, not its direction, so there would be nothing honest to point.
+* **Every parameter is yours to set, and every one can be put back.** The export applies hand-set
+  overrides *last*, so what you type wins - over the allocator too, because it is your aircraft. What the
+  app owes you in return is the truth about it: the row says `geometry says X` when the two have drifted
+  apart, `validate()` names any override that goes against what the nose-lift sequence needs on its legs
+  (it warns, it does not overrule), and one click on the row's ↺ forgets the override and lets the design
+  set it again. `px4_params(overrides=False)` is what the geometry alone would set.
+* **"Geometry dependent" is not a curated list.** It is exactly the set `px4_params(overrides=False)`
+  returns, which is exactly the set that moves by itself when the design changes - the allocator, the
+  sensor offsets and rotations, the H-flow's fusion switches, the output functions. The Parameters table
+  has two sections, *Added parameters* and *Geometry dependent parameters*, and editing a geometry row
+  leaves it where it is rather than promoting it: the section says where a value comes from, not whether
+  it has been touched.
+* **Every row says what a real flight gets instead** (`In flight`): the same value, a different one, or
+  `not sent` with the reason on hover (`real_flight.carries_over` / `flight_note`). Only the aircraft and
+  its controller cross over - `CA_`, `NLF_`, `MC_`, `MPC_`, the IMU and H-flow geometry, `EKF2_HGT_REF`
+  and `EKF2_GPS_CTRL`. `SYS_HITL` flips to 0, the outputs are re-derived from the wiring, and the
+  simulator's arming bypasses, RC, battery, GPS and failsafe settings stay behind, because a real
+  aircraft's own are the ones that stop it hurting someone.
+* **Indoors is a property of the design** (`design.indoor`, the checkbox under the H-flow). There is no GPS
+  indoors and there never will be, so the export stops the estimator waiting for one: `EKF2_GPS_CTRL = 0`,
+  the rangefinder becomes the height reference (`EKF2_HGT_REF = 2`) and range fusion goes from conditional
+  to always (`EKF2_RNG_CTRL = 2`), with the barometer and the IMU fused underneath as PX4 does anyway.
+  Both cross over to a real flight, because they are facts about the aircraft rather than simulator
+  conveniences. Without them a flow sensor can be tracking perfectly and the aircraft still has no
+  position: `vehicle_local_position` never moves, and neither does anything drawn from it.
+* **The parameters go out as a stream, not one at a time.** PX4 echoes every accepted PARAM_SET, so
+  `PX4Link.set_params` sends them all at a pace the link can take and collects the echoes as they arrive;
+  whatever has not echoed is sent again. A hundred parameters over a radio went from a minute of silence
+  to about six seconds, and `GET /api/px4/push/progress` counts them while it happens, because a button
+  that says "Pushing…" for a minute is indistinguishable from one that has hung. The retry round is also
+  where a type is learned: PX4 refuses a PARAM_SET whose type does not match the parameter (12 is an int
+  in Python and a float on the board, and the write is dropped in silence), so anything that did not echo
+  is asked about and sent again with the type the board gave. What is left after that is reported by name
+  with the reason - "this firmware has no parameter of that name" is the honest answer for `NLF_*` on a
+  board without the ATLAS module.
+* **Update PX4 leaves the board matching the simulator, not merely matching the design.** It writes the
+  design's own parameters first, and then every other parameter that differs from the SITL reference - the
+  snapshot of a full SITL parameter set taken whenever the app runs one - so a value this design never
+  mentions still ends up where SITL has it. What is never copied from a laptop to an aircraft is the
+  aircraft's own truth: calibration, RC, serial links, battery, safety checks, failsafes and the mode slots
+  (`ConnectionManager.SYNC_EXCLUDE`). The second half needs the board's list read back, which the push does
+  itself on a cable and leaves to Refresh over a radio, saying so in the result rather than quietly skipping
+  it. There is no separate Board-vs-SITL section any more: one button, one promise.
+* Real flight on a board (`px4/real_flight.py`) is the one conversion that writes to an aircraft that can
+  hurt someone, so it is explicit and checked: only the aircraft's own settings cross over (CA_, NLF_, MC_,
+  MPC_, the IMU and H-flow geometry), never the simulator's arming, RC, battery, GPS or failsafe
+  overrides; `SYS_HITL` goes to 0; the motors are wired to the board's outputs by `output_keys(n)` - the
+  first eight on MAIN, the rest on AUX - and every motor must land on exactly one port or nothing is
+  written at all. The count is the design's, not ATLAS's ten.
+* Nothing the browser polls may answer with a 500. A design the real-flight set cannot be built for is a
+  409 with a sentence in `error`, and every response - REST and websocket alike - goes out through
+  `SafeJSON` / `json_safe`, because one NaN makes the encoder refuse the whole reply and all the user sees
+  is "Internal Server Error". Telemetry is cleaned before that, not after: `Simulator._reported` drops a
+  non-finite vector instead of copying it into the vehicle, since PX4 streams its local position whether
+  or not the estimate is valid and an invalid one is NaN.
 * The simulation runs from the moment the app opens and keeps running until someone pauses it; the
   recorder collects the whole time.
 * One switch over the 3D view decides what the whole thing is: **SITL** (PX4 here, flying the simulation),
-  **HITL** (the board, flying the simulation) and **FLIGHT** (`/api/connection/flight`) — the aircraft on
-  its own sensors with the app only listening. Pressing one is a decision, not a request: the switch moves
-  there whether or not anything is plugged in, and the light beside it is green only while that mode is
-  actually doing what it says (SITL linked; HITL answering with SYS_HITL = 1; FLIGHT with position and
-  attitude arriving — `telemetry_age` in the status). Red, with the reason on hover, otherwise.
-  FLIGHT works over a telemetry radio: a serial port that is not a Pixhawk is opened at 57600 unless the
-  Baud box says otherwise, and Update PX4 writes the design's parameters over that same link while
+  **HITL** (the board, flying the simulation) and **FLIGHT** — the aircraft on its own sensors with the app
+  only listening. Pressing one is a statement about what the aircraft *is*, and `ConnectionManager.set_mode`
+  makes it true however the board was left: it opens the link, waits for a real heartbeat (`hil_enabled` is
+  read off the heartbeat and is false on a fresh link, so asking before one arrives says "already on its own
+  sensors" about a board sitting in HITL), and if the board is the other way round it writes SYS_HITL, saves
+  it, reboots and waits for it to come back the right way up - then asks for the flight streams, or trims
+  them for HITL. Nobody has to click "Set up for real flight" first. It runs in a background thread behind
+  `POST/GET /api/connection/mode`, so the click never waits on a reboot; every wait is bounded and says what
+  it was waiting for; pressing the same mode twice costs a heartbeat, and a newer press supersedes an older
+  one by generation rather than queueing behind it. The switch shows the mode you asked for, the light shows
+  the step while it works, and afterwards it is green only while that mode is actually doing what it says
+  (SITL linked; HITL answering with SYS_HITL = 1; FLIGHT with position and attitude arriving —
+  `telemetry_age` in the status). Red, with the reason on hover, otherwise.
+  FLIGHT works over a telemetry radio, with nothing to set up first: pressing it listens on a link that is
+  already carrying the aircraft, and otherwise rescans and opens the port itself, so a radio on USB needs
+  no visit to the ports list. How fast it opens is the port's business, not a box's
+  (`ConnectionManager.port_baud`): a Pixhawk takes `--baud`, anything else is a telemetry radio and gets
+  57600, because 921600 at a radio returns not one byte and reads as "no aircraft". The Baud box is only an
+  instruction once you have touched it, and otherwise shows the speed the link really runs at. A SiK radio
+  also talks about *itself* over that link, and RADIO_STATUS is never taken for the aircraft
+  (`PX4Link._own_radio`): it would light the link green over an empty sky and address every command to the
+  radio's own system id. Its numbers are kept (`link.radio`: rssi, remrssi, noise, txbuf) and the switch
+  says "the radio is up, the aircraft is not answering it" when that is what is happening. The streams it asks for are worked out from the
+  link itself, because asking a 57600 radio for the cable's rates does not make them arrive, it makes them
+  arrive late, which looks exactly like an aircraft that has stopped answering. On a cable it is the full
+  `FLIGHT_RATES_HZ` (~7 kB/s). On anything narrower, `flight_rates()` divides a budget - `share` of
+  light/balanced/full against baud/10 - by giving every stream a floor and spending what is left in
+  `SPEND_ORDER`, position and attitude first, so 57600 carries a pose at 10 Hz (balanced) or 20 Hz (full)
+  and 115200 carries 25 Hz. Three things make that work, and all three were once wrong:
+  `SET_MESSAGE_INTERVAL` is acknowledged by PX4 and so is sent one at a time and repeated until it is
+  (`set_message_interval`) - a burst of twenty into a radio is mostly dropped, and a stream that never
+  heard keeps PX4's boot rate; the streams PX4 sends unasked and this app never reads are switched off by
+  name, but only the ones actually arriving (`SILENCE_ON_RADIO`), which was a third of the traffic; and
+  `trim_telemetry`, the HITL throttle, must never run on a listening link, because it switches off the
+  quaternion and the local position - the two the 3D view and the graph are made of. The whole parameter
+  list (~50 kB) is not downloaded automatically over a radio either: Refresh under Parameters asks for it.
+  `link.status()["telemetry"]` reports asked against measured so the gap is visible, and the radio's own
+  RADIO_STATUS (rssi, remrssi, txbuf) sits beside it. The aircraft has a cap of its own - PX4 sends no more
+  than `MAV_<n>_RATE` on a port and drops the big messages first, so a board capped at 1200 B/s answers
+  with the cheap streams and never sends the pose. `board_send_cap()` asks which instance can hear us
+  (`mavlink status`, the block with "GCS heartbeat valid" - guessing MAV_0 reads another port's cap) and
+  lowers the budget to it. One painter owns the mode pill (`modeShown`): when the status poll and the
+  connection poll each decided for themselves, one knew the link was only listening and the other did not,
+  and the pill flickered between HITL and FLIGHT twice a second.
+* A board still set to `SYS_HITL = 1` cannot be flown for real and cannot be watched in FLIGHT: PX4 shuts
+  its own IMU drivers down in HITL and waits for HIL_SENSOR, which FLIGHT deliberately never sends. The
+  result is a perfectly good link with no attitude and no position on it - `uorb top` shows sensor_accel
+  and sensor_gyro at 0 Hz while a DroneCAN sensor like the H-flow keeps publishing - so the switch says
+  exactly that instead of "not saying where it is". What a real flight records is what the aircraft's own
+  sensors say, not a blank: OPTICAL_FLOW_RAD, DISTANCE_SENSOR and ALTITUDE are asked for like anything else
+  and `Simulator._flight_extra` turns them into the same `flow_*` and `alt_baro` columns a simulated run
+  fills, by the same arithmetic as sensors/models.py - so a column means one thing whichever way the flight
+  happened. A reading older than two seconds is left out rather than repeated, and ten seconds of no flow
+  at all says so in the log instead of plotting zeroes. The graph redraws at 20 Hz, which is the rate the
+  recorder keeps; it used to redraw four times a second and turn every trace into a staircase. Update PX4 writes the design's parameters over that same link while
   skipping every build and flash step, which need the board on a cable. In FLIGHT nothing is injected (`PX4Link.listening` is the
   one test, and it blocks every HIL send), the loop stops integrating and `_follow_telemetry` puts the
   aircraft where LOCAL_POSITION_NED and the attitude say it is, on the wall clock, so the 3D view and the
   graph are the real flight. `request_flight_telemetry` asks the vehicle for those streams. `native.py`'s reconnect relaunches PX4 under the loop without changing
   whether it is running.
+* The aircraft keeps its own record, and it is the better one: PX4 writes a .ulg to its card for every
+  flight (`SDLOG_MODE` = 1 by default, so arm to disarm; 0 logs from boot, which is what catches a ground
+  sequence) at a hundred to two hundred samples a second, against the ten or twenty a radio carries. The
+  **Flight logs** section on the PX4 tab lists what is on the card with its date and size, downloads one
+  over the same link (`px4/logs.py`: LOG_REQUEST_LIST / LOG_REQUEST_DATA, a window at a time, holes
+  re-asked for rather than the transfer restarted, resumable, cancellable, telemetry paused for the
+  duration, progress on the log's own line). How long it will take is measured, not assumed: the first
+  download sets `measured_bps` and every estimate after re-bases on it, and before there is one the
+  figure comes from what the telemetry is demonstrably carrying. On a SiK at 64 kbps air with ECC on that
+  is about 2 kB/s, whatever the serial side says - half for ECC, half again for a half-duplex link and reads it into a run (`sim/ulog_import.py`): the recorder's own `COLUMNS`, resampled onto a
+  50 Hz grid with the same zero-order hold the live recorder uses, so it joins the run list and the graph
+  and the 3D view scrubs through it exactly like a flight watched live. A .ulg from the card is opened the
+  same way without the wait. Two columns are honestly empty in an imported run - a real aircraft reports
+  motor *outputs*, not the thrust they made, and its log knows nothing about the wind it flew through.
+  Nothing invents a number that is not in the file.
+* How fast the live view can be is the link's business, so it is asked of the link: on a cable the pose
+  streams run at 50 Hz and the recorder keeps 50 Hz with them; over a radio both stay at 20, because
+  sampling faster than the aircraft speaks writes the same number down five times. The cost of the fast
+  one is the session buffer - 120k samples is 40 minutes at 50 Hz where it was 100 at 20.
 * The recording is the session, not the flight: **Reset puts the aircraft back on the ground and leaves the
   graph alone** (`Simulator.reset` does not touch the recorder), and **Save run** is the only thing that
   ends one — it writes the recording, with the airframe and the exported parameters inside the same file,
@@ -137,7 +281,10 @@ airframes/    schema-2 JSON (docs/SCHEMA.md);  scenarios/  studies/  results/ (g
   The log window plots it and scrubs the 3D view
   through it: drag to scrub, Play to run the recording forward from the cursor (at the speed beside it),
   pinch (or ctrl-wheel) to zoom the time axis and two fingers to pan, double-click or Fit for the whole
-  run. The simulation stays paused for all of it — the 3D view is either the recording or the live
+  run. A zoomed window whose right edge is against the newest sample travels with the recording, keeping
+  its width; scroll back off the end and it holds still until you scroll to the end again (`followTail`).
+  A pan stops against either end rather than squashing the window, so scrolling towards the live end
+  actually arrives there. The simulation stays paused for all of it — the 3D view is either the recording or the live
   aircraft, never half of each. Save run keeps it and starts the next; Reset throws it away and starts the
   next (`/api/runs/clear`); `/api/runs/current` is the recording in progress. The terminal beside the graph
   is the flight controller's and only its: `logLine` keeps the `[px4]` lines (PX4's console and the events

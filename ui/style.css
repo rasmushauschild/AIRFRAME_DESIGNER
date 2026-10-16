@@ -143,6 +143,10 @@ kbd { display: inline-block; min-width: 18px; text-align: center; padding: 0 5px
 .segmented button:hover { color: var(--text); }
 .segmented button.active { background: var(--panel); color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,0.14); }
 .link-light { padding: 5px 7px; }
+/* grey until the first status says otherwise: a light that is red before anything has been checked is a
+   light nobody believes */
+.link-light .dot { background: var(--text-3); }
+.link-light .dot.on { background: var(--green); }
 .link-light.crit { box-shadow: inset 0 0 0 1px var(--red); }
 .link-light.crit .dot { background: var(--red); }
 .link-light .dot { box-shadow: 0 0 6px color-mix(in srgb, currentColor 60%, transparent); }
@@ -262,6 +266,12 @@ button.pill.small { padding: 5px 11px; }
 #rotor-live b { color: var(--text); width: 34px; font-weight: 700; }
 .bar { display: inline-block; height: 8px; background: var(--accent); border-radius: 4px; }
 
+/* a log coming down the link: how far, how fast, how long left - on the line of the log it is about */
+.logs-bar { height: 6px; border-radius: 3px; background: var(--soft); overflow: hidden; margin: 2px 0; min-width: 90px; }
+.logs-bar i { display: block; height: 100%; width: 0; background: var(--accent); border-radius: 3px; transition: width .3s linear; }
+#logs-table { overflow-x: auto; margin: 0 -6px; padding: 0 6px; }
+#logs-table td.num { font-variant-numeric: tabular-nums; color: var(--text-2); }
+
 /* log panel */
 .panel.log { flex: none; height: 132px; min-height: 48px; }
 .panel.log.collapsed { height: 48px !important; }
@@ -323,10 +333,14 @@ details[open] summary::before { transform: rotate(90deg); }
 button.pill.armed:hover { filter: brightness(0.92); background: var(--red); color: #fff; }
 #mode-pills .pill.active { background: var(--text); color: var(--bg); box-shadow: none; }
 
-/* edited parameters */
-.ov-row { display: grid; grid-template-columns: 150px 92px 72px 72px 1fr 22px; gap: 8px; align-items: center; padding: 4px 0; border-bottom: 1px solid var(--line); font-size: 12px; }
+/* the parameter table: name, your value, PX4's default, what the vehicle has, what a real flight gets */
+.ov-row { display: grid; grid-template-columns: 150px 92px 66px 66px 64px 1fr 22px; gap: 8px; align-items: center; padding: 4px 0; border-bottom: 1px solid var(--line); font-size: 12px; }
 .ov-row.head { color: var(--text-3); font-size: 11px; padding-bottom: 2px; }
-.ov-row.head span:nth-child(2), .ov-row.head span:nth-child(3), .ov-row.head span:nth-child(4) { text-align: right; }
+.ov-row.head span:nth-child(2), .ov-row.head span:nth-child(3), .ov-row.head span:nth-child(4), .ov-row.head span:nth-child(5) { text-align: right; }
+.ov-row .ov-fly { font-variant-numeric: tabular-nums; text-align: right; font-size: 11.5px; }
+.ov-row .ov-fly.ok { color: var(--text-3); }
+.ov-row .ov-fly.warn { color: var(--amber); }
+.ov-row.drift .pname { color: var(--amber); }
 .ov-row .ov-def { font-variant-numeric: tabular-nums; text-align: right; font-size: 11.5px; }
 .ov-row .ov-def.off { color: var(--accent); }
 .ov-row:last-child { border-bottom: 0; }
@@ -336,7 +350,7 @@ button.pill.armed:hover { filter: brightness(0.92); background: var(--red); colo
 .prow.edited .pname { color: var(--accent); }
 
 .ov-row.ro .ov-val { font-family: var(--mono); font-size: 11.5px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.ov-row.ro { grid-template-columns: 150px 92px 72px 72px 1fr 22px; }
+.ov-row.ro { grid-template-columns: 150px 92px 66px 66px 64px 1fr 22px; }
 /* the grouped rows carry one summary instead of a value and a default, so they keep five columns */
 .ov-row.ro.rotor, .ov-row.ro.funcs { grid-template-columns: 110px 1fr 70px 60px 22px; }
 .ov-sep { height: 1px; background: var(--line); margin: 8px 0; }
@@ -376,6 +390,14 @@ input[type=range] { accent-color: var(--accent); }
 #wing-table input[data-k=sweep], #wing-table input[data-k=dih], #wing-table input[data-k=inc], #wing-table input[data-k=twist], #wing-table input[data-k=stall],
 #leg-table input[data-k=tilt], #leg-table input[data-k=cant] { width: 46px; }
 #leg-table input[data-k=stiff], #leg-table input[data-k=damp] { width: 56px; }
+/* Mounting errors: the one table where a number is allowed to be alarming, so it says so. */
+#mount-table { overflow-x: auto; margin: 0 -6px; padding: 0 6px; }
+#mount-table input[type=number] { width: 54px; padding: 4px 5px; font-size: 12px; box-shadow: none; background: transparent; border-radius: 7px; }
+#mount-table input[type=number]:hover { background: var(--soft); }
+#mount-table input[type=number]:focus { background: var(--panel); box-shadow: inset 0 0 0 1.5px var(--accent); }
+#mount-table input.warn { color: var(--amber); box-shadow: inset 0 0 0 1.5px var(--amber); }
+#mount-table input.bad { color: var(--red); box-shadow: inset 0 0 0 1.5px var(--red); }
+.hint.bad, #mount-note.bad { color: var(--red); }
 table.grid input.name { width: 64px; padding: 4px 5px; font-size: 12px; box-shadow: none; background: transparent; border-radius: 7px; font-weight: 600; }
 #rotor-table input.name { width: 48px; }
 table.grid select { padding: 3px 4px; font-size: 11px; box-shadow: none; background: transparent; border-radius: 7px; width: 56px; }
@@ -549,8 +571,8 @@ input.run-name { width: 190px; flex: 0 0 auto; padding: 3px 9px; border-radius: 
 .preset-bar input.name-input { flex: 1 1 110px; width: auto; min-width: 96px; font-size: 13px;
   background: var(--panel); box-shadow: inset 0 0 0 1px var(--line); padding: 4px 9px; }
 .preset-bar .pill.small { padding: 4px 9px; font-size: 12px; }
-.preset-bar .icon-btn { padding: 4px 7px; line-height: 0; }
-.preset-bar .icon-btn svg { display: block; }
+.icon-btn { padding: 4px 7px; line-height: 0; }
+.icon-btn svg { display: block; }
 .preset-bar select.preset-select { background-color: var(--panel); box-shadow: inset 0 0 0 1px var(--line); max-width: 150px; }
 /* the version picker is the name field's twin: same box, same height, its own chevron */
 .preset-bar select.preset-select.boxed { background-color: var(--panel); box-shadow: inset 0 0 0 1px var(--line);
@@ -622,3 +644,7 @@ table.grid tr.pair-top input.sym, table.grid tr.pair-bottom input.sym { accent-c
 #mi-steps .step.now .step-text { color: var(--accent); font-weight: 600; }
 #mi-steps .step.now .step-text b::after { content: "▸"; margin-left: 4px; }
 #mi-steps .step.done .step-text { color: var(--text-3); }
+
+#logs-table td.dl { min-width: 150px; }
+#logs-table td.dl .hint { display: block; font-size: 11px; white-space: nowrap; }
+#logs-table td.dl .hint.ok { color: var(--green); }

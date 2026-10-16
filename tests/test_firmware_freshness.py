@@ -47,3 +47,36 @@ def test_missing_binary_needs_rebuild(tmp_path):
     t = make_tree(tmp_path, binary=False)
     st = fw.status(str(t), None, max_age=0)
     assert st["needs_rebuild"] and len(st["stale"]) == 2
+
+
+def test_switching_a_module_off_records_its_parameters_with_the_design(tmp_path, monkeypatch):
+    """The names come from the module's own params.yaml, and they are kept with the design so a batch run
+    or another machine exports exactly the same thing."""
+    import asyncio, threading
+    from types import SimpleNamespace as NS
+    from unittest.mock import Mock
+    from airframe_designer.geometry.airframe import quad_x
+    from airframe_designer.server import app as mod
+
+    monkeypatch.setattr(mod, "AIRFRAME_DIR", tmp_path)
+    af = quad_x()
+    af.name = "MODULES_TEST"
+    sim = NS(lock=threading.RLock(), hooks=[], t=0.0, paused=False, airframe=af,
+             set_airframe=lambda x: None, stop_nose_lift=Mock(), reset=Mock())
+    state = NS(simulator=sim, conn=NS(mode="sitl", reset_all=lambda: {"steps": []}),
+               link=NS(status=lambda: {"armed": False}), log=Mock())
+    routes = {r.path: r.endpoint for r in mod.build_app(state).routes if hasattr(r, "endpoint")}
+    listed = routes["/api/firmware/modules"]()
+    module = next((g for g in listed["groups"] if g["kind"] == "module" and g.get("params")), None)
+    if module is None:
+        import pytest
+        pytest.skip("no firmware module with parameters in this checkout")
+
+    r = asyncio.run(routes["/api/firmware/modules/enable"]({"dir": module["dir"], "on": False}))
+    assert r["ok"] and set(af.design["modules_off"][module["dir"]]) == set(module["params"])
+    assert not (set(af.px4_params_sitl()) & set(module["params"])), "none of them reach the export"
+
+    assert asyncio.run(routes["/api/firmware/modules/enable"]({"dir": module["dir"], "on": True}))["ok"]
+    assert af.design["modules_off"] == {}
+    bad = asyncio.run(routes["/api/firmware/modules/enable"]({"dir": "nope", "on": False}))
+    assert bad.status_code == 404

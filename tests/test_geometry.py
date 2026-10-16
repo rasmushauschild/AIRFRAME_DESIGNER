@@ -356,14 +356,17 @@ def test_px4_params_hover_pitch_rotates_geometry(quad):
     assert p["CA_ROTOR0_AZ"] == pytest.approx(-math.cos(math.radians(30.0)), abs=1e-4)
 
 
-def test_px4_overrides_are_exported_and_geometry_wins(quad):
+def test_an_override_wins_over_the_value_the_geometry_worked_out(quad):
+    """Your aircraft, your parameter - including the allocator. What the app owes you in return is the
+    number the geometry would have set, so the two having drifted apart is visible rather than hidden."""
     quad.px4_overrides = {"MC_PITCH_P": 4.0, "MC_AIRMODE": True, "CA_ROTOR_COUNT": 99}
     p = quad.px4_params_sitl()
     assert p["MC_PITCH_P"] == 4.0 and p["MC_AIRMODE"] == 1
-    assert p["CA_ROTOR_COUNT"] == 4
+    assert p["CA_ROTOR_COUNT"] == 99, "it is what you typed"
+    assert quad.px4_params(hitl=False, overrides=False)["CA_ROTOR_COUNT"] == 4, "and the geometry still says 4"
     assert "MC_PITCH_P" not in quad.geometry_param_names()
     text = quad.px4_params_file(hitl=False)
-    assert "1\t1\tCA_ROTOR_COUNT\t4\t6" in text
+    assert "1\t1\tCA_ROTOR_COUNT\t99\t6" in text
     assert "1\t1\tMC_PITCH_P\t4.000000\t9" in text
 
 
@@ -418,3 +421,27 @@ def test_a_mirrored_couple_is_two_items_that_the_app_keeps_together():
     af.legs[0].pair = af.legs[1].pair = "p2"
     assert not any("mirrored" in p for p in af.validate())
     assert Airframe.from_dict(af.to_dict()).legs[1].pair == "p2"
+
+
+def test_geometry_dependent_means_the_design_works_it_out(quad):
+    """Which parameters belong in the geometry section is not a judgement call: they are exactly the ones
+    px4_params computes, which is exactly the set that moves by itself when the design changes."""
+    quad.px4_overrides = {"MC_PITCH_P": 4.0}
+    geometry = quad.px4_params(hitl=True, overrides=False)
+    assert "MC_PITCH_P" not in geometry, "an added parameter is not geometry dependent"
+    assert {"CA_ROTOR_COUNT", "CA_ROTOR0_PX", "SENS_BOARD_Z_OFF", "EKF2_IMU_POS_X"} <= set(geometry)
+
+    before = dict(geometry)
+    quad.rotors[0].pos = [quad.rotors[0].pos[0] + 0.25, *quad.rotors[0].pos[1:]]
+    after = quad.px4_params(hitl=True, overrides=False)
+    moved = [k for k in before if before[k] != after.get(k)]
+    assert "CA_ROTOR0_PX" in moved, "and they really do follow the geometry"
+
+
+def test_an_override_can_be_put_back(quad):
+    """The reset in each geometry row: forget the override and the design sets it again."""
+    geo = quad.px4_params(hitl=True, overrides=False)["CA_ROTOR0_PX"]
+    quad.px4_overrides["CA_ROTOR0_PX"] = 9.9
+    assert quad.px4_params(hitl=True)["CA_ROTOR0_PX"] == 9.9
+    del quad.px4_overrides["CA_ROTOR0_PX"]
+    assert quad.px4_params(hitl=True)["CA_ROTOR0_PX"] == geo

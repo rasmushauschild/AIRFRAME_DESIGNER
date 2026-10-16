@@ -182,3 +182,85 @@ def test_mount_angles_survive_the_round_trip():
         R = mount_rotation(angles)
         assert R @ R.T == pytest.approx(np.eye(3), abs=1e-12)
         assert rotation_euler_deg(R) == pytest.approx(angles, abs=1e-6)
+
+
+def test_a_real_flight_records_the_aircrafts_own_flow():
+    """In FLIGHT the H-flow columns were flat zero - not because the sensor saw nothing, but because
+    nothing asked the aircraft for OPTICAL_FLOW_RAD and nothing passed it to the recorder. The rate
+    conversion has to be the one the simulated path uses, or the same column would mean two things."""
+    import time
+    from types import SimpleNamespace as NS
+    import numpy as np
+    from airframe_designer.px4.link import PX4Link
+    from airframe_designer.sim.simulator import Simulator
+
+    # the aircraft reports a flow of 0.2 rad integrated over 50 ms about x, 0.1 about y
+    link = PX4Link("hitl", "/dev/null", baud=57600, log=lambda *_: None)
+    msg = NS(integration_time_us=50_000, integrated_x=0.2, integrated_y=0.1, quality=180, distance=1.4,
+             integrated_xgyro=0.0, integrated_ygyro=0.0, integrated_zgyro=0.0)
+    PX4Link._own_radio(link, msg, "OPTICAL_FLOW_RAD")            # not the radio: falls through to the handler
+    link.board_flow = {"rate": (-0.2 / 0.05, -0.1 / 0.05), "quality": 180.0, "range": 1.4, "t": time.time()}
+    link.board_alt = {"relative": 2.5, "t": time.time()}
+
+    sim = Simulator.__new__(Simulator)
+    sim._flow_quiet = None
+    sim.log = lambda *_: None
+    extra = Simulator._flight_extra(sim, link, NS(pos=np.array([0.0, 0.0, -1.0])))
+    assert extra["flow_rate"] == pytest.approx((-4.0, -2.0)), "negated line-of-sight rate, as PX4 reports it"
+    assert extra["flow_range"] == pytest.approx(1.4)
+    assert extra["flow_quality"] == 180.0
+    assert extra["alt_baro"] == pytest.approx(2.5), "the board's own height, not the local z"
+
+    # nothing arriving: the columns stay empty rather than being filled with a stale reading
+    link.board_flow = {"rate": (1.0, 1.0), "quality": 9, "range": 1.0, "t": time.time() - 60}
+    stale = Simulator._flight_extra(sim, link, NS(pos=np.array([0.0, 0.0, -1.0])))
+    assert "flow_rate" not in stale and "flow_quality" not in stale
+
+
+def test_the_flow_stream_is_asked_for_over_a_radio_and_a_cable():
+    from airframe_designer.px4.link import PX4Link
+    for baud, least in ((57600, 2.0), (921600, 10.0)):
+        link = PX4Link("hitl", "/dev/null", baud=baud, log=lambda *_: None)
+        link.share = "balanced"
+        assert link.flight_rates()[106] >= least, f"{baud}: the H-flow has to be asked for"
+
+
+def test_indoors_the_rangefinder_is_the_height_and_no_one_waits_for_gps():
+    """No GPS indoors, ever. The estimator has to be told, or it keeps the barometer as its height
+    reference and has no horizontal aiding at all - which is an aircraft that cannot hold still however
+    well the flow sensor is tracking."""
+    from airframe_designer.geometry.airframe import quad_x
+    af = quad_x()
+    af.design["flow_sensor"] = {"enabled": True, "position": [0.0, 0.0, 0.05], "rotation": [0, 0, 0], "range_m": 4}
+    out = af.px4_params(hitl=True)
+    assert out["EKF2_OF_CTRL"] == 1 and out["EKF2_RNG_CTRL"] == 1
+    assert "EKF2_HGT_REF" not in out and "EKF2_GPS_CTRL" not in out, "outdoors nothing is assumed"
+
+    af.design["indoor"] = True
+    inside = af.px4_params(hitl=True)
+    assert inside["EKF2_HGT_REF"] == 2, "the rangefinder is the height reference"
+    assert inside["EKF2_GPS_CTRL"] == 0, "and nothing waits for a GPS that is not coming"
+    assert inside["EKF2_RNG_CTRL"] == 2, "range fusion always, not only when it feels like it"
+
+    # and they cross over to a real flight, because they are facts about the aircraft
+    from airframe_designer.px4.real_flight import flight_params
+    af.design["indoor"] = True
+    real = flight_params(af)
+    assert real["EKF2_HGT_REF"] == 2 and real["EKF2_GPS_CTRL"] == 0
+
+
+def test_a_parameter_the_geometry_works_out_can_still_be_taken_over():
+    """What the user asked for: EKF2_OF_CTRL is computed from the design, and setting it by hand must win
+    rather than being silently overwritten on the next export."""
+    from airframe_designer.geometry.airframe import quad_x
+    af = quad_x()
+    af.design["flow_sensor"] = {"enabled": True, "position": [0, 0, 0.05], "rotation": [0, 0, 0], "range_m": 4}
+    assert af.px4_params(hitl=True)["EKF2_OF_CTRL"] == 1
+    af.px4_overrides["EKF2_OF_CTRL"] = 0
+    assert af.px4_params(hitl=True)["EKF2_OF_CTRL"] == 0, "the typed value wins"
+    assert af.px4_params(hitl=True, overrides=False)["EKF2_OF_CTRL"] == 1, "and the geometry still says what it thinks"
+
+    # and so can the allocator: it is your aircraft. The geometry's own value stays one click away.
+    af.px4_overrides["CA_ROTOR_COUNT"] = 99
+    assert af.px4_params(hitl=True)["CA_ROTOR_COUNT"] == 99
+    assert af.px4_params(hitl=True, overrides=False)["CA_ROTOR_COUNT"] == 4

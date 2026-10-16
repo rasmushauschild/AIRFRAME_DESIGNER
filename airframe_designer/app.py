@@ -36,6 +36,21 @@ PROJECT_DIR = Path(__file__).resolve().parent.parent
 DEFAULT_AIRFRAME = "atlas_09b.json"
 
 
+def default_airframe_path(root: Path) -> Path | None:
+    """Which design the app opens when nothing was asked for.
+
+    The designs in ``airframes/`` are the user's, to rename and delete as they please, so no particular
+    name is promised to be there. Preferred is the one named here if it still exists, then simply the one
+    edited most recently - with autosave that is the design that was open last - and otherwise nothing,
+    which means a bare quad to start from.
+    """
+    d = root / "airframes"
+    if (d / DEFAULT_AIRFRAME).is_file():
+        return d / DEFAULT_AIRFRAME
+    files = [p for p in d.glob("*.json") if not p.name.startswith("_")] if d.is_dir() else []
+    return max(files, key=lambda p: p.stat().st_mtime) if files else None
+
+
 def free_http_port(host: str, port: int, log, tries: int = 20) -> int:
     """The requested port, or the next free one when another app (e.g. an older simulator) still holds it."""
     import socket
@@ -90,12 +105,13 @@ def main(argv=None) -> int:
         log_buffer.append((time.time(), s))
 
     # airframe
-    if args.airframe:
-        airframe = Airframe.load(args.airframe)
-    elif (PROJECT_DIR / "airframes" / DEFAULT_AIRFRAME).is_file():
-        airframe = Airframe.load(PROJECT_DIR / "airframes" / DEFAULT_AIRFRAME)
-    else:
-        airframe = quad_x()
+    if args.airframe and not Path(args.airframe).is_file():
+        ap.error(f"no such airframe: {args.airframe}. The designs in airframes/ are yours to rename and "
+                 f"delete, so nothing is pinned to a name; leave --airframe off to open the last one you "
+                 f"edited. There now: " + (", ".join(sorted(p.name for p in (PROJECT_DIR / "airframes").glob("*.json")
+                                                            if not p.name.startswith("_"))) or "none"))
+    chosen = Path(args.airframe) if args.airframe else default_airframe_path(PROJECT_DIR)
+    airframe = Airframe.load(chosen) if chosen else quad_x()
     log(f"[sim] airframe: {airframe.name} ({len(airframe.rotors)} rotors, {len(airframe.wings)} wings, {len(airframe.legs)} legs, {airframe.mass.mass:.2f} kg)")
 
     lat, lon, alt = (float(x) for x in args.home.split(","))

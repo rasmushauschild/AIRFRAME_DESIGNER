@@ -14,7 +14,8 @@ class RotorSet:
         cg = np.asarray(cg, float)
         self.n = len(rotors)
         self.r = np.array([r.pos for r in rotors], float).reshape(self.n, 3) - cg
-        axes = np.array([r.axis for r in rotors], float).reshape(self.n, 3)
+        # the axis the aircraft was built with, not the one it was drawn with (Rotor.built_axis)
+        axes = np.array([r.built_axis for r in rotors], float).reshape(self.n, 3)
         norms = np.linalg.norm(axes, axis=1, keepdims=True); norms[norms < 1e-9] = 1.0
         self.axis = axes / norms
         self.km = np.array([r.km for r in rotors], float)

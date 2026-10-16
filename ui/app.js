@@ -3,6 +3,9 @@ let prearmReportRequestPending = false;
 import { noseSelection, removeNoseMotor, simulatorNoseSelected } from '/static/nose_selection.js';
 const V = new URL(import.meta.url).search;
 const { createScene } = await import('/static/scene.js' + V);
+const { pairToken, twinOf, unpair, mirrorRotorOnto, mirrorLegOnto, makePair, legFoot, pairedOrder }
+  = await import('/static/pairing.js' + V);
+const { builtAxis, mountError, axisToTiltCant } = await import('/static/scene_math.js' + V);
 
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => Array.from(document.querySelectorAll(s));
@@ -49,8 +52,12 @@ try {
 } catch (e) {
   // no WebGL (hidden window, remote desktop, old GPU): keep the rest of the app working without the 3D view
   console.warn('3D view unavailable:', e.message);
-  const noop = () => { };
-  scene = { setAirframe: noop, updateState: noop, select: noop, updateRotorNode: noop, setTheme: noop, setFollow: noop, setCameraMode: noop, setMode: noop, selected: -1, focusOrigin: noop, setCad: noop, selectCad: noop, syncCad: noop, selectedCad: null };
+  // Anything the app asks of the scene answers and does nothing. A hand-written list of stubs went stale
+  // every time the 3D view grew a method, and the missing one threw halfway through loading this file -
+  // which silently left every button defined below it unbound. A missing 3D view must cost the 3D view
+  // and nothing else.
+  scene = new Proxy({ selected: -1, selectedCad: null, selectedCadIds: [] },
+                    { get: (t, k) => (k in t ? t[k] : () => { }) });
   $('#viewport').insertAdjacentHTML('afterbegin', '<div class="hint" style="padding:18px">3D view unavailable in this window (no WebGL). Everything else works.</div>');
 }
 
@@ -177,12 +184,14 @@ function setAirframe(af) {
   $('#af-name').value = af.name;
   if (document.activeElement !== $('#af-name')) $('#af-name').value = af.name || '';
   $('#view-title').textContent = af.name || 'Airframe';
+  if (graphOn) loadRunList();          // the runs listed are this design's, so a new design means a new list
   fillMassCard();
   ['bx', 'by', 'bz'].forEach((k, i) => $('#af-' + k).value = af.body.size[i]);
   ['dragx', 'dragy', 'dragz'].forEach((k, i) => $('#af-' + k).value = af.body.drag_quadratic[i]);
   ['adragx', 'adragy', 'adragz'].forEach((k, i) => $('#af-' + k).value = af.body.drag_angular[i]);
   ['dcx', 'dcy', 'dcz'].forEach((k, i) => $('#af-' + k).value = af.body.drag_center[i]);
   renderRotorTable();
+  renderMountTable();
   renderWingTable();
   renderLegTable();
   renderMotorSliders();
@@ -219,6 +228,7 @@ function fillSensorCard() {
   ['x', 'y', 'z'].forEach((axis, i) => { $('#flow-' + axis).value = +(+pos[i]).toFixed(4); });
   ['rr', 'rp', 'ry'].forEach((k, i) => { $('#flow-' + k).value = +(+frot[i]).toFixed(1); });
   $('#flow-range').value = f?.range_m ?? 4;
+  $('#flow-indoor').checked = !!airframe.design?.indoor;
   $$('.flow-fields input').forEach(el => el.disabled = !f?.enabled);
   // What the beam does in hover is the thing that decides whether the sensor is usable, so it is the note.
   let note = '';
@@ -524,53 +534,6 @@ $('#af-delete').addEventListener('click', async (e) => {
   } catch (err) { logLine('[preset] ' + err.message); }
 });
 
-// --- mirrored couples: a rotor or a leg can be tied to its opposite number, so moving one moves the
-// other. They stay two separate things — two outputs, two names, two spin directions, two contact points —
-// because that is what they are on the aircraft; what the tie keeps the same is the geometry.
-const pairToken = () => 'p' + Math.random().toString(36).slice(2, 9);
-const twinOf = (list, i) => {
-  const tok = list[i] && list[i].pair;
-  if (!tok) return -1;
-  const others = list.map((x, k) => (k !== i && x.pair === tok ? k : -1)).filter(k => k >= 0);
-  return others.length === 1 ? others[0] : -1;    // a couple is two; anything else is a mistake to leave alone
-};
-function unpair(list, i) {
-  const j = twinOf(list, i);
-  if (j >= 0) list[j].pair = '';
-  if (list[i]) list[i].pair = '';
-}
-// Copy the geometry of `src` onto its twin, mirrored about the centreline.
-function mirrorRotorOnto(src, dst) {
-  dst.pos = [src.pos[0], -src.pos[1], src.pos[2]];
-  dst.axis = [src.axis[0], -src.axis[1], src.axis[2]];
-  dst.max_thrust = src.max_thrust; dst.max_power_w = src.max_power_w;
-  dst.tau = src.tau; dst.diameter = src.diameter; dst.thrust_exponent = src.thrust_exponent;
-  dst.km = (dst.km >= 0 ? 1 : -1) * Math.abs(src.km);     // same motor, its own direction of rotation
-}
-function mirrorLegOnto(src, dst) {
-  dst.attach = [src.attach[0], -src.attach[1], src.attach[2]];
-  dst.length = src.length; dst.tilt_deg = src.tilt_deg; dst.cant_deg = src.cant_deg;   // cant is outward, so it mirrors as it is
-  dst.foot_radius = src.foot_radius; dst.stiffness = src.stiffness; dst.damping = src.damping; dst.friction = src.friction;
-}
-/** Tie item `i` to its opposite number, making one only if the other side really is empty. Returns a reason
- *  when it cannot, or '' when it is done. An existing item on the other side is always preferred to a new
- *  one, even if it is carrying a tie of its own: duplicating a motor that is already there is worse than
- *  re-tying it, and a list that quietly grows an extra rotor is a list you cannot trust. */
-function makePair(list, i, mirrorOnto, keyY, mk) {
-  const src = list[i];
-  const y = keyY(src);
-  if (Math.abs(y) < 1e-6) return 'it sits on the centreline, so it has no opposite side';
-  const mirrored = (x, k) => k !== i && Math.abs(keyY(x) + y) < 0.05 && Math.abs(keyY(x)) > 1e-6;
-  let j = list.findIndex((x, k) => mirrored(x, k) && !x.pair);          // free, on the other side
-  if (j < 0) j = list.findIndex((x, k) => mirrored(x, k) && twinOf(list, k) < 0);   // there, but half tied
-  if (j < 0 && list.some((x, k) => mirrored(x, k))) return 'the item on the other side is already tied to another';
-  if (j < 0) { list.push(mk(src)); j = list.length - 1; }
-  const tok = pairToken();
-  src.pair = tok; list[j].pair = tok;
-  mirrorOnto(src, list[j]);
-  return '';
-}
-
 // --- rotor helpers: axis <-> tilt/direction
 // Tilt: forward lean of the thrust axis from vertical (negative = backward). Cant: sideways lean, positive = outward
 // (away from the centreline; for a rotor on the centreline positive = right).
@@ -591,16 +554,6 @@ const nf = (v, d = 3) => (typeof v === 'number' && isFinite(v)) ? +v.toFixed(d) 
 // The order the tables are drawn in: a tied couple is kept together, whatever order the two happen to sit
 // in the data. Only the drawing is reordered — every row keeps its real index, so the output numbering,
 // the PX4 export and everything else are untouched by how the list looks.
-function pairedOrder(list) {
-  const out = [], done = new Set();
-  list.forEach((_, i) => {
-    if (done.has(i)) return;
-    done.add(i); out.push(i);
-    const j = twinOf(list, i);
-    if (j >= 0 && !done.has(j)) { done.add(j); out.push(j); }
-  });
-  return out;
-}
 
 function renderRotorTable() {
   const el = $('#rotor-table');
@@ -669,7 +622,7 @@ function toggleRotorPair(i, on) {
   const r = airframe.rotors[i];
   if (!r) return;
   if (!on) { unpair(airframe.rotors, i); setAirframe(airframe); pushAirframe(true); return; }
-  const why = makePair(airframe.rotors, i, mirrorRotorOnto, (x) => x.pos[1], (src) => {
+  const why = makePair(airframe.rotors, i, mirrorRotorOnto, (x) => x.pos, (src) => {
     const n = JSON.parse(JSON.stringify(src));
     n.name = (src.name || 'M') + ' R';
     n.km = -src.km;                       // a new opposite number spins the other way; change it if you want
@@ -685,8 +638,10 @@ function renderReadout() {
   if (selected < 0 || !airframe.rotors[selected]) { el.classList.remove('show'); return; }
   const r = airframe.rotors[selected];
   const [tilt, cant] = axisToTilt(r.axis, r.pos[1]);
+  const [dt, dc] = mountError(r);
+  const built = (dt || dc) ? (([bt, bc]) => ` · <span class="warn">built ${bt.toFixed(1)}° / ${bc.toFixed(1)}°</span>`)(axisToTiltCant(builtAxis(r), r.pos[1])) : '';
   el.classList.add('show');
-  el.innerHTML = `<b>${esc(r.name || 'Motor ' + (selected + 1))}</b> pos [${r.pos.map(v => fmt(v)).join(', ')}] · axis [${r.axis.map(v => fmt(v, 3)).join(', ')}] (tilt ${tilt.toFixed(1)}°, cant ${cant.toFixed(1)}°) · ${r.km >= 0 ? 'CCW' : 'CW'}${r.enabled === false ? ' · disabled' : ''}`;
+  el.innerHTML = `<b>${esc(r.name || 'Motor ' + (selected + 1))}</b> pos [${r.pos.map(v => fmt(v)).join(', ')}] · axis [${r.axis.map(v => fmt(v, 3)).join(', ')}] (tilt ${tilt.toFixed(1)}°, cant ${cant.toFixed(1)}°)${built} · ${r.km >= 0 ? 'CCW' : 'CW'}${r.enabled === false ? ' · disabled' : ''}`;
 }
 $('#rotor-add').addEventListener('click', () => {
   const base = airframe.rotors[selected] || airframe.rotors[airframe.rotors.length - 1] || { pos: [0.2, 0, 0], axis: [0, 0, -1], km: 0.05, max_thrust: 8, max_power_w: 0, tau: 0.04, diameter: 0.25, thrust_exponent: 2, enabled: true };
@@ -695,6 +650,101 @@ $('#rotor-add').addEventListener('click', () => {
   n.name = 'M' + (airframe.rotors.length + 1); n.enabled = true; n.pair = '';
   airframe.rotors.push(n); selected = airframe.rotors.length - 1;
   setAirframe(airframe); scene.select(selected); pushAirframe(true);
+});
+
+// ============================================================ mounting errors
+// The one place where the aircraft and the model of it are allowed to disagree. `axis` stays the design -
+// the Rotors table, the export and PX4 all keep it - and the error here turns the axis the simulation
+// actually pushes along. The limits beside each box come from the server (`/api/airframe/mount_margin`):
+// how far that rotor could be out before the hover has nothing left to spare, and how far before there is
+// no mix of thrusts that holds the aircraft at all.
+let mountMargin = null, mountTimer = 0;
+// One number, and it is the honest one: how far this rotor can be out *either* way before the hover has
+// nothing to spare. The two sides are rarely the same and the whole story is in the tooltip.
+const DEG = (v) => (v < 0 ? '−' : '+') + Math.abs(v).toFixed(0) + '°';
+const mountRange = (pair, cap) => !pair ? '—'
+  : (Math.abs(pair[0]) >= cap && pair[1] >= cap) ? `beyond ±${cap}°`
+  : `±${Math.min(Math.abs(pair[0]), Math.abs(pair[1])).toFixed(0)}°`;
+function mountTitle(row, axis, cap) {
+  if (!row || !row[axis]) return row && row.why ? row.why : '';
+  const side = (p) => `${Math.abs(p[0]) >= cap ? 'beyond ' + DEG(-cap) : DEG(p[0])} to ${p[1] >= cap ? 'beyond ' + DEG(cap) : DEG(p[1])}`;
+  return `room to spare: ${side(row[axis])}\nstill hovers at all: ${side(row[axis + '_wall'] || row[axis])}`
+    + (row.why ? `\npast that, ${row.why}` : '');
+}
+
+function mountZone(v, row, axis) {          // fine / tight / past it, for one typed angle
+  if (!v || !row || !row[axis]) return '';
+  const soft = row[axis], hard = row[axis + '_wall'] || soft;
+  if (v < hard[0] || v > hard[1]) return 'bad';
+  if (v < soft[0] || v > soft[1]) return 'warn';
+  return '';
+}
+function renderMountTable() {
+  const el = $('#mount-table');
+  if (!el || !airframe) return;
+  const cap = (mountMargin && mountMargin.limit_deg) || 45;
+  const rowFor = (i) => (mountMargin && mountMargin.rotors || []).find(x => x.rotor === i);
+  const body = pairedOrder(airframe.rotors).map(i => {
+    const r = airframe.rotors[i], m = rowFor(i);
+    const [dt, dc] = mountError(r);
+    const [bt, bc] = axisToTiltCant(builtAxis(r), r.pos[1]);
+    return `<tr data-i="${i}" class="${r.enabled === false ? 'off' : ''}">
+      <td>${esc(r.name || 'M' + (i + 1))}</td>
+      <td><input type="number" step="1" data-k="tilt" class="${mountZone(dt, m, 'tilt')}" value="${+dt}"></td>
+      <td class="hint num" title="${esc(mountTitle(m, 'tilt', cap))}">${esc(mountRange(m && m.tilt, cap))}</td>
+      <td><input type="number" step="1" data-k="cant" class="${mountZone(dc, m, 'cant')}" value="${+dc}"></td>
+      <td class="hint num" title="${esc(mountTitle(m, 'cant', cap))}">${esc(mountRange(m && m.cant, cap))}</td>
+      <td class="num">${bt.toFixed(1)}° / ${bc.toFixed(1)}°</td></tr>`;
+  }).join('');
+  el.innerHTML = `<table class="grid"><thead><tr><th>Rotor</th>
+    <th title="degrees added to this rotor's designed tilt by the way it is actually mounted">Δ Tilt°</th>
+    <th title="how far out this rotor could be before the hover has nothing left to spare, and past the second figure nothing holds the aircraft at all">Allowed</th>
+    <th title="degrees added to this rotor's designed cant">Δ Cant°</th>
+    <th title="how far out this rotor could be before the hover has nothing left to spare">Allowed</th>
+    <th title="the tilt and cant the rotor really has: the design plus the error">As built</th></tr></thead>
+    <tbody>${body || '<tr><td colspan="6" class="hint">No rotors.</td></tr>'}</tbody></table>`;
+  el.querySelectorAll('tr[data-i] input').forEach(inp => inp.addEventListener('change', (e) => {
+    const i = +e.target.closest('tr').dataset.i, r = airframe.rotors[i];
+    const v = parseFloat(e.target.value) || 0;
+    // the error is this rotor's own: a mirrored couple shares its geometry, not its bad luck
+    if (e.target.dataset.k === 'tilt') r.tilt_error_deg = v; else r.cant_error_deg = v;
+    scene.updateRotorNode(i, r);
+    renderMountTable(); renderReadout(); pushAirframe(true); loadMountMargin(true);
+  }));
+  showMountNote();
+}
+function showMountNote() {
+  const off = (airframe.rotors || []).filter(r => mountError(r).some(v => v));
+  const note = $('#mount-note'), why = $('#mount-why');
+  if (note) {
+    note.textContent = !off.length ? 'all mounted true'
+      : off.map(r => `${r.name || 'rotor'} ${[mountError(r)[0] ? mountError(r)[0] + '° tilt' : '', mountError(r)[1] ? mountError(r)[1] + '° cant' : ''].filter(Boolean).join(', ')}`).join(' · ');
+    note.classList.toggle('bad', !!off.length);
+  }
+  if (why) {
+    const b = mountMargin && mountMargin.built;
+    why.textContent = !b ? '' : b.ok
+      ? `As built it still hovers: the busiest motor is at ${(b.worst * 100).toFixed(0)}%${b.lean_deg > 0.5 ? `, leaning ${b.lean_deg.toFixed(0)}°` : ''}.`
+      : `As built it cannot hover: ${b.why}.`;
+    why.classList.toggle('bad', !!(b && !b.ok));
+  }
+}
+function loadMountMargin(soon = false) {
+  if (!$('#sec-mount') || !$('#sec-mount').open) return;
+  clearTimeout(mountTimer);
+  mountTimer = setTimeout(async () => {
+    try { mountMargin = await api_get('/api/airframe/mount_margin'); } catch { mountMargin = null; }
+    renderMountTable();
+  }, soon ? 250 : 0);
+}
+$('#sec-mount') && $('#sec-mount').addEventListener('toggle', () => loadMountMargin());
+$('#mount-clear') && $('#mount-clear').addEventListener('click', () => {
+  airframe.rotors.forEach((r, i) => {
+    if (!mountError(r).some(v => v)) return;
+    r.tilt_error_deg = 0; r.cant_error_deg = 0;
+    scene.updateRotorNode(i, r);
+  });
+  renderMountTable(); renderReadout(); pushAirframe(true); loadMountMargin(true);
 });
 
 // ============================================================ wings
@@ -840,12 +890,6 @@ function renderLegTable() {
     tr.querySelector('.del').addEventListener('click', () => { unpair(airframe.legs, i); airframe.legs.splice(i, 1); renderLegTable(); scene.setAirframe(airframe); pushAirframe(true); });
   });
 }
-const legFoot = (l) => {
-  const side = l.attach[1] < 0 ? -1 : 1;
-  const t = (l.tilt_deg || 0) * Math.PI / 180, c = (l.cant_deg || 0) * Math.PI / 180 * side;
-  const d = [Math.sin(t), Math.sin(c) * Math.cos(t), Math.cos(c) * Math.cos(t)];
-  return d.map((v, k) => +l.attach[k] + (+l.length || 0) * v);
-};
 function legRowHtml(i, l) {
   const n = (k, step, v, extra = '') => `<input type="number" step="${step}" data-k="${k}" value="${nf(v, 4)}" ${extra}>`;
   const f = legFoot(l);
@@ -878,7 +922,7 @@ function toggleLegPair(i, on) {
   const l = airframe.legs[i];
   if (!l) return;
   if (!on) { unpair(airframe.legs, i); renderLegTable(); scene.setAirframe(airframe); pushAirframe(true); return; }
-  const why = makePair(airframe.legs, i, mirrorLegOnto, (x) => x.attach[1], (src) => {
+  const why = makePair(airframe.legs, i, mirrorLegOnto, (x) => legFoot(x), (src) => {
     const n = JSON.parse(JSON.stringify(src));
     n.name = (src.name || 'leg') + ' R';
     n.pair = '';
@@ -923,19 +967,48 @@ async function pushToPX4(statusEl, short = false) {
   const fw0 = status.firmware || {};
   const fwStale = !!(fw0.needs_rebuild || fw0.needs_relaunch || fw0.needs_flash);
   statusEl.innerHTML = fwStale ? (fw0.board ? '<span class="muted">Building if needed, flashing the board, then pushing… (a few minutes; watch the log)</span>' : '<span class="muted">Rebuilding firmware, relaunching PX4, then pushing… (watch the log)</span>') : '<span class="muted">Pushing…</span>';
+  // The push can take a minute over a radio. Count it out loud rather than leaving a button that looks
+  // stuck: the write happens on the server, and this asks it how far it has got while it works.
+  let ticking = true;
+  const tick = async () => {
+    if (!ticking) return;
+    try {
+      const p = await api_get('/api/px4/push/progress');
+      if (ticking && p.running && p.total) {
+        statusEl.innerHTML = `<span class="muted">Pushing… ${p.done} of ${p.total}`
+          + `${p.failed ? ` · ${p.failed} refused` : ''}</span>`;
+      } else if (ticking && p.running && p.step) {
+        statusEl.innerHTML = `<span class="muted">${esc(p.step)}…</span>`;
+      }
+    } catch { }
+    if (ticking) setTimeout(tick, 500);
+  };
+  tick();
   try {
     await api('/api/airframe', { airframe, keep_state: true });
     const r = await api('/api/px4/push', { save: true, firmware: true });
     const failed = r.results.filter(x => !x.ok);
     const fw = r.firmware || {};
     const fwNote = fw.flashed ? `${fw.rebuilt ? 'firmware built and ' : ''}board flashed · ` : (fw.rebuilt ? `firmware rebuilt${fw.build_seconds ? ' in ' + Math.round(fw.build_seconds) + ' s' : ''}, PX4 relaunched · ` : (fw.relaunched ? 'PX4 relaunched on the new firmware · ' : ''));
+    // what the design set, and then everything else that was not the simulator's
+    const rest = r.rest || {};
+    const also = rest.written ? ` + ${rest.written} to match SITL` : '';
+    const left = rest.skipped ? ` (${rest.skipped} calibration/RC/safety left alone)` : '';
     statusEl.innerHTML = r.ok
-      ? `<span class="ok">✓ ${fwNote}PX4 updated (${r.results.length} parameters)</span>`
+      ? `<span class="ok">✓ ${fwNote}PX4 updated (${r.results.length} parameters${also})${left}</span>`
       : `<span class="err">${failed.length} failed: ${failed.map(f => f.name + ' (' + f.error + ')').join(', ')}</span>`;
+    if (rest.why) statusEl.innerHTML += `<div class="muted">the rest were left as they are: ${esc(rest.why)}</div>`;
     if (!short && r.missing && r.missing.length) statusEl.innerHTML += `<div class="muted">not present in this firmware: ${r.missing.join(', ')}</div>`;
+    if (failed.length) {
+      // the whole list, wrapped and readable, instead of one truncated name
+      statusEl.innerHTML = `<span class="err">${failed.length} of ${r.results.length} refused</span>`
+        + `<div class="muted" style="white-space:normal">${failed.map(f => esc(f.name)).join(', ')}`
+        + ` — ${esc(failed[0].error || 'no answer')}</div>`;
+    }
     geometryDirty = false;
     await loadExport();
   } catch (e) { statusEl.innerHTML = `<span class="err">${e.message}</span>`; }
+  finally { ticking = false; }
 }
 $('#btn-update').addEventListener('click', () => {
   if (status.armed) { $('#update-status').innerHTML = '<span class="err">Disarm before updating PX4</span>'; return; }
@@ -1012,7 +1085,11 @@ function updateFooter() {
   upd.classList.toggle('fw-stale', fwStale);
   if (fwStale && !geometryDirty && !$('#update-status').textContent) $('#update-status').innerHTML = onBoard ? '<span class="warn">The board firmware is out of date</span>' : '<span class="warn">Firmware sources changed: Update PX4 rebuilds it</span>';
 }
-// ============================================================ edited parameters (overrides saved with the airframe)
+// ============================================================ the parameter table
+// Two kinds of row, and the difference is not a matter of taste: a *geometry dependent* parameter is one
+// the design works out and keeps working out - move a rotor and it moves - while an *added* one exists
+// only because you added it. Editing a geometry row does not promote it out of its section; it stays
+// where it is, with the value you typed, what the geometry would say, and one click to go back.
 function renderOverrides(r) {
   r = r || lastExport;
   const ov = (r && r.overrides) || (airframe && airframe.px4_overrides) || {};
@@ -1020,8 +1097,12 @@ function renderOverrides(r) {
   const el = $('#overrides');
   const f = (x) => (typeof x === 'number' && !Number.isInteger(x)) ? +x.toFixed(4) : x;
   const cur = (r && r.current) || {};
-  const same = (k, v) => cur[k] != null && Math.abs(+cur[k] - +v) < 1e-4;
-  const vehicleCell = (k, v) => `<span class="ov-cur ${cur[k] == null ? 'muted' : same(k, v) ? 'ok' : 'warn'}" title="the value the vehicle has right now">${cur[k] == null ? '—' : f(cur[k])}</span>`;
+  const geo = (r && r.geometry) || {};
+  const flight = (r && r.flight) || {};
+  const notes = (r && r.flight_notes) || {};
+  const P = (r && r.params) || {};
+  const same = (a, b) => a != null && b != null && Math.abs(+a - +b) < 1e-4;
+  const vehicleCell = (k, v) => `<span class="ov-cur ${cur[k] == null ? 'muted' : same(cur[k], v) ? 'ok' : 'warn'}" title="the value the vehicle has right now">${cur[k] == null ? '—' : f(cur[k])}</span>`;
   // PX4's own default, so every row says what it was moved away from
   const defCell = (k, v) => {
     const d = (meta[k] || {}).default;
@@ -1029,38 +1110,57 @@ function renderOverrides(r) {
     const at = Math.abs(+d - +v) <= Math.max(1e-9, Math.abs(+d) * 1e-6);
     return `<span class="ov-def ${at ? 'muted' : 'off'}" title="PX4's default${at ? ' (this is it)' : ''}">${f(+d)}</span>`;
   };
+  // What a real aircraft gets instead. Same value, a different one, or nothing at all - and when it is
+  // nothing, why. This is the column that answers "what will actually be different when I fly it".
+  const flightCell = (k, v) => {
+    if (r && r.flight_error && !Object.keys(flight).length) return '<span class="ov-fly muted" title="the real-flight set cannot be built for this design yet">—</span>';
+    if (!(k in flight)) return `<span class="ov-fly muted" title="${esc(notes[k] || 'not written to a real aircraft')}">not sent</span>`;
+    return same(flight[k], v)
+      ? '<span class="ov-fly ok" title="the same on a real aircraft">same</span>'
+      : `<span class="ov-fly warn" title="a real aircraft gets this instead">${f(flight[k])}</span>`;
+  };
   const head = `<div class="ov-row head"><span>Parameter</span><span>Set value</span><span>Default</span>`
-    + `<span>On vehicle</span><span>What it is</span><span></span></div>`;
+    + `<span>On vehicle</span><span>In flight</span><span>What it is</span><span></span></div>`;
+  const row = (k, value, kind) => {
+    const m = meta[k] || {};
+    const g = geo[k];
+    const edited = k in ov;
+    const drift = kind === 'geo' && edited && g != null && !same(g, ov[k]);
+    const note = drift ? `<span class="warn" title="the design works this out as ${f(g)}; your value is used instead"> · geometry says ${f(g)}</span>` : '';
+    const back = kind === 'geo'
+      ? (edited ? `<button class="del" data-reset="${k}" title="back to the value the geometry works out (${f(g)})">↺</button>` : '<span></span>')
+      : `<button class="del" data-n="${k}" title="forget this parameter">✕</button>`;
+    return `<div class="ov-row${drift ? ' drift' : ''}"><span class="pname">${k}</span>`
+      + `<input type="number" step="any" value="${value}" data-n="${k}">`
+      + `${defCell(k, value)}${vehicleCell(k, value)}${flightCell(k, value)}`
+      + `<span class="pdesc" title="${(m.short || '').replace(/"/g, '&quot;')}">${m.short || ''}${note}</span>${back}</div>`;
+  };
+
   let html = '';
-  // hand-edited, editable
-  const names = Object.keys(ov).sort();
-  if (names.length) html += head;
-  names.forEach(n => {
-    const m = meta[n] || {};
-    html += `<div class="ov-row"><span class="pname">${n}</span><input type="number" step="any" value="${ov[n]}" data-n="${n}">${defCell(n, ov[n])}${vehicleCell(n, ov[n])}<span class="pdesc" title="${(m.short || '').replace(/"/g, '&quot;')}">${m.short || ''}</span><button class="del" data-n="${n}" title="forget this edit">✕</button></div>`;
-  });
-  // derived from the geometry, read-only, grouped per rotor
-  if (r && r.params) {
-    const P = r.params, keys = r.geometry_keys || [];
-    const rotors = {}; const rest = [];
-    keys.forEach(k => { const m = k.match(/^CA_ROTOR(\d+)_(PX|PY|PZ|AX|AY|AZ|KM)$/); if (m) (rotors[m[1]] = rotors[m[1]] || {})[m[2]] = P[k]; else if (!/^(HIL_ACT_FUNC|PWM_MAIN_FUNC)\d+$/.test(k)) rest.push(k); });
-    const diff = (prefix) => keys.filter(k => k.startsWith(prefix)).some(k => !same(k, P[k]));
-    if (html) html += '<div class="ov-sep"></div>';
-    html += '<div class="hint" style="margin:2px 0 4px">From the geometry above · read-only</div>' + head;
-    rest.forEach(k => { html += `<div class="ov-row ro"><span class="pname">${k}</span><span class="ov-val">${f(P[k])}</span>${defCell(k, P[k])}${vehicleCell(k, P[k])}<span class="pdesc">${(meta[k] || {}).short || ''}</span><span></span></div>`; });
-    Object.keys(rotors).sort((a, b) => a - b).forEach(i => {
-      const R = rotors[i]; const d = diff(`CA_ROTOR${i}_`);
-      html += `<div class="ov-row ro rotor"><span class="pname">CA_ROTOR${i}_*</span><span class="ov-val rot">P ${f(R.PX)} ${f(R.PY)} ${f(R.PZ)} · A ${f(R.AX)} ${f(R.AY)} ${f(R.AZ)} · KM ${f(R.KM)}</span><span class="ov-cur ${d ? 'warn' : 'ok'}">${d ? '≠ vehicle' : '✓'}</span><span class="pdesc">motor ${+i + 1}</span><span></span></div>`;
-    });
-    const funcs = keys.filter(k => /^(HIL_ACT_FUNC|PWM_MAIN_FUNC)\d+$/.test(k)).sort((a, b) => parseInt(a.match(/\d+$/)[0]) - parseInt(b.match(/\d+$/)[0]));
-    if (funcs.length) {
-      const on = funcs.filter(k => P[k] > 0), d = funcs.some(k => !same(k, P[k]));
-      html += `<div class="ov-row ro funcs"><span class="pname">${funcs[0].replace(/\d+$/, '')}1‑${funcs.length}</span><span class="ov-val rot">${on.map(k => P[k]).join(', ')}${on.length < funcs.length ? ', rest 0' : ''}</span><span class="ov-cur ${d ? 'warn' : 'ok'}">${d ? '≠ vehicle' : '✓'}</span><span class="pdesc">output → motor mapping</span><span></span></div>`;
-    }
+  // A module switched off takes its parameters out of the export, so they come out of the table too -
+  // including one you had set by hand. The value stays in the design and comes back with the module.
+  const gone = new Set((r && r.modules_off) || []);
+  const geoNames = Object.keys(geo).filter(k => !gone.has(k)).sort();
+  const added = Object.keys(ov).filter(k => !(k in geo) && !gone.has(k)).sort();
+  if (added.length) {
+    html += '<div class="hint" style="margin:2px 0 4px">Added parameters</div>' + head;
+    added.forEach(k => { html += row(k, ov[k], 'added'); });
   }
-  el.innerHTML = html || '<div class="hint">Nothing edited yet. Add a parameter above, or change one on the Geometry tab.</div>';
+  if (geoNames.length) {
+    if (html) html += '<div class="ov-sep"></div>';
+    html += '<div class="hint" style="margin:2px 0 4px">Geometry dependent parameters</div>' + head;
+    geoNames.forEach(k => { html += row(k, k in ov ? ov[k] : (P[k] ?? geo[k]), 'geo'); });
+  }
+  el.innerHTML = html || '<div class="hint">Nothing here yet. Add a parameter above, or change the design on the Geometry tab.</div>';
   $$('#overrides input').forEach(inp => inp.addEventListener('change', () => setParamValue(inp.dataset.n, parseFloat(inp.value))));
-  $$('#overrides .del').forEach(b => b.addEventListener('click', async () => { await api('/api/airframe/override_remove', { name: b.dataset.n }); delete airframe.px4_overrides[b.dataset.n]; loadExport(); markDirty(); }));
+  $$('#overrides .del[data-n]').forEach(b => b.addEventListener('click', async () => { await api('/api/airframe/override_remove', { name: b.dataset.n }); delete airframe.px4_overrides[b.dataset.n]; loadExport(); markDirty(); }));
+  $$('#overrides .del[data-reset]').forEach(b => b.addEventListener('click', async () => {
+    const n = b.dataset.reset;
+    await api('/api/airframe/override_remove', { name: n });
+    delete airframe.px4_overrides[n];
+    logLine(`[export] ${n} is back to what the geometry works out`);
+    loadExport(); markDirty();
+  }));
 }
 async function setParamValue(n, value) {
   if (status.ctl_connected) {
@@ -1442,13 +1542,23 @@ function applyStatus(s) {
 // Green means this mode is doing what it says: SITL flying the simulation, the board flying it in HITL
 // (HIL actually enabled), or the aircraft's telemetry arriving in FLIGHT. Anything else is red, and the
 // tooltip says what is missing.
+let lastStatusAt = 0;
 function paintModeSwitch(s) {
+  if (s) lastStatusAt = Date.now();
   s = s || {};
-  const real = !s.conn_mode ? '' : s.conn_mode === 'sitl' ? 'sitl' : (s.hil_enabled === false || s.listening ? 'real' : 'hitl');
-  const shown = modeWanted || real;
+  if (modeWanted && modeWanted === linkReal(s)) modeWanted = null;   // the wish came true: follow the link again
+  const shown = modeShown(s);
   $$('#mode-switch button').forEach(b => b.classList.toggle('active', b.dataset.link === shown));
   let ok = false, why = '';
   const onBoard = s.conn_mode === 'hitl';
+  // While the switch is doing its work, what it is doing is the most useful thing the light can say
+  if (modeJob && modeJob.state === 'running' && (modeJob.mode === shown || !shown)) {
+    $('#link-light i').classList.remove('on');
+    $('#link-light').classList.add('crit');
+    const label = { sitl: 'SITL', hitl: 'HITL', real: 'FLIGHT' }[shown || modeJob.mode] || '';
+    $('#link-light').title = `${label} · ${modeJob.step || 'working…'}`;
+    return;
+  }
   const flying = (s.mode_name && !/^mode\d+$/.test(s.mode_name) ? s.mode_name : '—') + (s.armed ? ' · ARMED' : '');
   if (s.resetting > 0) why = `resetting, ${Math.ceil(s.resetting)} s`;
   else if (s.flashing) why = 'flashing the board';
@@ -1466,9 +1576,17 @@ function paintModeSwitch(s) {
         : flying;
   } else if (shown === 'real') {
     const fresh = s.telemetry_age != null && s.telemetry_age < 3;
-    ok = !!(onBoard && s.listening && s.ctl_connected && fresh);
+    ok = !!(onBoard && s.listening && s.ctl_connected && fresh && !s.hil_enabled);
+    const radio = s.radio && s.radio.age != null && s.radio.age < 5;
+    // A board still set to SYS_HITL = 1 has its own IMU switched off and is waiting for a simulator to
+    // send it one. Nothing is wrong with the link, the aircraft simply has no attitude and no position to
+    // report - which otherwise reads as "not saying where it is" and sends you hunting the wrong thing.
     why = !onBoard ? `no radio or board on USB (still ${s.conn_mode || 'off'})`
-        : !s.ctl_connected ? 'no link to the aircraft'
+        : !s.ctl_connected ? (radio ? 'the radio is up, the aircraft is not answering it (powered? paired? same NETID?)'
+                                    : 'no link to the aircraft')
+        : s.hil_enabled ? 'the board is still in HITL (SYS_HITL = 1): its own sensors are off and it is waiting '
+                        + 'for simulated ones, so it has no attitude or position to send. Set up for real flight '
+                        + 'switches it over.'
         : !s.listening ? 'connected, but the simulator is still driving it'
         : !fresh ? 'link up, but the aircraft is not saying where it is'
         : flying;
@@ -1478,6 +1596,7 @@ function paintModeSwitch(s) {
   $('#link-light').classList.toggle('crit', !ok);
   const MODE_LABEL = { sitl: 'SITL', hitl: 'HITL', real: 'FLIGHT' };
   $('#link-light').title = `${MODE_LABEL[shown] || 'NO MODE'} · ${why}`;
+  $('#link-light').classList.toggle('unknown', !lastStatusAt);
 }
 const effectiveMax = (r) => (r.enabled === false ? 0 : r.max_thrust);
 function applyState(st) {
@@ -1503,7 +1622,8 @@ function applyState(st) {
   const liftChip = $('#overlay-chips [data-v="lift"]');
   if (liftChip) liftChip.parentElement.classList.toggle('warn', !!f.stalled);
   showWindNow(st);
-  if (airframe) updateMotorSliders(st);
+  // while you are inside the recording the sliders belong to it, not to the aircraft flying now
+  if (airframe) updateMotorSliders(replayT == null ? st : { rotors: replayRotors || [] });
 }
 const logPre = $('#log-pre');
 // This window is what the flight controller said, and nothing else: PX4's own console and the events it
@@ -1657,16 +1777,34 @@ const runData = () => shownRun || liveRun;
 // so zooming into a quiet stretch shows what happened in it instead of a flat line.
 let viewT0 = null, viewT1 = null;
 const zoomed = () => viewT0 != null;
+// Zoomed in with the right edge against the newest sample means "watch what is happening now": the window
+// then travels with the recording, keeping its span, instead of the live end running off to the right.
+// Scrolling back off the end stops that - you are looking at something, so nothing moves under you.
+let followTail = true;
 function viewWindow(rows) {
   const t0 = rows[0][0], t1 = rows[rows.length - 1][0];
   if (!zoomed()) return [t0, t1];
+  if (followTail && replayT == null) {
+    const span = Math.max(0.2, viewT1 - viewT0);
+    viewT1 = t1; viewT0 = Math.max(t0, t1 - span);
+  }
   const lo = Math.max(t0, Math.min(viewT0, t1 - 0.2)), hi = Math.min(t1, Math.max(lo + 0.2, viewT1));
   return [lo, hi];
 }
 function setWindow(lo, hi, rows) {
   const t0 = rows[0][0], t1 = rows[rows.length - 1][0];
-  if (hi - lo >= (t1 - t0) - 1e-6) { viewT0 = viewT1 = null; }      // the whole thing: back to following
-  else { viewT0 = Math.max(t0, lo); viewT1 = Math.min(t1, hi); }
+  const span = Math.max(0.2, Math.min(hi - lo, t1 - t0));
+  if (span >= (t1 - t0) - 1e-6) { viewT0 = viewT1 = null; followTail = true; }   // all of it: follows anyway
+  else {
+    // A pan keeps its width and stops against the ends; clamping the edges separately would squash the
+    // window instead, so scrolling towards the live end would never actually arrive there.
+    let a = lo, b = lo + span;
+    if (b > t1) { b = t1; a = t1 - span; }
+    if (a < t0) { a = t0; b = t0 + span; }
+    viewT0 = a; viewT1 = b;
+    // "at the end" with a little slack, so a pan that lands a pixel short still keeps up
+    followTail = (t1 - viewT1) <= Math.max(0.25, 0.02 * span);
+  }
   $('#scrub-fit').hidden = !zoomed();
 }
 function rowAt(data, t) {
@@ -1755,7 +1893,9 @@ function drawGraph() {
     // actually moves through a good part of its own range: without that, a quantity sitting still at 0.35 m
     // with a millimetre of noise would be drawn as a full-height sawtooth and read as violent motion.
     let lo = Infinity, hi = -Infinity;
-    for (let i = i0; i <= i1; i++) { const v = rows[i][ci]; if (v < lo) lo = v; if (v > hi) hi = v; }
+    // the same stride the line is drawn with: at twenty frames a second, scanning every row of a long
+    // recording for its extremes costs more than drawing it, and the pixels are identical
+    for (let i = i0; i <= i1; i += stride) { const v = rows[i][ci]; if (v < lo) lo = v; if (v > hi) hi = v; }
     const z0 = Math.min(lo, 0), z1 = Math.max(hi, 0);
     if ((hi - lo) <= 0.25 * (z1 - z0)) { lo = z0; hi = z1; }
     const pad2 = (hi - lo) < 1e-9 ? 1 : (hi - lo) * 0.08;
@@ -1916,14 +2056,24 @@ document.addEventListener('keydown', (e) => {
 buildPicker();
 
 // Scrubbing: the slider is a clock. Everything the 3D view shows is the recorded pose at that instant.
+let replayRotors = null;        // the motors at the scrubbed instant, so the live state cannot overwrite them
 function applyReplay() {
   const data = runData(), rows = data.rows || [], cols = data.columns || LIVE_COLS;
   if (!rows.length) return;
   const r = rows[rowAt(data, replayT)];
   const i = (k) => cols.indexOf(k);
   if (i('n') < 0 || i('qw') < 0) return;
+  // The motors are recorded too, so the discs, the thrust arrows and the sliders show what each one was
+  // doing at this instant instead of going blank while you scrub. A run saved before those columns
+  // existed has none, and then they stay empty rather than claim everything was at zero.
+  const rotors = [];
+  for (let k = 1; i(`m${k}_cmd`) >= 0; k++) {
+    rotors.push({ cmd: r[i(`m${k}_cmd`)], omega: r[i(`m${k}_spool`)] ?? r[i(`m${k}_cmd`)], thrust: r[i(`m${k}_thrust`)] ?? 0 });
+  }
   scene.updateState({ pos: [r[i('n')], r[i('e')], r[i('d')]], q: [r[i('qw')], r[i('qx')], r[i('qy')], r[i('qz')]],
-                      forces: {}, rotors: [] });
+                      forces: {}, rotors });
+  replayRotors = rotors.length ? rotors : null;
+  if (rotors.length) updateMotorSliders({ rotors });
 }
 // Dragging anywhere on the plot moves the aircraft to that instant. The simulation stops while you are in
 // the recording — a 3D view that is partly a replay and partly live would be a lie — and Resume starts it again.
@@ -1945,7 +2095,9 @@ $('#graph-plot').addEventListener('pointerdown', async (e) => {
   if (rows.length < 2) return;
   e.preventDefault();
   stopPlaying();
-  $('#graph-plot').setPointerCapture(e.pointerId);
+  // capture keeps the drag alive when the pointer leaves the plot; a browser that refuses it must not
+  // take the scrub down with it
+  try { $('#graph-plot').setPointerCapture(e.pointerId); } catch { }
   pauseForReplay();
   scrubTo(e.clientX);
 });
@@ -2056,7 +2208,9 @@ function showGraph(on) {
       drawGraph();
     };
     tick();
-    graphTimer = setInterval(tick, 250);
+    // The recorder keeps twenty samples a second (fifty down a cable). Drawing four times a second threw
+    // four fifths of that away and made every trace a staircase; this draws every sample it has.
+    graphTimer = setInterval(tick, 50);
   } else {
     clearInterval(graphTimer); graphTimer = null;
   }
@@ -2068,7 +2222,7 @@ let liveTimer = null;
 async function liveTick() {
   clearTimeout(liveTimer);
   if (!graphOn && !shownRun) { await pollLive(); updateReadouts(); }
-  liveTimer = setTimeout(liveTick, 400);
+  liveTimer = setTimeout(liveTick, 200);
 }
 liveTick();
 $('#view-log').addEventListener('click', () => showGraph(false));
@@ -2084,9 +2238,11 @@ async function loadRunList(select) {
   let j;
   try { j = await api('/api/runs'); } catch { return; }
   const pick = $('#run-pick'), want = select !== undefined ? select : pick.value;
+  // only this design's flights: a run from another airframe is not a comparison, it is a different aircraft
+  const mine = (j.runs || []).filter(r => !airframe || !r.airframe_name || r.airframe_name === airframe.name);
   pick.innerHTML = '<option value="">Live</option>'
-    + (j.runs || []).map(r => `<option value="${esc(r.id)}">${esc(runLabel(r))}</option>`).join('');
-  pick.value = (j.runs || []).some(r => r.id === want) ? want : '';
+    + mine.map(r => `<option value="${esc(r.id)}">${esc(runLabel(r))}</option>`).join('');
+  pick.value = mine.some(r => r.id === want) ? want : '';
   if (pick.value !== want) selectRun('');
   runButtons();
 }
@@ -2096,6 +2252,7 @@ function runButtons() {
   $('#run-save').hidden = has;         // a saved run is already saved; this button is for the live one
 }
 async function selectRun(id) {
+  $('#run-pick').value = id || '';        // the picker says what is on screen, however we got here
   if (!id) {
     shownRun = null; replayT = null;
     shownRunLog = null; showLogText(flightLog);
@@ -2114,8 +2271,8 @@ async function selectRun(id) {
 }
 $('#run-pick').addEventListener('change', (e) => selectRun(e.target.value));
 $('#run-reset').addEventListener('click', async (e) => {
-  if (shownRun) { await selectRun(''); return; }          // looking at a saved run: just go back to the live one
   if (!confirmTwice('run-reset', e.currentTarget, 'throw this recording away')) return;
+  if (shownRun) await selectRun('');     // whatever you were looking at, this ends on the live recording
   try {
     await api('/api/runs/clear', {});
     liveRun = { columns: LIVE_COLS, rows: [] };
@@ -2270,65 +2427,59 @@ let connTimer = null;
 const LINK_LABEL = { sitl: 'SITL', hitl: 'Pixhawk (HITL)', real: 'Pixhawk (real flight)' };
 let lastPorts = [];
 
-function linkNow(c) {
-  if (!c || !c.mode) return '';
-  if (c.mode === 'sitl') return 'sitl';
-  return status.hil_enabled === false ? 'real' : 'hitl';
-}
+// Which of the three the app is in. One function, because two of them disagreeing is what made the pill
+// flicker between HITL and FLIGHT: the status poll knew the link was only listening and the connection
+// poll did not, and each repainted the switch twice a second with its own answer.
+const linkReal = (s) => !s.conn_mode ? '' : s.conn_mode === 'sitl' ? 'sitl'
+  : (s.hil_enabled === false || s.listening ? 'real' : 'hitl');
+function modeShown(s) { return modeWanted || linkReal(s || status || {}); }
 // Pressing one of the three is a decision, not a request that can be refused: the switch moves there and
 // stays there. Whether it is actually working is the light's job - green when the link is doing what the
 // mode says it should, red when it is not, with the reason on hover.
 let modeWanted = null;
 function wantMode(k) { modeWanted = k; paintModeSwitch(status); }
-async function goSitl() {
-  wantMode('sitl');
-  markSaved('Starting SITL…', 4000);
-  await connCall('/api/connection/connect', { mode: 'sitl' });
+// One press, whatever it takes. SITL, HITL and FLIGHT are statements about what the aircraft *is*, so
+// the app makes them true: a board left in HITL has its own sensors switched off and cannot fly for real,
+// a board on its own sensors cannot be driven by the simulator, and both take a parameter, a save and a
+// reboot that nobody should have to remember. The work happens on the server, bounded and in the
+// background; this only says where it has got to.
+let modeJob = null, modeTimer = null;
+async function switchMode(mode, btn) {
+  if (mode === 'real' && !confirmTwice('listen-flight', btn, 'stop simulating and listen to the aircraft')) return;
+  wantMode(mode);
+  modeJob = { mode, state: 'running', step: 'starting' };
+  paintModeSwitch(status);
+  try {
+    // The port is only a hint: with nothing connected the server picks one, and with a link already up it
+    // keeps it. Asking the ports list here is what used to make this fail from a tab that never polls it.
+    const dev = (status.conn_mode === 'hitl' && status.ctl_connected) ? null : ((await boardPort(true)) || {}).device;
+    await api('/api/connection/mode', { mode, serial: dev, baud: chosenBaud() });
+  } catch (e) {
+    modeJob = { mode, state: 'failed', error: e.message };
+    markSaved(e.message, 5000);
+  }
+  pollMode();
 }
+async function pollMode() {
+  clearTimeout(modeTimer);
+  try { modeJob = (await api_get('/api/connection/mode')).job; } catch { }
+  paintModeSwitch(status);
+  if (modeJob && modeJob.state === 'running') { modeTimer = setTimeout(pollMode, 600); return; }
+  if (modeJob && modeJob.state === 'failed') markSaved(modeJob.error, 6000);
+  refreshConnection(true);
+  paramsLoaded = false;
+}
+const goSitl = () => switchMode('sitl');
 // The switch works from any tab, so it cannot rely on a port list that only the PX4 tab keeps up to date,
 // and it cannot answer in a box on a tab you are not looking at: it says what happened in the bar.
-async function boardPort() {
-  if (lastPorts.length) return lastPorts.find(p => p.likely_px4) || lastPorts[0];
-  try {
-    const c = await api('/api/connection');
-    lastPorts = c.ports || [];
-  } catch { return null; }
+async function boardPort(fresh = false) {
+  if (fresh || !lastPorts.length) {
+    try { lastPorts = (await api('/api/connection')).ports || []; } catch { if (!lastPorts.length) return null; }
+  }
   return lastPorts.find(p => p.likely_px4) || lastPorts[0] || null;
 }
-async function goHitl(btn) {
-  wantMode('hitl');
-  const port = await boardPort();
-  if (!port) {
-    markSaved('HITL: no flight controller on USB', 5000);
-    $('#conn-error').textContent = 'No flight controller on USB. Plug it in and click Rescan.';
-    return;
-  }
-  if (status.hil_enabled === false && !confirmTwice('return-hitl', btn, 'put the board back into HITL')) return;
-  if (status.hil_enabled === false) {
-    const r = await api('/api/connection/enable_hitl', {});
-    markSaved(r.ok ? 'Returning to HITL…' : r.error, 4000);
-    $('#real-flight-result').textContent = r.ok ? 'Returning to HITL…' : r.error;
-    return;
-  }
-  markSaved('Connecting to ' + port.device.replace('/dev/', '') + '…', 4000);
-  await connectHitl(port.device);
-}
-// FLIGHT: the aircraft is flying on its own sensors and this app only listens - no sensors injected, the
-// 3D view and the graph fed by its telemetry. It is the mode for watching a real flight over a radio.
-async function goFlight(btn) {
-  if (!confirmTwice('listen-flight', btn, 'stop simulating and listen to the aircraft')) return;
-  wantMode('real');
-  const dev = ((await boardPort()) || {}).device;
-  if (!dev && status.conn_mode !== 'hitl') {
-    markSaved('Real flight: no radio or board on USB', 5000);
-    $('#conn-error').textContent = 'No flight controller or telemetry radio on USB. Plug one in and click Rescan.';
-    return;
-  }
-  markSaved('Listening to the aircraft…', 4000);
-  // a radio runs at its own speed; the server picks 57600 for one that is not a Pixhawk unless told
-  const baud = $('#conn-baud').dataset.touched ? +$('#conn-baud').value : undefined;
-  await connCall('/api/connection/flight', { serial: dev, baud });
-}
+const goHitl = (btn) => switchMode('hitl', btn);
+const goFlight = (btn) => switchMode('real', btn);
 $('#conn-baud').addEventListener('change', (e) => { e.target.dataset.touched = '1'; });
 $('#conn-sitl').addEventListener('click', goSitl);
 $('#conn-hitl').addEventListener('click', (e) => goHitl(e.currentTarget));
@@ -2347,7 +2498,7 @@ $('#conn-real').addEventListener('click', async (e) => {
     $('#real-flight-result').textContent = r.ok ? r.message : 'Setup incomplete: ' + r.error;
     paramsLoaded = false;
   } catch (err) { $('#real-flight-result').textContent = 'Setup incomplete: ' + err.message; }
-  finally { b.disabled = false; b.textContent = 'Real flight'; refreshConnection(); }
+  finally { b.disabled = false; b.textContent = 'Set up for real flight'; refreshConnection(); }
 });
 $('#conn-rescan').addEventListener('click', refreshConnection);
 $('#conn-disconnect').addEventListener('click', async () => { await connCall('/api/connection/disconnect', {}); });
@@ -2357,9 +2508,48 @@ $('#conn-hw-ok').addEventListener('click', async (e) => {
   await api('/api/params/set', { name: 'NLF_HW_OK', value: 1 });
   paramsLoaded = false; setTimeout(refreshConnection, 1500);
 });
-async function connectHitl(serial) {
-  await connCall('/api/connection/connect', { mode: 'hitl', serial, baud: +$('#conn-baud').value || 921600 });
+// Over a radio the streams are a budget, not a wish: this says what was asked for, what is arriving, and
+// how the radio itself is coping. A gap between the first two means the link is full, and the dial beside
+// it is how you trade resolution for keeping up.
+function showTelemetry(L) {
+  const row = $('#tele-row'), t = (L || {}).telemetry;
+  if (!row) return;
+  row.hidden = !(t && t.budget_bps);                 // a cable has no budget worth showing
+  if (row.hidden) return;
+  if (document.activeElement !== $('#tele-share')) $('#tele-share').value = t.share || 'balanced';
+  const kb = (b) => (b >= 1000 ? (b / 1000).toFixed(1) + ' kB/s' : Math.round(b) + ' B/s');
+  const radio = (L || {}).radio;
+  const buf = radio && radio.age < 5 && radio.txbuf != null ? ` · radio buffer ${radio.txbuf}%` : '';
+  const sig = radio && radio.age < 5 ? ` · rssi ${radio.rssi}/${radio.remrssi}` : '';
+  const short = t.asked_bps && t.bytes_s < 0.6 * t.asked_bps;
+  // When the aircraft's own MAVLink cap is what is holding this back, say so and name the parameter:
+  // no amount of turning this dial up will get past it.
+  const cap = t.board_cap_bps && t.budget_bps && t.board_cap_bps <= t.budget_bps + 1
+    ? ` · the aircraft caps this port at ${kb(t.board_cap_bps)} (MAV_0_RATE)` : '';
+  $('#tele-now').innerHTML = `<span class="${short ? 'warn' : ''}">${t.msg_s} msg/s · ${kb(t.bytes_s)}`
+    + ` of ${kb(t.asked_bps)} asked</span><span class="hint">${buf}${sig}${cap}</span>`;
 }
+$('#tele-share').addEventListener('change', async (e) => {
+  try { await api('/api/connection/telemetry', { share: e.target.value }); markSaved('Telemetry: ' + e.target.value, 3000); }
+  catch (err) { $('#conn-error').textContent = err.message; }
+  refreshConnection(true);
+});
+async function connectHitl(serial) {
+  // Picking a port in the list means "use this one" - which mode it ends up in is the switch's business,
+  // and HITL is what this list has always meant.
+  return switchModeOn(serial);
+}
+async function switchModeOn(serial) {
+  wantMode('hitl');
+  modeJob = { mode: 'hitl', state: 'running', step: 'opening the link' };
+  paintModeSwitch(status);
+  try { await api('/api/connection/mode', { mode: 'hitl', serial, baud: chosenBaud() }); }
+  catch (e) { $('#conn-error').textContent = e.message; }
+  pollMode();
+}
+// An untouched Baud box is not an instruction: the server opens a Pixhawk fast and a radio at 57600, and
+// gets it right more often than a box remembering the last board you plugged in.
+const chosenBaud = () => ($('#conn-baud').dataset.touched ? +$('#conn-baud').value || undefined : undefined);
 async function connCall(path, body) {
   $('#conn-error').textContent = '';
   $('#conn-current').innerHTML = '<span class="muted">Working…</span>';
@@ -2373,8 +2563,9 @@ async function refreshConnection(force = false) {
   if (!force && !$('#tab-px4').classList.contains('active')) return;
   let c;
   try { c = await api('/api/connection'); } catch (e) { $('#conn-error').textContent = e.message; return; }
-  const L = c.link, where = linkNow(c);
-  $$('#conn-modes button, #mode-switch button').forEach(b => b.classList.toggle('active', b.dataset.link === where));
+  const L = c.link, where = modeShown(status);
+  $$('#conn-modes button').forEach(b => b.classList.toggle('active', b.dataset.link === where));
+  paintModeSwitch(status);        // the switch has one painter; this is it
   if (!c.mode) $('#conn-current').innerHTML = '';
   else if (c.mode === 'sitl') $('#conn-current').innerHTML =
     `<span class="hint">instance ${c.px4_instance ?? 0} · tcp ${esc(L.address)} · ${esc(L.ctl_address)}</span>`;
@@ -2385,9 +2576,14 @@ async function refreshConnection(force = false) {
         : (c.mode === 'sitl' && c.px4_running ? '○ starting…' : '○ waiting')}</span>`
     : '<span class="muted">not connected</span>';
   $('#conn-error').textContent = c.error || '';
+  showTelemetry(L);
+  // the box shows the speed the link is really running at, so it cannot quietly say 921600 at a radio
+  if (c.mode === 'hitl' && c.baud && !$('#conn-baud').dataset.touched && document.activeElement !== $('#conn-baud')) {
+    $('#conn-baud').value = c.baud;
+  }
   lastPorts = c.ports || [];
   $('#conn-ports').innerHTML = lastPorts.map(p =>
-    `<div class="conn-row"><div><b>${p.likely_px4 ? 'Pixhawk' : 'Serial device'}</b> <span class="hint">${esc(p.description || '')}</span> <span class="dev">${esc(p.device)}</span></div>
+    `<div class="conn-row"><div><b>${p.likely_px4 ? 'Pixhawk' : 'Telemetry radio'}</b> <span class="hint">${esc(p.description || '')}</span> <span class="dev">${esc(p.device)}</span>${p.likely_px4 ? '' : ' <span class="hint">· opens at 57600; FLIGHT finds this by itself</span>'}</div>
       <button class="pill small ${p.likely_px4 ? 'primary' : ''}" data-dev="${esc(p.device)}">${c.mode === 'hitl' && c.serial === p.device ? 'Reconnect' : 'Connect'}</button></div>`).join('');
   $$('#conn-ports button[data-dev]').forEach(b => b.addEventListener('click', () => connectHitl(b.dataset.dev)));
   // The one interlock worth keeping from the old checklist: the firmware will not run the motors on the
@@ -2395,6 +2591,15 @@ async function refreshConnection(force = false) {
   $('#conn-hw-ok').hidden = !(where === 'real' && nativeModuleActive() && pv('NLF_HW_OK', 1) === 0);
   connTimer = setTimeout(refreshConnection, 2000);
 }
+
+// The light is only as fresh as the status behind it: if the app stops answering, that is what it says.
+setInterval(() => {
+  if (!lastStatusAt || Date.now() - lastStatusAt < 5000) return;
+  const el = $('#link-light');
+  el.querySelector('i').classList.remove('on');
+  el.classList.add('crit');
+  el.title = 'no answer from the app (the page lost its connection)';
+}, 2000);
 
 // ------------------------------------------------------------ flight mode
 // The modes a pilot picks by hand. PX4 reports the one it is in; the rest are one click away.
@@ -2446,6 +2651,23 @@ $('#af-version').addEventListener('change', async e => {
     if (r.airframe) { currentVersion = id; setAirframe(r.airframe); logLine('[preset] opened version ' + id); await loadVersionList(); }
   } catch (err) { logLine('[preset] ' + err.message); e.target.value = currentVersion; }
 });
+// Going back: the version in the box is the one you get, with everything in it - the geometry, the design
+// and every parameter the design sets. What you changed since is gone, so it is asked for twice.
+$('#af-revert').addEventListener('click', async e => {
+  const b = e.currentTarget, sel = $('#af-version'), id = sel.value;
+  if (!id) { logLine('[preset] this design has no pushed version to go back to.'); return; }
+  const what = (sel.selectedOptions[0] || {}).text || id;
+  if (!confirmTwice('revert-version', b, 'go back to ' + what + ', losing everything changed since')) return;
+  try {
+    const r = await api('/api/archive/load_airframe', { id });
+    if (!r.airframe) throw new Error(r.error || 'nothing in that version');
+    currentVersion = id;
+    setAirframe(r.airframe);
+    await loadVersionList();
+    logLine('[preset] back to ' + what);
+    markSaved('Back to ' + what, 4000);
+  } catch (err) { logLine('[preset] revert failed: ' + err.message); markSaved('Revert failed: ' + err.message, 5000); }
+});
 $('#af-push').addEventListener('click', async e => {
   const b = e.currentTarget, label = b.textContent;
   b.disabled = true; b.textContent = 'Pushing…';
@@ -2456,6 +2678,124 @@ $('#af-push').addEventListener('click', async e => {
   } catch (err) { logLine('[preset] push failed: ' + err.message); }
   b.disabled = false; b.textContent = label;
 });
+
+// ============================================================ the aircraft's own flight logs
+// The board logs everything at two hundred samples a second; a radio carries ten or twenty. So the live
+// view is for flying and this is for looking afterwards - and once a log is here it is a run like any
+// other, in the same list, on the same graph, scrubbing the same 3D view.
+let logsTimer = 0, logsAll = false, logsBusy = null;   // a board keeps hundreds; the newest are the ones you want
+const MB = (b) => (b / 1e6).toFixed(1) + ' MB';
+const mmss = (s) => s == null ? '—' : s >= 90 ? `${Math.round(s / 60)} min` : `${Math.round(s)} s`;
+
+async function listLogs(refresh = false) {
+  const note = $('#logs-note'), table = $('#logs-table');
+  note.textContent = 'asking the aircraft…';
+  try {
+    const r = await api_get('/api/logs' + (refresh ? '?refresh=1' : ''));
+    const all = (r.logs || []).slice().reverse();                    // newest first: the flight you just flew
+    const logs = logsAll ? all : all.slice(0, 25);
+    note.textContent = all.length ? `${all.length} on the card` : 'none on the card';
+    $('#logs-rate').textContent = r.measured
+      ? `the last one came down at ${(r.assumed_bps / 1000).toFixed(1)} kB/s`
+      : `estimated at ${(r.assumed_bps / 1000).toFixed(1)} kB/s — the first download measures it`;
+    table.innerHTML = !logs.length ? '<p class="hint">The card has no logs on it.</p>'
+      : `<table class="grid"><thead><tr><th>When</th><th>Size</th><th>Over this link</th><th></th></tr></thead><tbody>`
+      + logs.map(l => `<tr data-row="${l.id}"><td>${esc((l.label || '').split(' · ')[0])}</td>
+          <td class="num">${MB(l.size)}</td><td class="num">${mmss(l.eta_s)}</td>
+          <td class="dl"><button class="pill small" data-log="${l.id}">Download</button></td></tr>`).join('')
+      + '</tbody></table>'
+      + (all.length > logs.length ? `<p class="hint">showing the newest ${logs.length} of ${all.length} ·
+           <a href="#" id="logs-all">show them all</a></p>` : '');
+    table.querySelectorAll('button[data-log]').forEach(b => b.addEventListener('click', () => downloadLog(+b.dataset.log)));
+    const more = $('#logs-all');
+    if (more) more.addEventListener('click', (ev) => { ev.preventDefault(); logsAll = true; listLogs(); });
+    if (r.job && r.job.state === 'running') { logsBusy = r.job.log_id; pollLogJob(); }
+  } catch (e) {
+    note.textContent = e.message;
+    table.innerHTML = '';
+  }
+}
+// The progress belongs on the line of the log it is about: with four hundred of them, a bar somewhere
+// underneath says nothing about which one is coming down.
+function showLogProgress(j) {
+  const row = j && $(`#logs-table tr[data-row="${j.log_id}"]`);
+  $$('#logs-table tr[data-row] td.dl').forEach(td => {
+    if (row && td.parentElement === row) return;
+    if (td.dataset.was) { td.innerHTML = td.dataset.was; delete td.dataset.was; }
+    td.querySelectorAll('button[data-log]').forEach(b => b.disabled = !!(j && j.state === 'running'));
+  });
+  if (!row) return;
+  const td = row.querySelector('td.dl');
+  if (td.dataset.was === undefined) td.dataset.was = td.innerHTML;
+  const rate = j.bps ? ` · ${(j.bps / 1000).toFixed(1)} kB/s` : '';
+  td.innerHTML = j.state === 'running'
+    ? `<div class="logs-bar"><i style="width:${j.percent}%"></i></div>
+       <span class="hint">${j.percent}%${rate} · ${mmss(j.eta_s)} left</span>
+       <button class="pill small danger" id="logs-stop">Stop</button>`
+    : j.state === 'done' ? `<span class="hint ok">in the graph · ${mmss(j.elapsed)}${rate}</span>`
+    : `<span class="hint bad">${esc(j.state)}${j.error ? ': ' + esc(j.error) : ''}</span>`;
+  const stop = $('#logs-stop');
+  if (stop) stop.addEventListener('click', () => api('/api/logs/cancel', {}));
+}
+async function downloadLog(id) {
+  try {
+    await api('/api/logs/download', { id });
+    logsBusy = id;
+    pollLogJob();
+  } catch (e) { $('#logs-note').textContent = e.message; }
+}
+async function pollLogJob() {
+  clearTimeout(logsTimer);
+  let j = null;
+  try { j = (await api_get('/api/logs/job')).job; } catch { }
+  showLogProgress(j);
+  if (!j || j.state === 'running') { logsTimer = setTimeout(pollLogJob, 700); return; }
+  logsBusy = null;
+  if (j.state === 'done') {
+    listLogs();                           // the rate is measured now: every estimate below re-bases on it
+    showGraph(true);
+    await loadRunList();
+    if (j.run_id) selectRun(j.run_id);
+  }
+}
+// Bench test: the land detector is what tells the estimator to hold the aircraft still, so a hand-carried
+// aircraft cannot show what its flow sensor sees until the detector is out of the way.
+async function benchSet(on) {
+  $('#bench-note').textContent = on ? 'stopping the land detector…' : 'starting the land detector…';
+  try {
+    const r = await fetch('/api/px4/bench', { method: 'POST', headers: { 'content-type': 'application/json' },
+                                              body: JSON.stringify({ on }) }).then(x => x.json());
+    if (!r.ok) throw new Error(r.error || 'the aircraft did not answer');
+    const off = r.land_detector === 'stopped';
+    $('#bench-state').textContent = off ? 'land detector stopped — put it back before flying' : '';
+    $('#bench-state').classList.toggle('warn', off);
+    $('#bench-note').textContent = off ? 'move it by hand now: the position follows the H-flow'
+                                       : 'normal: the estimator holds it still while it sits on the ground';
+  } catch (e) {
+    $('#bench-note').textContent = e.message;
+  }
+}
+$('#bench-on').addEventListener('click', () => benchSet(true));
+$('#bench-off').addEventListener('click', () => benchSet(false));
+$('#logs-refresh').addEventListener('click', () => listLogs(true));
+$('#logs-import').addEventListener('click', () => $('#logs-file').click());
+$('#logs-file').addEventListener('change', async (e) => {
+  const f = e.target.files[0];
+  if (!f) return;
+  $('#logs-note').textContent = `reading ${f.name}…`;
+  const body = new FormData();
+  body.append('file', f);
+  try {
+    const r = await fetch('/api/logs/import', { method: 'POST', body }).then(x => x.json());
+    if (!r.ok) throw new Error(r.error || 'could not read it');
+    $('#logs-note').textContent = `${f.name}: ${r.run.duration.toFixed(0)} s, ${r.run.samples} samples`;
+    showGraph(true);                      // the point of opening a log is to look at it
+    await loadRunList();
+    selectRun(r.run.id);
+  } catch (err) { $('#logs-note').textContent = err.message; }
+  e.target.value = '';
+});
+$('#sec-logs').addEventListener('toggle', (e) => { if (e.target.open && !$('#logs-table').innerHTML) listLogs(); });
 
 // ============================================================ firmware: the custom PX4 modules
 let fwLoaded = null, fwDirty = false;
@@ -2470,7 +2810,7 @@ async function loadFirmwareModules(force = false) {
   const sel = $('#fw-module');
   const mods = fwGroups.filter(g => g.kind === 'module');
   const rest = fwGroups.filter(g => g.kind !== 'module');
-  const opt = (g) => `<option value="${esc(g.dir)}">${esc(g.name)} — ${g.files.length} file${g.files.length === 1 ? '' : 's'}${g.kind === 'module' && g.user_command ? ', answers MAV_CMD_USER_1' : ''}</option>`;
+  const opt = (g) => `<option value="${esc(g.dir)}">${esc(g.name)}${g.kind === 'module' && g.enabled === false ? ' (off)' : ''} — ${g.files.length} file${g.files.length === 1 ? '' : 's'}${g.kind === 'module' && g.user_command ? ', answers MAV_CMD_USER_1' : ''}</option>`;
   sel.innerHTML = (mods.length ? `<optgroup label="Modules">${mods.map(opt).join('')}</optgroup>` : '')
     + (rest.length ? `<optgroup label="Other firmware sources">${rest.map(opt).join('')}</optgroup>` : '');
   if (!fwGroups.some(g => g.dir === fwGroup)) fwGroup = (mods[0] || fwGroups[0] || {}).dir || '';
@@ -2483,7 +2823,12 @@ async function selectFirmwareGroup(dir, keepFile = false) {
   const was = $('#fw-file').value;
   fwGroup = dir;
   $('#fw-module').value = dir;
-  $('#fw-where').textContent = g.kind === 'module' ? `${g.module}${g.params.length ? ` · ${g.params.length} parameters` : ''}` : 'sources';
+  // A module is either part of this aircraft or it is not, and the Parameters list follows that.
+  $('#fw-use-wrap').hidden = g.kind !== 'module';
+  $('#fw-use').checked = g.enabled !== false;
+  $('#fw-where').textContent = g.kind === 'module'
+    ? `${g.module}${g.params.length ? ` · ${g.params.length} parameters` : ''}${g.enabled === false ? ' · not in this design' : ''}`
+    : 'sources';
   const sel = $('#fw-file');
   sel.innerHTML = g.files.map(f => `<option value="${esc(f)}">${esc(f.startsWith(g.dir + '/') ? f.slice(g.dir.length + 1) : f)}</option>`).join('')
     || '<option value="">no files</option>';
@@ -2492,6 +2837,18 @@ async function selectFirmwareGroup(dir, keepFile = false) {
   else { $('#fw-text').value = ''; }
 }
 $('#fw-module').addEventListener('change', (e) => selectFirmwareGroup(e.target.value));
+$('#fw-use').addEventListener('change', async (e) => {
+  const g = fwGroups.find(x => x.dir === fwGroup);
+  if (!g) return;
+  try {
+    await api('/api/firmware/modules/enable', { dir: fwGroup, on: e.target.checked });
+    logLine(`[firmware] ${g.name} is ${e.target.checked ? 'in' : 'not in'} this design`);
+    await loadFirmwareModules(true);          // the list says (off) and the editor keeps its file
+    await selectFirmwareGroup(fwGroup, true);
+    loadExport();                             // its parameters appear or disappear with it
+    markDirty();
+  } catch (err) { $('#fw-note').textContent = err.message; e.target.checked = !e.target.checked; }
+});
 $('#fw-new').addEventListener('click', () => {
   const box = $('#fw-module'), btn = $('#fw-new');
   const input = document.createElement('input');
@@ -2715,37 +3072,6 @@ function renderRcLive() {
   renderRcIndicator(); renderRcBoard();
 }
 setInterval(() => { if (rcVisible()) renderRcLive(); }, 500);
-
-// ============================================================ board vs SITL parameter sync
-let syncTimer = null, syncLast = null;
-async function refreshSync() {
-  clearTimeout(syncTimer);
-  const card = $('#sync-card');
-  if (!$('#tab-px4').classList.contains('active')) return;
-  if (status.conn_mode !== 'hitl') { card.hidden = true; syncTimer = setTimeout(refreshSync, 3000); return; }
-  card.hidden = false;
-  try {
-    const d = await api('/api/px4/sitl_diff');
-    if (!d.ok) { $('#sync-text').textContent = d.error; $('#sync-btn').disabled = true; $('#sync-list').textContent = ''; }
-    else {
-      syncLast = d;
-      const when = new Date(d.reference_time * 1000).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
-      $('#sync-text').textContent = d.differ.length ? `${d.differ.length} of ${d.compared} parameters differ from the SITL run of ${when}${d.skipped ? ` (${d.skipped} hardware/safety ones left alone)` : ''}` : `identical to the SITL run of ${when}${d.skipped ? ` (${d.skipped} hardware/safety ones left alone)` : ''}`;
-      $('#sync-btn').disabled = !d.differ.length || !!status.armed;
-      $('#sync-list').textContent = d.differ.slice(0, 40).map(x => `${x.name}: ${x.board} → ${x.sitl}`).join('   ') + (d.differ.length > 40 ? `   … +${d.differ.length - 40}` : '');
-    }
-  } catch (e) { $('#sync-text').textContent = e.message; }
-  syncTimer = setTimeout(refreshSync, 5000);
-}
-$('#sync-btn').addEventListener('click', async () => {
-  const b = $('#sync-btn');
-  if (!confirmTwice('sync-sitl', b, `write ${syncLast ? syncLast.differ.length : ''} parameters`)) return;
-  b.disabled = true; b.textContent = 'Writing…';
-  try { const r = await api('/api/px4/sync_sitl', {}); $('#sync-text').textContent = r.ok ? `${r.written} parameters written in ${r.seconds} s` : `failed: ${(r.failed || []).join(', ') || r.error}`; paramsLoaded = false; ensureParams(); }
-  catch (e) { $('#sync-text').textContent = e.message; }
-  b.textContent = 'Sync board to SITL'; b.dataset.label = b.textContent; refreshSync();
-});
-$$('.tabs button').forEach(b => b.addEventListener('click', () => { if (b.dataset.tab === 'px4') refreshSync(); }));
 
 // ============================================================ USB remote (WebHID picker, Gamepad API fallback) -> MANUAL_CONTROL
 // current input source: { name, axes: [-1..1], buttons: [bool], kind: 'hid' | 'gamepad' }
@@ -3352,11 +3678,17 @@ $('#af-takeoff').addEventListener('change', async () => {
 ['x', 'y', 'z'].forEach((axis, i) => bindNumber('flow-' + axis, v => { flowSensor().position[i] = v; }));
 ['rr', 'rp', 'ry'].forEach((k, i) => bindNumber('flow-' + k, v => { flowSensor().rotation[i] = v; fillSensorCard(); }));
 bindNumber('flow-range', v => { flowSensor().range_m = Math.max(0.5, v); });
+// Indoors is a fact about where this aircraft flies, not a parameter: it decides which sensors the
+// estimator is allowed to wait for, and the export writes that out.
+$('#flow-indoor').addEventListener('change', e => {
+  (airframe.design ||= {}).indoor = e.target.checked;
+  fillSensorCard(); pushAirframe(true); markDirty();
+});
 $('#flow-on').addEventListener('change', e => {
   const f = flowSensor();
   f.enabled = e.target.checked;
   if (f.enabled && !f.position.some(Number.isFinite)) f.position = [...airframe.mass.cg];
-  fillSensorCard(); pushAirframe(); markDirty();
+  fillSensorCard(); scene.setAirframe(airframe); pushAirframe(); markDirty();
 });
 
 $('#motor-test-stop').addEventListener('click', () => { stopMotorTest(); $('#motor-enable').checked=false; });

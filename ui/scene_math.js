@@ -58,3 +58,41 @@ export function wingOutlinePoints(w) {
   }
   return out;
 }
+
+// ---------------------------------------------------------------- rotor mounting
+// The port of geometry/frames.py tilt_cant_to_axis / axis_to_tilt_cant and of Rotor.built_axis. Tilt is the
+// forward lean of the thrust axis from vertical (negative = backward); cant is the sideways lean, measured
+// outward from the centreline on whichever side the rotor sits.
+//
+// `axis` is the design: what the table edits, what the 3D gizmo moves, and what PX4 is told. The mounting
+// error is how far the rotor really sits from that — a motor bolted on ten degrees out is not a different
+// design, it is the same design built wrong — so everything that pushes the aircraft, here and in the
+// physics, uses the built axis instead.
+const OUTWARD = (y) => (y < 0 ? -1 : 1);
+
+export function axisToTiltCant(a, y = 1) {
+  const n = Math.hypot(a[0], a[1], a[2]) || 1;
+  const tilt = Math.asin(Math.max(-1, Math.min(1, a[0] / n))) / RAD;
+  const cant = Math.hypot(a[1], a[2]) < 1e-9 ? 0 : Math.atan2(a[1], -a[2]) / RAD;
+  return [tilt, cant * OUTWARD(y)];
+}
+
+export function tiltCantToAxis(tilt, cant, y = 1) {
+  const t = tilt * RAD, c = cant * OUTWARD(y) * RAD;
+  return [+Math.sin(t).toFixed(6), +(Math.sin(c) * Math.cos(t)).toFixed(6), +(-Math.cos(c) * Math.cos(t)).toFixed(6)];
+}
+
+/** [tilt error, cant error] of a rotor, degrees; [0, 0] for one mounted as designed. */
+export function mountError(r) {
+  return [+((r || {}).tilt_error_deg) || 0, +((r || {}).cant_error_deg) || 0];
+}
+
+/** The thrust axis this rotor really has: its design axis turned by its mounting error. */
+export function builtAxis(r) {
+  const a = (r && r.axis) || [0, 0, -1];
+  const [dt, dc] = mountError(r);
+  if (!dt && !dc) return [...a];
+  const y = ((r && r.pos) || [0, 0, 0])[1];
+  const [tilt, cant] = axisToTiltCant(a, y);
+  return tiltCantToAxis(tilt + dt, cant + dc, y);
+}

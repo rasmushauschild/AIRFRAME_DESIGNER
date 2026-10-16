@@ -35,6 +35,10 @@ class Rotor:
     enabled: bool = True
     pair: str = ""               # two rotors sharing a token are a left/right couple: the app keeps their
                                  # geometry mirrored about y. Each still has its own output, name and spin.
+    # How the rotor really sits, when that is not how it was drawn: degrees added to the design's tilt and
+    # cant. The simulation flies the sum; nothing else knows. See ``built_axis``.
+    tilt_error_deg: float = 0.0
+    cant_error_deg: float = 0.0
 
     # ------------------------------------------------------------ derived
     def effective_max_thrust(self) -> float:
@@ -51,6 +55,29 @@ class Rotor:
     @property
     def side(self) -> float:
         return -1.0 if self.pos[1] < 0 else 1.0
+
+    @property
+    def mis_mounted(self) -> bool:
+        return abs(self.tilt_error_deg) > 1e-9 or abs(self.cant_error_deg) > 1e-9
+
+    @property
+    def built_axis(self) -> list[float]:
+        """The thrust axis the aircraft actually has: the design turned by the mounting error.
+
+        ``axis`` is the design. It is what the table edits, what an optimiser moves, what the analysis
+        reasons about and - the point of keeping the two apart - what PX4 is told, because a motor bolted on
+        ten degrees out is not a different design, it is the same design built wrong. Only the physics reads
+        this one, so a controller tuned for a perfect aircraft flies the imperfect one, as it does in a hangar.
+        """
+        if not self.mis_mounted:
+            return unit(self.axis)
+        tilt, cant = axis_to_tilt_cant(self.axis, self.side)
+        return tilt_cant_to_axis(tilt + self.tilt_error_deg, cant + self.cant_error_deg, self.side)
+
+    @property
+    def built_tilt_cant(self) -> tuple[float, float]:
+        """Tilt and cant of the axis the aircraft really has, degrees."""
+        return axis_to_tilt_cant(self.built_axis, self.side)
 
     # tilt / cant are virtual attributes over ``axis`` so optimisers and the UI can drive them directly
     @property
@@ -75,7 +102,11 @@ class Rotor:
         return self
 
     def to_dict(self) -> dict:
-        return asdict(self)
+        d = asdict(self)
+        for k in ("tilt_error_deg", "cant_error_deg"):     # a rotor mounted as designed says nothing about it
+            if not d[k]:
+                d.pop(k)
+        return d
 
     @classmethod
     def from_dict(cls, d: dict) -> "Rotor":
