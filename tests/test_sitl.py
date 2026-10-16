@@ -107,3 +107,31 @@ def test_autostart_id_without_build(tmp_path):
     (tmp_path / "build" / "px4_sitl_default" / "bin").mkdir()
     (tmp_path / "build" / "px4_sitl_default" / "bin" / "px4").write_text("")
     assert autostart_id(str(tmp_path), "test_model") == 4242
+
+
+def test_a_dead_px4_socket_is_cleared_and_a_live_one_is_not():
+    """PX4 refuses to start while /tmp/px4-sock-<i> exists, and a killed PX4 leaves one behind: one crashed
+    run would block every later run on that instance. Only a socket nobody answers on is removed."""
+    import shutil
+    import socket as pysocket
+    import tempfile
+    from pathlib import Path
+    from airframe_designer.px4.sitl import clear_stale_socket
+
+    # a short directory: a unix socket path is limited to about 100 characters, and pytest's tmp_path is longer
+    tmp = Path(tempfile.mkdtemp(dir="/tmp"))
+    live = tmp / "live.sock"
+    server = pysocket.socket(pysocket.AF_UNIX, pysocket.SOCK_STREAM)
+    server.bind(str(live))
+    server.listen(16)                              # it answers every probe, as a running PX4 does
+    dead = tmp / "dead.sock"
+    bound = pysocket.socket(pysocket.AF_UNIX, pysocket.SOCK_STREAM)
+    bound.bind(str(dead))
+    bound.close()                                  # the file stays, nobody is listening: what a crash leaves
+    try:
+        assert clear_stale_socket(1, str(live), wait_s=0.2) is False and live.exists()   # a live one is left alone
+        assert clear_stale_socket(2, str(dead)) is True and not dead.exists()
+        assert clear_stale_socket(3, str(tmp / "never-existed.sock")) is False
+    finally:
+        server.close()
+        shutil.rmtree(tmp, ignore_errors=True)

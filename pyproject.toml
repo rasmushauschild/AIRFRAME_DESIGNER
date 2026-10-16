@@ -1,6 +1,6 @@
 [project]
 name = "airframe-designer"
-version = "0.1.0"
+version = "1.0.0"
 description = "PX4-in-the-loop aircraft design simulator: wings, ducted jets, legs, CG - real time with a remote, or headless in batch for automated optimisation"
 requires-python = ">=3.11"
 dependencies = [

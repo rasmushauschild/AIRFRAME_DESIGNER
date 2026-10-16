@@ -110,3 +110,59 @@ def test_reset_forgets_the_run_and_the_fact_that_it_was_saved(tmp_path):
     RunStore(tmp_path).save(rec, airframe={}, params={})
     rec.reset()
     assert rec.rows == [] and rec.duration == 0.0 and rec.unsaved
+
+
+def test_a_reset_leaves_the_recording_alone_and_the_clock_carries_on():
+    """Reset puts the aircraft back on the ground; the graph is the session, so it keeps going. The
+    simulation clock restarts at zero on a reset, and the recording must not stop because of it."""
+    from airframe_designer.geometry.airframe import quad_x
+    from airframe_designer.sim.simulator import Simulator
+
+    simr = Simulator(quad_x(), link=None)
+    fill(simr.recorder, FakeBody(), seconds=3.0)
+    before = len(simr.recorder.rows)
+    assert before > 10
+    simr.reset()
+    assert len(simr.recorder.rows) == before          # the graph is untouched
+    simr.recorder.sample(0.0, FakeBody(), {"armed": False}, 100.0)   # the clock went back to zero
+    simr.recorder.sample(1.0, FakeBody(), {"armed": False}, 100.0)
+    assert len(simr.recorder.rows) > before
+    times = [r[0] for r in simr.recorder.rows]
+    assert times == sorted(times)                     # and the time axis still only goes forwards
+
+
+def test_a_full_recording_forgets_its_beginning_instead_of_stopping():
+    rec = Recorder(sample_hz=20.0, max_samples=40)
+    fill(rec, FakeBody(), seconds=10.0)               # 200 samples into a 40-sample recorder
+    assert 30 <= len(rec.rows) <= 40
+    assert rec.rows[-1][0] > 5.0                      # it is the recent part that survived
+
+
+def test_a_recording_carries_a_column_for_every_rotor_and_sensor():
+    """The graph can only show what the recorder writes: per rotor, and the sensors as they read."""
+    from airframe_designer.sim.recorder import columns_for
+
+    rec = Recorder()
+    body = FakeBody()
+    body.cmd = np.array([0.4, 0.6])
+    body.omega = np.array([0.35, 0.55])
+    body.thrust = np.array([3.0, 5.0])
+    body.accel_body = np.array([0.1, -0.2, -9.7])
+    rec.sample(0.0, body, {"armed": True}, 100.0,
+               extra={"alt_baro": 1.5, "flow_rate": (0.2, -0.1), "flow_range": 2.4, "flow_quality": 210})
+    assert rec.columns == columns_for(2)
+    row = dict(zip(rec.columns, rec.rows[0]))
+    assert (row["m1_cmd"], row["m1_spool"], row["m1_thrust"]) == (0.4, 0.35, 3.0)
+    assert (row["m2_cmd"], row["m2_thrust"]) == (0.6, 5.0)
+    assert row["az"] == -9.7 and row["alt_baro"] == 1.5
+    assert (row["flow_x"], row["flow_range"], row["flow_q"]) == (0.2, 2.4, 210.0)
+
+
+def test_a_real_flight_records_what_the_aircraft_reports():
+    """No simulated rotors to read: the outputs come over telemetry, as 0-1 or as a PWM."""
+    rec = Recorder()
+    body = FakeBody()
+    rec.sample(0.0, body, {"armed": True}, 100.0, motors=[0.25, 1500.0])
+    row = dict(zip(rec.columns, rec.rows[0]))
+    assert row["m1_cmd"] == 0.25
+    assert row["m2_cmd"] == 0.5          # 1500 us of a 1000-2000 band

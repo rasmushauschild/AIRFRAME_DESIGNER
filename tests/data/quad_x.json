@@ -1,0 +1,210 @@
+{
+ "schema": 2,
+ "name": "Quad X",
+ "mass": {
+  "mass": 1.5,
+  "cg": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "inertia": [
+   0.017144,
+   0.017144,
+   0.031364
+  ],
+  "inertia_products": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "items": [],
+  "from_items": false,
+  "manual": null
+ },
+ "body": {
+  "size": [
+   0.16,
+   0.16,
+   0.06
+  ],
+  "drag_quadratic": [
+   0.1,
+   0.1,
+   0.2
+  ],
+  "drag_angular": [
+   0.005,
+   0.005,
+   0.005
+  ],
+  "drag_center": [
+   0.0,
+   0.0,
+   0.0
+  ]
+ },
+ "rotors": [
+  {
+   "name": "M1",
+   "pos": [
+    0.17677669529663687,
+    0.17677669529663687,
+    0.0
+   ],
+   "axis": [
+    0.0,
+    0.0,
+    -1.0
+   ],
+   "km": 0.05,
+   "max_thrust": 8.0,
+   "max_power_w": 0.0,
+   "tau": 0.04,
+   "diameter": 0.25,
+   "thrust_exponent": 2.0,
+   "enabled": true,
+   "pair": ""
+  },
+  {
+   "name": "M2",
+   "pos": [
+    -0.17677669529663687,
+    -0.17677669529663687,
+    0.0
+   ],
+   "axis": [
+    0.0,
+    0.0,
+    -1.0
+   ],
+   "km": 0.05,
+   "max_thrust": 8.0,
+   "max_power_w": 0.0,
+   "tau": 0.04,
+   "diameter": 0.25,
+   "thrust_exponent": 2.0,
+   "enabled": true,
+   "pair": ""
+  },
+  {
+   "name": "M3",
+   "pos": [
+    0.17677669529663687,
+    -0.17677669529663687,
+    0.0
+   ],
+   "axis": [
+    0.0,
+    0.0,
+    -1.0
+   ],
+   "km": -0.05,
+   "max_thrust": 8.0,
+   "max_power_w": 0.0,
+   "tau": 0.04,
+   "diameter": 0.25,
+   "thrust_exponent": 2.0,
+   "enabled": true,
+   "pair": ""
+  },
+  {
+   "name": "M4",
+   "pos": [
+    -0.17677669529663687,
+    0.17677669529663687,
+    0.0
+   ],
+   "axis": [
+    0.0,
+    0.0,
+    -1.0
+   ],
+   "km": -0.05,
+   "max_thrust": 8.0,
+   "max_power_w": 0.0,
+   "tau": 0.04,
+   "diameter": 0.25,
+   "thrust_exponent": 2.0,
+   "enabled": true,
+   "pair": ""
+  }
+ ],
+ "wings": [],
+ "legs": [
+  {
+   "name": "FR",
+   "attach": [
+    0.1,
+    0.1,
+    0.0
+   ],
+   "length": 0.12,
+   "tilt_deg": 0.0,
+   "cant_deg": 0.0,
+   "foot_radius": 0.0,
+   "stiffness": 3000.0,
+   "damping": 150.0,
+   "friction": 0.8,
+   "enabled": true,
+   "pair": ""
+  },
+  {
+   "name": "FL",
+   "attach": [
+    0.1,
+    -0.1,
+    0.0
+   ],
+   "length": 0.12,
+   "tilt_deg": 0.0,
+   "cant_deg": -0.0,
+   "foot_radius": 0.0,
+   "stiffness": 3000.0,
+   "damping": 150.0,
+   "friction": 0.8,
+   "enabled": true,
+   "pair": ""
+  },
+  {
+   "name": "RR",
+   "attach": [
+    -0.1,
+    0.1,
+    0.0
+   ],
+   "length": 0.12,
+   "tilt_deg": 0.0,
+   "cant_deg": 0.0,
+   "foot_radius": 0.0,
+   "stiffness": 3000.0,
+   "damping": 150.0,
+   "friction": 0.8,
+   "enabled": true,
+   "pair": ""
+  },
+  {
+   "name": "RL",
+   "attach": [
+    -0.1,
+    -0.1,
+    0.0
+   ],
+   "length": 0.12,
+   "tilt_deg": 0.0,
+   "cant_deg": -0.0,
+   "foot_radius": 0.0,
+   "stiffness": 3000.0,
+   "damping": 150.0,
+   "friction": 0.8,
+   "enabled": true,
+   "pair": ""
+  }
+ ],
+ "hover_pitch_deg": 0.0,
+ "landed_pitch_deg": 0.0,
+ "px4_overrides": {},
+ "design": {},
+ "notes": "",
+ "cad": null
+}

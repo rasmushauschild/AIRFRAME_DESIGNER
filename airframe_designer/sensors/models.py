@@ -6,6 +6,7 @@ Units follow the MAVLink HIL messages:
   mag    gauss (body FRD)
   baro   hPa, pressure altitude m, temperature degC
   gps    lat/lon 1e7 deg, alt mm, velocities cm/s
+  flow   rad integrated over the frame, plus the slant range to the ground in m
 """
 from __future__ import annotations
 
@@ -13,6 +14,8 @@ import math
 from dataclasses import dataclass, field
 
 import numpy as np
+
+from ..geometry.airframe import mount_rotation
 
 R_EARTH = 6371000.0
 FIELDS_ALL = 0x1FFF          # accel | gyro | mag | baro | diff-press (see SimulatorMavlink SensorSource)
@@ -35,6 +38,8 @@ class SensorNoise:
     gps_pos: float = 0.08     # m std (horizontal); keep small, PX4's preflight drift check dislikes white noise
     gps_alt: float = 0.15     # m std
     gps_vel: float = 0.03     # m/s std
+    flow: float = 0.05        # rad/s std on the measured line-of-sight rate
+    range: float = 0.01       # m std on the rangefinder
     accel_bias: list[float] = field(default_factory=lambda: [0.0, 0.0, 0.0])
     gyro_bias: list[float] = field(default_factory=lambda: [0.0, 0.0, 0.0])
     enabled: bool = True
@@ -66,6 +71,11 @@ class SensorSuite:
         self.home = Home(lat, lon, alt)
         self.mag_ned = magnetic_field_ned(lat, lon)
 
+    @staticmethod
+    def board_rotation(af) -> np.ndarray:
+        """Sensor axes -> structural axes for the flight controller, as it is bolted into this airframe."""
+        return np.eye(3) if af is None else mount_rotation(af.design.get("pixhawk_rotation"))
+
     def _n(self, std: float, n: int = 3) -> np.ndarray:
         if not self.noise.enabled or std <= 0:
             return np.zeros(n)
@@ -88,9 +98,17 @@ class SensorSuite:
     # ---------------------------------------------------------- HIL_SENSOR
     def hil_sensor(self, sim, time_usec: int) -> dict:
         R = sim.rotmat
-        accel = sim.accel_body + self.imu_lever_acceleration(sim, time_usec) + np.asarray(self.noise.accel_bias) + self._n(self.noise.accel)
-        gyro = sim.rates + np.asarray(self.noise.gyro_bias) + self._n(self.noise.gyro)
-        mag = R.T @ self.mag_ned + self._n(self.noise.mag)
+        accel = sim.accel_body + self.imu_lever_acceleration(sim, time_usec)
+        gyro = np.asarray(sim.rates, float)
+        mag = R.T @ self.mag_ned
+        # A board bolted in crooked reads in its own axes; PX4 turns it back with SENS_BOARD_*_OFF, which the
+        # export writes from the same angles. Declare it wrong and the attitude comes out wrong, as it would.
+        board = self.board_rotation(getattr(sim, "af", None))
+        if not np.array_equal(board, np.eye(3)):
+            accel, gyro, mag = board.T @ accel, board.T @ gyro, board.T @ mag
+        accel = accel + np.asarray(self.noise.accel_bias) + self._n(self.noise.accel)
+        gyro = gyro + np.asarray(self.noise.gyro_bias) + self._n(self.noise.gyro)
+        mag = mag + self._n(self.noise.mag)
 
         alt = self.home.alt - sim.pos[2]
         # ISA troposphere
@@ -135,6 +153,81 @@ class SensorSuite:
             vn=int(round(v[0] * 100)), ve=int(round(v[1] * 100)), vd=int(round(v[2] * 100)),
             cog=int(round(cog * 100)), satellites_visible=12, id=0,
             yaw=yaw_cdeg if yaw_cdeg != 0 else 36000,
+        )
+
+    # ----------------------------------------------------------- H-flow
+    FLOW_MIN_RANGE = 0.08      # the HereFlow's VL53L1X sees nothing closer than this
+    FLOW_MIN_COS = 0.17        # beam more than ~80 deg off vertical: no ground in the picture
+
+    def _flow_state(self, sim):
+        """Geometry of the H-flow sensor right now, or None if this design has not got one.
+
+        Returns the slant range along the beam (NaN when it misses the ground), the velocity and angular rate
+        in the sensor's own axes, the angular rate in PX4's body axes, and how square the beam is to the ground.
+        """
+        af = getattr(sim, "af", None)
+        f = af.flow_sensor() if af is not None else None
+        if f is None:
+            return None
+        R_ns = np.asarray(sim.rotmat, float)                      # structural -> NED
+        R_sm = mount_rotation(f["rotation"])                      # sensor -> structural
+        R_nsens = R_ns @ R_sm                                     # sensor -> NED
+        arm = np.asarray(f["position"], float) - af.cg            # structural, from the CG
+        rates = np.asarray(sim.rates, float)
+        height = -float(sim.pos[2] + (R_ns @ arm)[2])             # the lens above flat ground
+        cos_tilt = float(R_nsens[2, 2])                           # the beam's share of straight down
+        rng = height / cos_tilt if cos_tilt > self.FLOW_MIN_COS and height > 0.0 else float("nan")
+        return dict(range=rng, cos_tilt=cos_tilt, max_range=f["range_m"],
+                    v_sensor=R_nsens.T @ (np.asarray(sim.vel, float) + R_ns @ np.cross(rates, arm)),
+                    w_sensor=R_sm.T @ rates, w_body=af.hover_rotation() @ rates)
+
+    def hil_optical_flow(self, sim, time_usec: int, dt_s: float) -> dict | None:
+        """One frame of a downward optical flow camera with its rangefinder, as HIL_OPTICAL_FLOW.
+
+        The signs are PX4's, read back from v1.18: EKF2 takes ``flow_rate = -pixel_flow / dt`` and
+        ``gyro_rate = -delta_angle / dt``, compensates with ``flow_rate - gyro_rate.xy()``, and predicts
+        ``(v_y, -v_x) / range`` for the sensor's own velocity. So the camera reports the line-of-sight rate
+        it sees, negated and integrated over the frame.
+
+        The integrated gyro goes out in PX4's body axes, not the sensor's: PX4 turns the pixel flow by
+        SENS_FLOW_ROT but leaves the delta angle alone (it is the vehicle's own gyro when a sensor reports
+        none), so the body frame is what makes the two agree after the rotation.
+        """
+        st = self._flow_state(sim)
+        if st is None or dt_s <= 0:
+            return None
+        rng, quality = st["range"], 0
+        if np.isfinite(rng) and self.FLOW_MIN_RANGE <= rng <= st["max_range"]:
+            # a slanted view of the ground is a poorer picture, and the far end of the range is grainier
+            quality = int(round(255 * min(1.0, st["cos_tilt"]) * (1.0 - 0.4 * rng / st["max_range"])))
+        los = np.zeros(2)
+        if quality:
+            v, w = st["v_sensor"], st["w_sensor"]
+            los = np.array([v[1] / rng + w[0], -v[0] / rng + w[1]]) + self._n(self.noise.flow, 2)
+        w_body = st["w_body"]
+        return dict(
+            time_usec=int(time_usec), sensor_id=0, integration_time_us=int(round(dt_s * 1e6)),
+            integrated_x=float(-los[0] * dt_s), integrated_y=float(-los[1] * dt_s),
+            integrated_xgyro=float(-w_body[0] * dt_s), integrated_ygyro=float(-w_body[1] * dt_s),
+            integrated_zgyro=float(-w_body[2] * dt_s),
+            temperature=2000, quality=quality, time_delta_distance_us=int(round(dt_s * 1e6)),
+            distance=float(rng + self._n(self.noise.range, 1)[0]) if quality else -1.0,
+        )
+
+    def distance_sensor(self, sim, time_usec: int) -> dict | None:
+        """The H-flow's rangefinder on its own, as DISTANCE_SENSOR: the slant range PX4 then de-tilts."""
+        st = self._flow_state(sim)
+        if st is None:
+            return None
+        rng, max_range = st["range"], st["max_range"]
+        reading = rng + float(self._n(self.noise.range, 1)[0]) if np.isfinite(rng) else max_range + 1.0
+        return dict(
+            time_boot_ms=int(time_usec // 1000), min_distance=int(round(self.FLOW_MIN_RANGE * 100)),
+            max_distance=int(round(max_range * 100)),
+            current_distance=int(round(max(0.0, min(reading, max_range + 1.0)) * 100)),
+            type=0, id=0, orientation=25,            # laser, facing down (MAV_SENSOR_ROTATION_PITCH_270)
+            covariance=int(round((self.noise.range * 100) ** 2)) or 1,
+            horizontal_fov=0.0, vertical_fov=0.0, quaternion=[0.0, 0.0, 0.0, 0.0], signal_quality=0,
         )
 
     # ------------------------------------------------ HIL_STATE_QUATERNION

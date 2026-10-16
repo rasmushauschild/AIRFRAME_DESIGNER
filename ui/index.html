@@ -17,33 +17,32 @@
   <div class="main">
     <section class="panel view">
       <div class="panel-head">
-        <div class="panel-title">Airframe</div>
+        <div class="panel-title" id="view-title">Airframe</div>
         <div class="panel-spacer"></div>
-        <button class="pill" id="btn-reset" title="Start clean: force-disarm, vehicle back on the ground, and PX4 rebooted (HITL) or relaunched (SITL)">Reset</button>
-        <button class="pill" id="btn-pause">Pause</button>
-        <button class="pill toggle" id="btn-follow" title="Camera: static → track (looks at the drone) → follow (moves with it)">Static</button>
-        <button class="pill theme-btn" id="btn-theme" title="Toggle dark mode">◐</button>
+        <div class="segmented" role="group" id="mode-switch">
+          <button data-link="sitl" title="PX4 running on this computer, flying the simulated aircraft">SITL</button>
+          <button data-link="hitl" title="the Pixhawk over USB, flying the simulated aircraft: the simulator is its world">HITL</button>
+          <button data-link="real" title="the aircraft flying on its own sensors: nothing is simulated, the app listens and records, and the 3D view follows the real drone">FLIGHT</button>
+        </div>
+        <span class="pill st link-light" id="link-light" title="the link to the flight controller"><i class="dot"></i></span>
+        <div class="panel-spacer"></div>
+        <button class="pill" id="btn-pause" title="stop the physics and the sensors to PX4; the graph stops with them">Pause</button>
+        <button class="pill danger" id="btn-reset" title="Start clean: force-disarm, vehicle back on the ground, and PX4 rebooted (HITL) or relaunched (SITL)">Reset</button>
       </div>
       <div id="viewport">
         <canvas id="c"></canvas>
       <!-- The overlay: the seven numbers worth watching while it flies, and nothing else. Fixed widths and
              tabular figures, so a digit changing never moves anything on screen. -->
         <div class="status" id="overlay">
-          <button class="pill st ro" id="ro-fc" title="flight controller: link, mode and armed state">
-            <i class="dot"></i><span class="k">Controller</span><b id="ro-fc-v">—</b></button>
-          <span class="pill st ro" title="electrical power into the motors now, and as a share of what they can draw">
-            <span class="k">Power</span><b id="ro-power">—</b></span>
-          <button class="pill st ro" id="ro-batt" title="charge left, and minutes at the current draw. Click to set the capacity">
-            <span class="k">Battery</span><b id="ro-batt-v">—</b></button>
-          <span class="pill st ro" title="lift from the wings, and as a share of the weight">
-            <span class="k">Wing lift</span><b id="ro-lift">—</b></span>
-          <span class="pill st ro" title="speed through the air">
-            <span class="k">Speed</span><b id="ro-speed">—</b></span>
-          <span class="pill st ro" title="height above the ground">
-            <span class="k">Height</span><b id="ro-alt">—</b></span>
-          <span class="pill st ro" title="wind speed, and the direction it comes from">
-            <span class="k">Wind</span><b id="ro-wind">—</b></span>
+          <span id="overlay-chips"></span>
+          <span class="series-menu" id="overlay-menu">
+            <button class="pill st ro" id="overlay-btn" title="choose what is shown here">＋</button>
+            <div class="series-pop" id="overlay-pop" hidden></div>
+          </span>
         </div>
+
+        <button class="pill" id="recenter" hidden title="put the camera back on the aircraft and follow it again">Follow</button>
+        <div id="toast" aria-live="polite"></div>
 
         <div id="hud">
           <div id="rotor-readout"></div>
@@ -59,14 +58,14 @@
           <button class="pill small" id="view-graph">Graph</button>
         </div>
         <span class="panel-spacer"></span>
-        <select id="run-pick" class="preset-select" title="a saved run; pick one to scrub through it"><option value="">Live</option></select>
+        <select id="run-pick" class="preset-select run-pick" title="a saved run; pick one to scrub through it"><option value="">Live</option></select>
         <input id="run-name" type="text" class="run-name" hidden maxlength="60" placeholder="name this run">
         <button class="pill small primary" id="scrub-resume" hidden title="leave the recording and let the simulation run again">Resume</button>
-        <button class="pill small" id="run-save" title="keep this run with the airframe and parameters that produced it">Keep run</button>
+        <button class="pill small" id="run-save" title="save what is plotted, with the design and parameters that produced it, and start the graph again from zero">Save run</button>
+        <button class="pill small danger" id="run-reset" title="throw away what is plotted and start the graph again; the simulation keeps running">Reset</button>
         <button class="pill small" id="run-rename" title="rename the selected run" hidden>Rename</button>
         <button class="pill small danger" id="run-delete" title="delete the selected run" hidden>Delete</button>
         <button class="pill small" id="run-load" title="load the airframe this run was flown with" hidden>Load design</button>
-        <button class="pill small" id="log-toggle">Hide</button>
       </div>
       <div id="log-body"><pre id="log-pre"></pre></div>
       <div id="graph-body" hidden>
@@ -78,7 +77,17 @@
           <div class="series-legend" id="series-legend"></div>
         </div>
         <div id="graph-plot"></div>
-        <div class="scrub-row"><span class="hint num" id="scrub-label">—</span></div>
+        <div class="scrub-row">
+          <button class="pill small" id="scrub-play" title="play the recording from the cursor; the simulation stays paused">Play</button>
+          <select id="scrub-speed" class="preset-select" title="playback speed">
+            <option value="0.25">0.25×</option><option value="0.5">0.5×</option>
+            <option value="1" selected>1×</option><option value="2">2×</option>
+            <option value="4">4×</option><option value="10">10×</option>
+          </select>
+          <button class="pill small" id="scrub-fit" hidden title="show the whole recording again (or double-click the plot)">Fit</button>
+          <span class="panel-spacer"></span>
+          <span class="hint num" id="scrub-label">—</span>
+        </div>
       </div>
     </section>
   </div>
@@ -86,49 +95,26 @@
   <div class="vresizer" id="resize-side" title="Drag to resize"></div>
   <aside class="panel side" id="side">
     <div class="preset-bar">
-      <input id="af-name" type="text" class="name-input" title="the design's name; every change on every tab is saved to it automatically" spellcheck="false">
-      <select id="af-preset" class="preset-select pick" title="open another design"></select>
-      <select id="af-version" class="preset-select" title="versions of this design pushed to GitHub"></select>
+      <span class="name-picker">
+        <input id="af-name" type="text" class="name-input" title="the design's name; editing it renames this design (it does not make a new one)" spellcheck="false">
+        <select id="af-preset" class="preset-select pick" title="open another design"></select>
+      </span>
+      <button class="pill small icon-btn" id="af-duplicate" aria-label="Duplicate" title="make a copy of this design and open it"><svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="5.6" y="5.6" width="8.4" height="8.4" rx="2.2"/><path d="M10.4 3.1A2 2 0 0 0 8.6 2H4a2 2 0 0 0-2 2v4.6a2 2 0 0 0 1.1 1.8"/></svg></button>
+      <button class="pill small icon-btn danger" id="af-delete" aria-label="Delete" title="delete this design (the app opens another one first)"><svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2.8 4.2h10.4M6.4 4.2V2.9h3.2v1.3M4.2 4.2l.7 8.3a1.4 1.4 0 0 0 1.4 1.3h3.4a1.4 1.4 0 0 0 1.4-1.3l.7-8.3"/><path d="M6.8 6.8v4.4M9.2 6.8v4.4"/></svg></button>
+      <span class="bar-gap"></span>
+      <select id="af-version" class="preset-select boxed" title="versions of this design pushed to GitHub"></select>
       <button class="pill small" id="af-push" title="push this design to GitHub as a new version: geometry, every parameter, and the firmware sources">Push version</button>
-      <button class="pill small danger" id="af-delete" title="delete this design (the app opens another one first)">Delete</button>
-      <span id="af-saved" class="hint saved-mark"></span>
     </div>
     <nav class="tabs">
       <button data-tab="airframe" class="active">Geometry</button>
-      <button data-tab="px4">Params</button>
-      <button data-tab="firmware">Firmware</button>
-      <button data-tab="mission">Mission</button>
-      <button data-tab="controller">Controller</button>
+      <button data-tab="px4">PX4</button>
+      <button data-tab="sequences">Sequences</button>
+      <button data-tab="live">Live control</button>
     </nav>
     <div class="panel-body">
 
     <!-- ============================ GEOMETRY ============================ -->
     <section id="tab-airframe" class="tab active">
-
-      <details class="sec" id="sec-mass-cg" open>
-        <summary>Mass &amp; CG</summary>
-        <div class="sec-body">
-        <div class="row">
-          <label>Mass kg <input id="af-mass" type="number" step="0.01" min="0.01"></label>
-          <label title="centre of gravity in the structural frame (x forward, y right, z down), m">CG x <input id="af-cgx" type="number" step="0.005"></label>
-          <label>CG y <input id="af-cgy" type="number" step="0.005"></label>
-          <label title="Z is DOWN (+), like PX4: a CG above the reference point has negative Z">CG z <input id="af-cgz" type="number" step="0.005"></label>
-          <label title="battery capacity, Wh: the gauge above the 3D view counts it down from the ideal motor power and resets with every simulation reset (0 = no gauge)">Battery Wh <input id="af-battery" type="number" step="10" min="0"></label>
-        </div>
-        <div class="row">
-          <label>Ixx <input id="af-ixx" type="number" step="0.001" min="0"></label>
-          <label>Iyy <input id="af-iyy" type="number" step="0.001" min="0"></label>
-          <label>Izz <input id="af-izz" type="number" step="0.001" min="0"></label>
-          <button id="af-estimate" class="pill small" title="Estimate inertia from mass, rotor layout, wings and legs">Estimate</button>
-        </div>
-        <div class="row">
-          <label title="Nose-up angle before takeoff. Edits the simulator target in SITL or the PX4 firmware target in HITL. Editable while connected and disarmed; does not change hover pitch.">Takeoff pitch° <input id="af-takeoff" type="number" step="any" value="25" disabled></label>
-          <label title="Nose-up pitch of the airframe in hover. PX4 treats this attitude as level: the geometry is exported rotated into that frame and SENS_BOARD_Y_OFF is set to match.">Hover pitch° <input id="af-hover" type="number" step="1" min="-90" max="90"></label>
-          <label title="Calculated automatically from the enabled landing feet. Actual resting pitch can differ slightly as the legs compress.">Landed pitch° (auto) <input id="af-landed" type="number" step="1" min="-90" max="90"></label>
-        </div>
-      
-        </div>
-      </details>
 
       <details class="sec" id="cad-details">
         <summary>CAD model <span id="cad-summary" class="hint"></span></summary>
@@ -157,15 +143,56 @@
         </div>
       </details>
 
-      <details class="sec" id="sec-pixhawk-position" open>
-        <summary>Pixhawk position</summary>
+      <details class="sec" id="sec-mass-cg" open>
+        <summary>Mass &amp; CG</summary>
         <div class="sec-body">
-        <div class="row" title="IMU position in metres from the structural origin: X forward, Y right, Z down. PX4 receives the offset relative to the CG.">
-          <label>X m <input id="imu-x" type="number" step="0.001"></label>
-          <label>Y m <input id="imu-y" type="number" step="0.001"></label>
-          <label>Z m <input id="imu-z" type="number" step="0.001"></label>
+        <div class="row">
+          <label>Mass kg <input id="af-mass" type="number" step="0.01" min="0.01"></label>
+          <label title="centre of gravity in the structural frame (x forward, y right, z down), m">CG x <input id="af-cgx" type="number" step="0.005"></label>
+          <label>CG y <input id="af-cgy" type="number" step="0.005"></label>
+          <label title="Z is DOWN (+), like PX4: a CG above the reference point has negative Z">CG z <input id="af-cgz" type="number" step="0.005"></label>
+          <label title="battery capacity, Wh: the gauge above the 3D view counts it down from the ideal motor power and resets with every simulation reset (0 = no gauge)">Battery Wh <input id="af-battery" type="number" step="10" min="0"></label>
+        </div>
+        <div class="row">
+          <label>Ixx <input id="af-ixx" type="number" step="0.001" min="0"></label>
+          <label>Iyy <input id="af-iyy" type="number" step="0.001" min="0"></label>
+          <label>Izz <input id="af-izz" type="number" step="0.001" min="0"></label>
+          <button id="af-estimate" class="pill small" title="Estimate inertia from mass, rotor layout, wings and legs">Estimate</button>
+        </div>
+        <div class="row">
+          <label title="Nose-up angle before takeoff. Edits the simulator target in SITL or the PX4 firmware target in HITL. Editable while connected and disarmed; does not change hover pitch.">Takeoff pitch° <input id="af-takeoff" type="number" step="any" value="25" disabled></label>
+          <label title="Nose-up pitch of the airframe in hover. PX4 treats this attitude as level: the geometry is exported rotated into that frame and SENS_BOARD_Y_OFF is set to match.">Hover pitch° <input id="af-hover" type="number" step="1" min="-90" max="90"></label>
+          <label title="Calculated automatically from the enabled landing feet. Actual resting pitch can differ slightly as the legs compress.">Landed pitch° (auto) <input id="af-landed" type="number" step="1" min="-90" max="90"></label>
         </div>
       
+        </div>
+      </details>
+
+      <details class="sec" id="sec-sensor-position" open>
+        <summary>Sensor positions <span class="sum-spacer"></span><span class="hint" id="sensor-note"></span></summary>
+        <div class="sec-body">
+          <div class="fields cols-4" title="where the flight controller sits, in metres from the structural origin: X forward, Y right, Z down. PX4 gets it relative to the CG (EKF2_IMU_POS_*).">
+            <label>Pixhawk X m <input id="imu-x" type="number" step="0.001"></label>
+            <label>Y m <input id="imu-y" type="number" step="0.001"></label>
+            <label>Z m <input id="imu-z" type="number" step="0.001"></label>
+          </div>
+          <div class="fields cols-4" title="how the board is turned in the airframe, degrees; 0 = square with it. The export folds this into the hover pitch as SENS_BOARD_*_OFF, and the simulated IMU reads in the board's own axes.">
+            <label>Roll° <input id="imu-rr" type="number" step="5"></label>
+            <label>Pitch° <input id="imu-rp" type="number" step="5"></label>
+            <label>Yaw° <input id="imu-ry" type="number" step="5"></label>
+          </div>
+          <label class="row" title="a HereFlow or similar: a downward optical flow camera with a rangefinder beside it. With this on the simulation feeds PX4 flow and range, and the export turns their fusion on."><input id="flow-on" type="checkbox"> H-flow sensor (optical flow + rangefinder)</label>
+          <div class="fields cols-4 flow-fields" title="where the flow lens sits, in metres from the structural origin.">
+            <label>Flow X m <input id="flow-x" type="number" step="0.001"></label>
+            <label>Y m <input id="flow-y" type="number" step="0.001"></label>
+            <label>Z m <input id="flow-z" type="number" step="0.001"></label>
+            <label title="how far the rangefinder reads: 4 m for the HereFlow's VL53L1X">Range m <input id="flow-range" type="number" step="0.5" min="0.5"></label>
+          </div>
+          <div class="fields cols-4 flow-fields" title="which way the lens looks, degrees; 0 looks along the airframe's Z, so a nose-up hover tilts the beam with the airframe and the note above says by how much. PX4 only knows the yaw, in 45° steps.">
+            <label>Roll° <input id="flow-rr" type="number" step="5"></label>
+            <label>Pitch° <input id="flow-rp" type="number" step="5"></label>
+            <label>Yaw° <input id="flow-ry" type="number" step="45"></label>
+          </div>
         </div>
       </details>
 
@@ -252,6 +279,29 @@
 
     <!-- ============================ PX4 ============================ -->
     <section id="tab-px4" class="tab">
+      <details class="sec" id="sec-flight-controller" open>
+        <summary>Flight controller <span class="sum-spacer"></span><span class="hint" id="conn-head"></span></summary>
+        <div class="sec-body">
+          <div class="pills" role="group" id="conn-modes">
+            <button class="pill small" id="conn-sitl" data-link="sitl" title="PX4 running on this computer, flying the simulated aircraft">SITL</button>
+            <button class="pill small" id="conn-hitl" data-link="hitl" title="the Pixhawk over USB, flying the simulated aircraft: HITL">HITL</button>
+            <button class="pill small" id="conn-real" data-link="real" title="the Pixhawk on its own sensors and its own outputs: the real aircraft">Real flight</button>
+          </div>
+          <div id="conn-current"></div>
+          <div id="conn-ports"></div>
+          <div class="row tight">
+            <button class="pill small" id="conn-rescan" title="look for a flight controller on USB again">Rescan</button>
+            <button class="pill small" id="conn-disconnect">Disconnect</button>
+            <button class="pill small" id="conn-reboot" title="Reboot the flight controller; the link reconnects by itself">Reboot board</button>
+            <button class="pill small danger" id="conn-hw-ok" hidden title="NLF_HW_OK: let the ground sequence run the motors on the real aircraft">Allow motors</button>
+            <span class="panel-spacer"></span>
+            <label class="row hint" title="serial speed for the USB link to the board">Baud <input id="conn-baud" type="number" value="921600" style="width:84px"></label>
+          </div>
+          <div id="conn-error" class="problems"></div>
+          <p id="real-flight-result" class="hint"></p>
+        </div>
+      </details>
+
       <details class="sec" id="sync-card" open hidden>
         <summary>Board vs SITL <span id="sync-text" class="hint"></span></summary>
         <div class="sec-body">
@@ -261,42 +311,57 @@
       </details>
 
       <details class="sec" id="sec-edited-parameters" open>
-        <summary>Edited parameters</summary>
+        <summary>Parameters <span class="sum-spacer"></span><span class="hint" id="param-count"></span></summary>
         <div class="sec-body">
         <div id="px4-export-status"></div>
-        <div id="overrides" class="card"></div>
         <div class="row tight">
-          <a id="px4-download" class="pill small" href="/api/px4/export.params" download>Download .params</a>
-          <button id="px4-refresh" class="pill small">Refresh</button>
+          <button id="param-add" class="pill small primary" title="pick any PX4 parameter and set it for this design">+ Add parameter</button>
+          <button id="px4-refresh" class="pill small" title="read the parameters back from the vehicle">Refresh</button>
+          <button id="param-meta-fetch" class="pill small" hidden title="this firmware's parameter descriptions are not on this computer: download them from the vehicle over MAVLink FTP">Fetch descriptions</button>
+          <span class="panel-spacer"></span>
+          <a id="px4-download" class="hint" href="/api/px4/export.params" download title="the whole export as a QGroundControl .params file">Download .params</a>
         </div>
+        <div id="param-find" hidden>
+          <input id="param-search" type="search" placeholder="search a parameter by name or description" autocomplete="off">
+          <div id="param-list"></div>
+        </div>
+        <div id="overrides" class="card"></div>
         </div>
       </details>
-      <details class="sec" id="sec-find-a-parameter" open>
-        <summary>Find a parameter</summary>
+      <details class="sec" id="sec-modules" open>
+        <summary>Firmware modules <span class="sum-spacer"></span><span class="pill st" id="fw-state"><i class="dot"></i><b id="fw-state-text">—</b></span></summary>
         <div class="sec-body">
-        <div class="row">
-          <input id="param-search" type="search" placeholder="Type to search name or description">
-          <select id="param-group" style="width:150px"><option value="">All groups</option></select>
-        </div>
-        <div class="row tight">
-          <button id="param-refresh" class="pill small">Reload</button>
-          <button id="param-save" class="pill small" title="MAV_CMD_PREFLIGHT_STORAGE: write parameters to flash">Save to flash</button>
-          <button id="param-meta-fetch" class="pill small" title="Download parameter descriptions from the vehicle via MAVLink FTP">Fetch descriptions</button>
-          <button id="param-reboot" class="pill small danger">Reboot PX4</button>
-        </div>
-        <div id="param-count" class="hint" style="margin:6px 0 4px 8px"></div>
-        <div id="param-editor" class="editor hidden"></div>
-        <div id="param-list"></div>
+          <div class="row tight">
+            <button class="pill small primary" id="fw-build" title="compile the PX4 firmware with these modules in it">Build</button>
+            <button class="pill small" id="fw-flash" title="build if needed, flash the board, archive the result">Flash board</button>
+            <span class="panel-spacer"></span>
+            <span class="hint" id="fw-where"></span>
+          </div>
+          <div class="row tight">
+            <label class="row hint" style="flex:1" title="your own PX4 modules, and the other sources under firmware/atlas">Module
+              <select id="fw-module" style="flex:1"></select></label>
+            <button class="pill small" id="fw-new" title="start a new PX4 module: a directory, a CMakeLists.txt that adds it to the build, and a source file that compiles">New module</button>
+          </div>
+          <div class="row tight">
+            <label class="row hint" style="flex:1" title="the files of that module">File
+              <select id="fw-file" style="flex:1"><option value="">Loading…</option></select></label>
+            <button class="pill small" id="fw-code" title="open this file in VS Code">VS Code</button>
+            <button class="pill small" id="fw-revert" title="discard edits and reload from disk">Revert</button>
+            <button class="pill small primary" id="fw-save" title="write this file">Save</button>
+          </div>
+          <textarea id="fw-text" spellcheck="false" wrap="off"></textarea>
+          <div class="hint" id="fw-note"></div>
         </div>
       </details>
 
     </section>
 
+
     <!-- ============================ DESIGN / OPTIMIZE ============================ -->
     <!-- ============================ BATCH ============================ -->
-    <section id="tab-mission" class="tab">
+    <section id="tab-sequences" class="tab">
       <details class="sec" id="sec-takeoff-landing" open>
-        <summary>Takeoff and landing <span class="sum-spacer"></span><span class="hint" id="tl-now"></span></summary>
+        <summary>Take off and landing sequence <span class="sum-spacer"></span><span class="hint" id="tl-now"></span></summary>
         <div class="sec-body">
           <div class="fields cols-4">
             <label title="what the Takeoff button does">Takeoff
@@ -311,36 +376,11 @@
             <label title="MPC_LAND_SPEED: descent rate for the final approach">Descend m/s <input id="tl-descend" type="number" step="0.1" min="0.1"></label>
             <label title="COM_DISARM_LAND: seconds on the ground before PX4 disarms itself (0 = never)">Disarm after s <input id="tl-disarm" type="number" step="0.5" min="0"></label>
           </div>
-          <div class="fields cols-4">
-            <label title="NLF_PILOT: who flies once the nose is up">After the nose lift
-              <select id="handover-mode">
-                <option value="0">PX4 position hold (needs GPS)</option>
-                <option value="1">Pilot throttle, Stabilized (no GPS)</option>
-                <option value="2">Pilot throttle, Altitude mode (no GPS)</option>
-              </select></label>
-            <label class="row" style="align-self:end;padding-bottom:6px" title="NLF_RC_THR: the first press raises the nose under RC throttle, the second climbs away"><input id="staged-rc-takeoff" type="checkbox"> Two-stage RC throttle</label>
-          </div>
           <div class="hint" id="tl-note"></div>
         </div>
       </details>
-      <details class="sec" id="sec-wind" open>
-        <summary>Wind <span class="sum-spacer"></span><span class="hint" id="wind-now"></span></summary>
-        <div class="sec-body">
-          <div class="fields cols-4">
-            <label title="wind speed at the aircraft">Speed m/s <input id="wind-speed" type="number" step="0.5" min="0" value="0"></label>
-            <label title="the direction the wind comes FROM, degrees clockwise from north">From° <input id="wind-dir" type="number" step="5" value="0"></label>
-            <label title="downward component, m/s (positive = downdraught)">Down m/s <input id="wind-down" type="number" step="0.5" value="0"></label>
-          </div>
-          <div class="row tight">
-            <button class="pill small primary" id="wind-apply">Set now</button>
-            <button class="pill small" id="wind-calm">Calm</button>
-            <span class="hint">This is the wind in the simulation right now. Each mission can set its own at the start.</span>
-          </div>
-        </div>
-      </details>
-
       <details class="sec" id="sec-missions" open>
-        <summary>Missions <span class="sum-spacer"></span><span class="hint" id="mi-state"></span></summary>
+        <summary>Sequences <span class="sum-spacer"></span><span class="hint" id="mi-state"></span></summary>
         <div class="sec-body">
           <div class="row tight">
             <select id="mi-pick" style="flex:1"></select>
@@ -349,8 +389,6 @@
             <button class="pill small danger" id="mi-delete">Delete</button>
           </div>
           <div class="fields cols-4">
-            <label title="wind set when the mission starts">Wind m/s <input id="mi-wind-speed" type="number" step="0.5" min="0"></label>
-            <label title="the direction it comes from">From° <input id="mi-wind-dir" type="number" step="5"></label>
             <label title="give up after this many simulated seconds">Time limit s <input id="mi-max" type="number" step="10" min="10"></label>
           </div>
           <div id="mi-steps"></div>
@@ -376,61 +414,39 @@
 
     </section>
 
-    <!-- ============================ FIRMWARE ============================ -->
-    <section id="tab-firmware" class="tab">
-      <details class="sec" id="sec-build" open>
-        <summary>Build <span class="sum-spacer"></span><span class="pill st" id="fw-state"><i class="dot"></i><b id="fw-state-text">—</b></span></summary>
+
+    <!-- ============================ LIVE CONTROL ============================ -->
+    <section id="tab-live" class="tab">
+      <details class="sec" id="sec-flight-mode" open>
+        <summary>Flight mode <span class="sum-spacer"></span><span class="hint" id="mode-now"></span></summary>
         <div class="sec-body">
-          <div class="row tight">
-            <button class="pill small primary" id="fw-build">Build</button>
-            <button class="pill small" id="fw-flash" title="build if needed, flash the board, archive the result">Flash board</button>
-          </div>
+          <div class="pills" role="group" id="mode-buttons"></div>
         </div>
       </details>
 
-      <details class="sec" id="sec-modules" open>
-        <summary>Modules <span class="sum-spacer"></span><span class="hint" id="fw-where"></span></summary>
+      <details class="sec" id="sec-wind" open>
+        <summary>Wind <span class="sum-spacer"></span><span class="hint" id="wind-now"></span></summary>
         <div class="sec-body">
+          <div class="fields cols-4">
+            <label title="wind speed at the aircraft">Speed m/s <input id="wind-speed" type="number" step="0.5" min="0" value="0"></label>
+            <label title="the direction the wind comes FROM, degrees clockwise from north">From° <input id="wind-dir" type="number" step="5" value="0"></label>
+            <label title="downward component, m/s (positive = downdraught)">Down m/s <input id="wind-down" type="number" step="0.5" value="0"></label>
+          </div>
+          <div class="pills" role="group" id="wind-kind">
+            <button class="pill small active" data-kind="steady" title="one speed and one direction, held">Constant</button>
+            <button class="pill small" data-kind="gusty" title="the speed and direction keep wandering: a smooth, repeatable gust pattern, not noise">Gusts</button>
+          </div>
+          <div class="fields cols-4" id="wind-gust-fields" hidden>
+            <label title="how far the speed swings either side of the mean">Gust ± m/s <input id="wind-gust" type="number" step="0.5" min="0" value="3"></label>
+            <label title="roughly how long one gust takes">Every s <input id="wind-period" type="number" step="1" min="0.5" value="8"></label>
+            <label title="how far the direction swings either side">Swing° <input id="wind-swing" type="number" step="5" min="0" value="15"></label>
+          </div>
+          <canvas id="wind-preview" height="64" title="the next minute of wind this makes: the speed, and the direction swinging around the mean"></canvas>
           <div class="row tight">
-            <label class="row hint" style="flex:1" title="your own PX4 modules, and the other sources under firmware/atlas">Module
-              <select id="fw-module" style="flex:1"></select></label>
-            <button class="pill small" id="fw-new" title="start a new PX4 module: a directory, a CMakeLists.txt that adds it to the build, and a source file that compiles">New module</button>
+            <button class="pill small primary" id="wind-apply">Set now</button>
+            <button class="pill small" id="wind-calm">Calm</button>
+            <span class="hint">The wind in the simulation right now; the arrow by the axes in the 3D view shows it blowing. A sequence changes it with a Set wind step.</span>
           </div>
-          <div class="row tight">
-            <label class="row hint" style="flex:1" title="the files of that module">File
-              <select id="fw-file" style="flex:1"><option value="">Loading…</option></select></label>
-            <button class="pill small" id="fw-revert" title="discard edits and reload from disk">Revert</button>
-            <button class="pill small primary" id="fw-save" title="write this file">Save</button>
-          </div>
-          <textarea id="fw-text" spellcheck="false" wrap="off"></textarea>
-          <div class="hint" id="fw-note"></div>
-        </div>
-      </details>
-
-    </section>
-
-    <!-- ============================ CONNECT ============================ -->
-    <section id="tab-controller" class="tab">
-      <details class="sec" id="sec-flight-controller" open>
-        <summary>Flight controller <span class="sum-spacer"></span><span class="hint" id="conn-head"></span></summary>
-        <div class="sec-body">
-          <div class="pills" role="group" id="conn-modes">
-            <button class="pill small" id="conn-sitl" data-link="sitl" title="PX4 running on this computer, flying the simulated aircraft">SITL</button>
-            <button class="pill small" id="conn-hitl" data-link="hitl" title="the Pixhawk over USB, flying the simulated aircraft: HITL">HITL</button>
-            <button class="pill small" id="conn-real" data-link="real" title="the Pixhawk on its own sensors and its own outputs: the real aircraft">Real flight</button>
-          </div>
-          <div id="conn-current"></div>
-          <div id="conn-ports"></div>
-          <div class="row tight">
-            <button class="pill small" id="conn-rescan" title="look for a flight controller on USB again">Rescan</button>
-            <button class="pill small" id="conn-disconnect">Disconnect</button>
-            <button class="pill small" id="conn-reboot" title="Reboot the flight controller; the link reconnects by itself">Reboot board</button>
-            <button class="pill small danger" id="conn-hw-ok" hidden title="NLF_HW_OK: let the ground sequence run the motors on the real aircraft">Allow motors</button>
-            <span class="panel-spacer"></span>
-            <label class="row hint" title="serial speed for the USB link to the board">Baud <input id="conn-baud" type="number" value="921600" style="width:84px"></label>
-          </div>
-          <div id="conn-error" class="problems"></div>
-          <p id="real-flight-result" class="hint"></p>
         </div>
       </details>
 
@@ -441,13 +457,6 @@
             <button id="joy-connect" class="pill small" title="use a RadioMaster or joystick attached to this computer (USB, or a serial link such as Bluetooth). Its channels appear in the same table as a receiver on the flight controller, with the same mapping.">Connect radio…</button>
           </div>
           <div id="rc-board"></div>
-        </div>
-      </details>
-
-      <details class="sec" id="sec-flight-mode" open>
-        <summary>Flight mode <span class="sum-spacer"></span><span class="hint" id="mode-now"></span></summary>
-        <div class="sec-body">
-          <div class="pills" role="group" id="mode-buttons"></div>
         </div>
       </details>
 

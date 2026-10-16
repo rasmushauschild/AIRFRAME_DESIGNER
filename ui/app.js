@@ -59,10 +59,9 @@ $$('.tabs button').forEach(b => b.addEventListener('click', () => {
   $$('.tabs button').forEach(x => x.classList.toggle('active', x === b));
   $$('.tab').forEach(t => t.classList.toggle('active', t.id === 'tab-' + b.dataset.tab));
   if (b.dataset.tab === 'airframe') loadExport();
-  if (b.dataset.tab === 'px4') { ensureParams(); loadExport(); }
-  if (b.dataset.tab === 'controller') { refreshConnection(); ensureParams(); renderRcLive(); renderModeButtons(); }
-  if (b.dataset.tab === 'mission') { refreshBatch(); ensureParams().then(fillTakeoffLanding).catch(() => { }); fillTakeoffLanding(); renderMissions(); pollMission(); }
-  if (b.dataset.tab === 'firmware') refreshFirmware();
+  if (b.dataset.tab === 'px4') { refreshConnection(); ensureParams(); loadExport(); refreshFirmware(); }
+  if (b.dataset.tab === 'live') { ensureParams(); renderRcLive(); renderModeButtons(); loadWindModel(); }
+  if (b.dataset.tab === 'sequences') { refreshBatch(); ensureParams().then(fillTakeoffLanding).catch(() => { }); fillTakeoffLanding(); renderMissions(); pollMission(); }
 }));
 function openTab(name) { $$('.tabs button').find(b => b.dataset.tab === name)?.click(); }
 
@@ -79,18 +78,23 @@ function disarmConfirm() {
   const b = armedBtn;
   armedBtn = null;
   confirmArm.clear();
-  if (b && b.tagName === 'BUTTON' && document.body.contains(b) && b.dataset.label) {
-    b.textContent = b.dataset.label; b.classList.remove('confirm');
+  if (b && b.tagName === 'BUTTON' && document.body.contains(b) && b.dataset.label !== undefined) {
+    b.innerHTML = b.dataset.label; b.classList.remove('confirm');   // innerHTML: some of them are an icon
   }
 }
 // A question you did not answer is a no: clicking anywhere else, or Escape, takes it back.
 document.addEventListener('click', (e) => { if (armedBtn && !e.composedPath().includes(armedBtn)) disarmConfirm(); }, true);
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape') disarmConfirm(); });
 function confirmTwice(key, btn, label) {
-  if (confirmArmed(key)) { confirmArm.delete(key); btn.classList.remove('confirm'); armedBtn = null; return true; }
+  if (confirmArmed(key)) {
+    // answered: put the button back to what it said, for the ones that are not rebuilt after the deed
+    confirmArm.delete(key); btn.classList.remove('confirm'); armedBtn = null;
+    if (btn.tagName === 'BUTTON' && btn.dataset.label !== undefined) btn.innerHTML = btn.dataset.label;
+    return true;
+  }
   confirmArm.set(key, Date.now() + 8000);
   if (btn.tagName === 'BUTTON') {
-    btn.dataset.label = btn.dataset.label || btn.textContent;
+    if (btn.dataset.label === undefined) btn.dataset.label = btn.innerHTML;
     btn.title = btn.title || label;
     btn.textContent = 'Really?'; btn.classList.add('confirm');
     armedBtn = btn;
@@ -172,6 +176,7 @@ function setAirframe(af) {
   scene.setAirframe(airframe);
   $('#af-name').value = af.name;
   if (document.activeElement !== $('#af-name')) $('#af-name').value = af.name || '';
+  $('#view-title').textContent = af.name || 'Airframe';
   fillMassCard();
   ['bx', 'by', 'bz'].forEach((k, i) => $('#af-' + k).value = af.body.size[i]);
   ['dragx', 'dragy', 'dragz'].forEach((k, i) => $('#af-' + k).value = af.body.drag_quadratic[i]);
@@ -183,6 +188,7 @@ function setAirframe(af) {
   renderMotorSliders();
   fillMotorCard();
   fillCadCard();
+  fillSensorCard();
   fillTakeoffLanding();
   loadExport();          // fills the edited/affected-parameters section (needs the server's export view)
 }
@@ -192,13 +198,45 @@ function fillMassCard() {
   ['mass', 'cgx', 'cgy', 'cgz', 'ixx', 'iyy', 'izz'].forEach(k => { const el = $('#af-' + k); el.disabled = derived; el.title = derived ? 'derived from the CAD bodies / mass items (untick "Mass, CG & inertia from bodies" to type it)' : 'Manually entered value'; });
   $('#af-estimate').disabled = derived;
   $('#af-mass').value = m.mass;
-  const imu = airframe.design?.pixhawk_position || m.cg;
-  ['x', 'y', 'z'].forEach((axis, i) => { $('#imu-' + axis).value = imu[i]; });
   ['cgx', 'cgy', 'cgz'].forEach((k, i) => $('#af-' + k).value = +(+m.cg[i]).toFixed(4));
   ['ixx', 'iyy', 'izz'].forEach((k, i) => $('#af-' + k).value = +(+m.inertia[i]).toFixed(5));
   $('#af-battery').value = (airframe.design && airframe.design.battery_wh) || 0;
   $('#af-hover').value = airframe.hover_pitch_deg || 0;
   $('#af-landed').value = airframe.landed_pitch_deg || 0;
+}
+// Where the flight controller and the H-flow sensor sit, and which way they face. Both are given in the
+// structural frame (0° = square with the airframe); the export folds the hover pitch in on top.
+const flowSensor = () => ((airframe.design ||= {}).flow_sensor ||= { enabled: false, position: [...airframe.mass.cg], rotation: [0, 0, 0], range_m: 4 });
+function fillSensorCard() {
+  if (!airframe || !$('#imu-x')) return;
+  const imu = airframe.design?.pixhawk_position || airframe.mass.cg;
+  const rot = airframe.design?.pixhawk_rotation || [0, 0, 0];
+  ['x', 'y', 'z'].forEach((axis, i) => { $('#imu-' + axis).value = +(+imu[i]).toFixed(4); });
+  ['rr', 'rp', 'ry'].forEach((k, i) => { $('#imu-' + k).value = +(+rot[i]).toFixed(1); });
+  const f = airframe.design?.flow_sensor;
+  $('#flow-on').checked = !!f?.enabled;
+  const pos = f?.position || imu, frot = f?.rotation || [0, 0, 0];
+  ['x', 'y', 'z'].forEach((axis, i) => { $('#flow-' + axis).value = +(+pos[i]).toFixed(4); });
+  ['rr', 'rp', 'ry'].forEach((k, i) => { $('#flow-' + k).value = +(+frot[i]).toFixed(1); });
+  $('#flow-range').value = f?.range_m ?? 4;
+  $$('.flow-fields input').forEach(el => el.disabled = !f?.enabled);
+  // What the beam does in hover is the thing that decides whether the sensor is usable, so it is the note.
+  let note = '';
+  if (f?.enabled) {
+    const [r, pch, y] = (frot || [0, 0, 0]).map(v => (+v || 0) * Math.PI / 180);
+    const hover = (+airframe.hover_pitch_deg || 0) * Math.PI / 180;
+    // the sensor's own +Z, turned into the hover frame: the beam
+    const Rz = [[Math.cos(y), -Math.sin(y), 0], [Math.sin(y), Math.cos(y), 0], [0, 0, 1]];
+    const Ry = [[Math.cos(pch), 0, Math.sin(pch)], [0, 1, 0], [-Math.sin(pch), 0, Math.cos(pch)]];
+    const Rx = [[1, 0, 0], [0, Math.cos(r), -Math.sin(r)], [0, Math.sin(r), Math.cos(r)]];
+    const Rh = [[Math.cos(hover), 0, Math.sin(hover)], [0, 1, 0], [-Math.sin(hover), 0, Math.cos(hover)]];
+    const mul = (A, B) => A.map(row => B[0].map((_, j) => row.reduce((t, v, k) => t + v * B[k][j], 0)));
+    const beam = mul(mul(Rh, mul(Rz, mul(Ry, Rx))), [[0], [0], [1]]).map(v => v[0]);
+    const off = Math.acos(Math.max(-1, Math.min(1, beam[2]))) * 180 / Math.PI;
+    note = off < 1 ? 'flow looks straight down in hover'
+         : `flow beam ${off.toFixed(0)}° off vertical in hover` + (off > 30 ? ' — PX4 cannot correct that' : '');
+  }
+  $('#sensor-note').textContent = note;
 }
 function fillMotorCard() {
   const r = airframe.rotors[selected >= 0 ? selected : 0]; if (!r) return;
@@ -372,13 +410,34 @@ $('#cad-remove-all').addEventListener('click', (e) => {
 function bindNumber(id, fn) {
   $('#' + id).addEventListener('change', (e) => { fn(parseFloat(e.target.value) || 0); scene.setAirframe(airframe); pushAirframe(true); });
 }
-$('#af-name').addEventListener('change', e => { airframe.name = e.target.value.trim(); pushAirframe(true); loadPresetList(); loadVersionList(); });
+// Editing the name renames this design, file and all: it does not leave the old one behind and start a new one.
+$('#af-name').addEventListener('change', async e => {
+  const name = e.target.value.trim();
+  if (!name || name === airframe.name) { e.target.value = airframe.name; return; }
+  try {
+    const r = await api('/api/airframe/rename', { name });
+    airframe.name = r.name;
+    logLine('[preset] renamed to ' + r.file);
+  } catch (err) { e.target.value = airframe.name; logLine('[preset] ' + err.message); }
+  await loadPresetList(); await loadVersionList();
+});
+$('#af-duplicate').addEventListener('click', async (e) => {
+  e.currentTarget.disabled = true;
+  try {
+    const r = await api('/api/airframe/duplicate', {});
+    selected = -1; setAirframe(r.airframe); showProblems(r.problems); showHover(r.hover);
+    currentVersion = '';
+    await loadPresetList(); await loadVersionList();
+    logLine('[preset] duplicated as ' + r.airframe.name);
+    $('#af-name').focus(); $('#af-name').select();
+  } catch (err) { logLine('[preset] ' + err.message); }
+  e.currentTarget.disabled = false;
+});
 bindNumber('af-mass', v => airframe.mass.mass = v);
 bindNumber('af-cgx', v => airframe.mass.cg[0] = v);
 bindNumber('af-cgy', v => airframe.mass.cg[1] = v);
 bindNumber('af-cgz', v => airframe.mass.cg[2] = v);
 bindNumber('af-battery', v => { airframe.design = airframe.design || {}; airframe.design.battery_wh = Math.max(0, v); });
-$('#ro-batt').addEventListener('click', () => { openTab('airframe'); const el = $('#af-battery'); el.focus(); el.select(); });
 bindNumber('af-ixx', v => airframe.mass.inertia[0] = v);
 bindNumber('af-iyy', v => airframe.mass.inertia[1] = v);
 bindNumber('af-izz', v => airframe.mass.inertia[2] = v);
@@ -407,7 +466,7 @@ $('#af-estimate').addEventListener('click', async () => {
 // the server; this just shows that it happened, so "saved" is a fact on screen rather than a thing to remember.
 let savedMarkTimer = null;
 function markSaved(text = 'saved', ms = 1200) {
-  const el = $('#af-saved');
+  const el = $('#toast');
   if (!el) return;
   el.textContent = text;
   el.classList.add('on');
@@ -427,7 +486,6 @@ async function loadPresetList() {
   // The closed control is a bare chevron: the name beside it already says which design is open.
   sel.innerHTML = '<option value="" hidden selected></option>'
     + '<option value="__new__">New design (empty)</option>'
-    + (r.presets || []).map(p => `<option value="${esc(p)}">New ${esc(p)}</option>`).join('')
     + presetFiles.map(f => `<option value="${esc(f)}">${esc(f.replace(/\.json$/, ''))}${f === cur ? ' ✓' : ''}</option>`).join('');
 }
 async function openDesign(name) {
@@ -914,14 +972,6 @@ function updateFooter() {
   const manualPrototype = nativeNoseLift && Number(params.NLF_MANUAL?.value ?? 0) === 1;
   const pilotHandover = nativeNoseLift ? Number(params.NLF_PILOT?.value ?? airframe?.px4_overrides?.NLF_PILOT ?? 0) : 0;   // what the flight controller runs now
   const stagedRc = nativeNoseLift && (manualPrototype || (Number(params.NLF_RC_THR?.value ?? 0) === 1 && !pilotHandover));
-  const stagedCheckbox = $('#staged-rc-takeoff');
-  stagedCheckbox.disabled = !!status.armed || manualPrototype || !!pilotHandover;
-  { const sel = $('#handover-mode');
-    sel.disabled = !!status.armed || !nativeNoseLift;
-    if (document.activeElement !== sel) sel.value = String(airframe?.px4_overrides?.NLF_PILOT ?? params.NLF_PILOT?.value ?? 0);
-    const chosen = Number(sel.value);
-    sel.title = nativeNoseLift ? (chosen && chosen !== pilotHandover ? 'Flash the firmware to apply' : '') : 'Needs the native nose-lift module'; }
-  if (document.activeElement !== stagedCheckbox) stagedCheckbox.checked = Number(airframe.px4_overrides?.NLF_RC_THR ?? params.NLF_RC_THR?.value ?? 0) === 1;
   tko.title = nativeNoseLift ? 'PX4 arms, raises the nose to the configured target, then climbs and holds heading' : 'Automatic takeoff';
   tko.textContent = 'Takeoff';
   if (stagedRc) tko.title = 'First press: RC-controlled nose lift. Once nose ready, press again to climb to 1 m. Lower throttle to request abort/landing.';
@@ -971,12 +1021,23 @@ function renderOverrides(r) {
   const f = (x) => (typeof x === 'number' && !Number.isInteger(x)) ? +x.toFixed(4) : x;
   const cur = (r && r.current) || {};
   const same = (k, v) => cur[k] != null && Math.abs(+cur[k] - +v) < 1e-4;
-  const vehicleCell = (k, v) => `<span class="ov-cur ${cur[k] == null ? 'muted' : same(k, v) ? 'ok' : 'warn'}" title="value on the vehicle">${cur[k] == null ? '—' : f(cur[k])}</span>`;
+  const vehicleCell = (k, v) => `<span class="ov-cur ${cur[k] == null ? 'muted' : same(k, v) ? 'ok' : 'warn'}" title="the value the vehicle has right now">${cur[k] == null ? '—' : f(cur[k])}</span>`;
+  // PX4's own default, so every row says what it was moved away from
+  const defCell = (k, v) => {
+    const d = (meta[k] || {}).default;
+    if (d == null) return '<span class="ov-def muted" title="this firmware does not describe a default">—</span>';
+    const at = Math.abs(+d - +v) <= Math.max(1e-9, Math.abs(+d) * 1e-6);
+    return `<span class="ov-def ${at ? 'muted' : 'off'}" title="PX4's default${at ? ' (this is it)' : ''}">${f(+d)}</span>`;
+  };
+  const head = `<div class="ov-row head"><span>Parameter</span><span>Set value</span><span>Default</span>`
+    + `<span>On vehicle</span><span>What it is</span><span></span></div>`;
   let html = '';
   // hand-edited, editable
-  Object.keys(ov).sort().forEach(n => {
+  const names = Object.keys(ov).sort();
+  if (names.length) html += head;
+  names.forEach(n => {
     const m = meta[n] || {};
-    html += `<div class="ov-row"><span class="pname">${n}</span><input type="number" step="any" value="${ov[n]}" data-n="${n}">${vehicleCell(n, ov[n])}<span class="pdesc" title="${(m.short || '').replace(/"/g, '&quot;')}">${m.short || ''}</span><button class="del" data-n="${n}" title="forget this edit">✕</button></div>`;
+    html += `<div class="ov-row"><span class="pname">${n}</span><input type="number" step="any" value="${ov[n]}" data-n="${n}">${defCell(n, ov[n])}${vehicleCell(n, ov[n])}<span class="pdesc" title="${(m.short || '').replace(/"/g, '&quot;')}">${m.short || ''}</span><button class="del" data-n="${n}" title="forget this edit">✕</button></div>`;
   });
   // derived from the geometry, read-only, grouped per rotor
   if (r && r.params) {
@@ -985,8 +1046,8 @@ function renderOverrides(r) {
     keys.forEach(k => { const m = k.match(/^CA_ROTOR(\d+)_(PX|PY|PZ|AX|AY|AZ|KM)$/); if (m) (rotors[m[1]] = rotors[m[1]] || {})[m[2]] = P[k]; else if (!/^(HIL_ACT_FUNC|PWM_MAIN_FUNC)\d+$/.test(k)) rest.push(k); });
     const diff = (prefix) => keys.filter(k => k.startsWith(prefix)).some(k => !same(k, P[k]));
     if (html) html += '<div class="ov-sep"></div>';
-    html += '<div class="hint" style="margin:2px 0 4px">From the geometry above · read-only</div>';
-    rest.forEach(k => { html += `<div class="ov-row ro"><span class="pname">${k}</span><span class="ov-val">${f(P[k])}</span>${vehicleCell(k, P[k])}<span class="pdesc">${(meta[k] || {}).short || ''}</span><span></span></div>`; });
+    html += '<div class="hint" style="margin:2px 0 4px">From the geometry above · read-only</div>' + head;
+    rest.forEach(k => { html += `<div class="ov-row ro"><span class="pname">${k}</span><span class="ov-val">${f(P[k])}</span>${defCell(k, P[k])}${vehicleCell(k, P[k])}<span class="pdesc">${(meta[k] || {}).short || ''}</span><span></span></div>`; });
     Object.keys(rotors).sort((a, b) => a - b).forEach(i => {
       const R = rotors[i]; const d = diff(`CA_ROTOR${i}_`);
       html += `<div class="ov-row ro rotor"><span class="pname">CA_ROTOR${i}_*</span><span class="ov-val rot">P ${f(R.PX)} ${f(R.PY)} ${f(R.PZ)} · A ${f(R.AX)} ${f(R.AY)} ${f(R.AZ)} · KM ${f(R.KM)}</span><span class="ov-cur ${d ? 'warn' : 'ok'}">${d ? '≠ vehicle' : '✓'}</span><span class="pdesc">motor ${+i + 1}</span><span></span></div>`;
@@ -994,10 +1055,10 @@ function renderOverrides(r) {
     const funcs = keys.filter(k => /^(HIL_ACT_FUNC|PWM_MAIN_FUNC)\d+$/.test(k)).sort((a, b) => parseInt(a.match(/\d+$/)[0]) - parseInt(b.match(/\d+$/)[0]));
     if (funcs.length) {
       const on = funcs.filter(k => P[k] > 0), d = funcs.some(k => !same(k, P[k]));
-      html += `<div class="ov-row ro"><span class="pname">${funcs[0].replace(/\d+$/, '')}1‑${funcs.length}</span><span class="ov-val rot">${on.map(k => P[k]).join(', ')}${on.length < funcs.length ? ', rest 0' : ''}</span><span class="ov-cur ${d ? 'warn' : 'ok'}">${d ? '≠ vehicle' : '✓'}</span><span class="pdesc">output → motor mapping</span><span></span></div>`;
+      html += `<div class="ov-row ro funcs"><span class="pname">${funcs[0].replace(/\d+$/, '')}1‑${funcs.length}</span><span class="ov-val rot">${on.map(k => P[k]).join(', ')}${on.length < funcs.length ? ', rest 0' : ''}</span><span class="ov-cur ${d ? 'warn' : 'ok'}">${d ? '≠ vehicle' : '✓'}</span><span class="pdesc">output → motor mapping</span><span></span></div>`;
     }
   }
-  el.innerHTML = html || '<div class="hint">Nothing yet. Edit any parameter below and it appears here.</div>';
+  el.innerHTML = html || '<div class="hint">Nothing edited yet. Add a parameter above, or change one on the Geometry tab.</div>';
   $$('#overrides input').forEach(inp => inp.addEventListener('change', () => setParamValue(inp.dataset.n, parseFloat(inp.value))));
   $$('#overrides .del').forEach(b => b.addEventListener('click', async () => { await api('/api/airframe/override_remove', { name: b.dataset.n }); delete airframe.px4_overrides[b.dataset.n]; loadExport(); markDirty(); }));
 }
@@ -1011,7 +1072,7 @@ async function setParamValue(n, value) {
     await api('/api/airframe/override', { name: n, value });
     airframe.px4_overrides[n] = value;
   }
-  loadExport(); renderParams(); markDirty();
+  loadExport(); renderFind(); markDirty();
   return { ok: true, value };
 }
 
@@ -1026,73 +1087,73 @@ async function ensureParams() {
 async function loadMeta() {
   const r = await api('/api/params/meta');
   meta = r.meta || {};
-  const groups = [...new Set(Object.values(meta).map(m => m.group))].sort();
-  $('#param-group').innerHTML = '<option value="">all groups</option>' + groups.map(g => `<option>${g}</option>`).join('');
 }
 async function loadParams() {
   const r = await api('/api/params');
   params = r.params || {};
   paramsLoaded = Object.keys(params).length > 0;
   loadExport();          // vehicle values are now known: refresh the ✓/≠ marks
-  $('#param-count').textContent = `${Object.keys(params).length}/${r.count} loaded · ${Object.keys(meta).length} described`;
-  renderParams();
+  const described = Object.keys(meta).length;
+  $('#param-count').textContent = `${Object.keys(params).length}/${r.count} on the vehicle · ${described} described`;
+  // Update PX4 writes the parameters and saves them to flash itself, so there is no button for that; this
+  // one only matters when the descriptions are missing, which happens with firmware this computer did not build.
+  $('#param-meta-fetch').hidden = described > 50;
+  renderFind();
 }
-function renderParams() {
+const num6 = (v) => typeof v === 'number' && !Number.isInteger(v) ? +v.toPrecision(6) : v;
+// What PX4 ships with, beside what this vehicle has. A parameter sitting at its default is the uninteresting
+// case, so it is the one that is greyed; one that has been moved says what it was moved from.
+function defaultCell(name, value) {
+  const d = (meta[name] || {}).default;
+  if (d == null) return '<span class="pdef muted">—</span>';
+  const same = Math.abs(+d - +value) <= Math.max(1e-9, Math.abs(+d) * 1e-6);
+  return same ? '<span class="pdef muted">default</span>'
+              : `<span class="pdef off" title="PX4's default">≠ ${num6(+d)}</span>`;
+}
+// Add parameter: the same search as before, but it ends in the table above instead of a second editor.
+// Picking one writes it as an override at the value it has now, which is the thing you then edit.
+let findOpen = false;
+function renderFind() {
+  if (!findOpen) return;
   const q = $('#param-search').value.trim().toLowerCase();
-  const grp = $('#param-group').value;
   const names = Object.keys(params).sort();
-  let shown = 0;
+  const ov = (airframe && airframe.px4_overrides) || {};
+  if (!q) { $('#param-list').innerHTML = `<div class="hint">${names.length} parameters · type a name or a word from its description.</div>`; return; }
   const html = [];
-  if (!q && !grp) { $('#param-list').innerHTML = `<div class="hint">${names.length} parameters loaded · type to search, or pick a group.</div>`; return; }
+  let shown = 0;
   for (const n of names) {
     const m = meta[n] || {};
-    if (grp && m.group !== grp) continue;
-    if (q && !(n.toLowerCase().includes(q) || (m.short || '').toLowerCase().includes(q))) continue;
-    if (++shown > 40) break;
+    if (!(n.toLowerCase().includes(q) || (m.short || '').toLowerCase().includes(q))) continue;
+    if (++shown > 30) break;
     const v = params[n].value;
-    const edited = airframe && airframe.px4_overrides && (n in airframe.px4_overrides);
-    html.push(`<div class="prow ${n === selectedParam ? 'selected' : ''} ${edited ? 'edited' : ''}" data-n="${n}"><span class="pname">${edited ? '● ' : ''}${n}</span><span class="pval">${typeof v === 'number' && !Number.isInteger(v) ? +v.toPrecision(6) : v}${m.unit ? ' <span class="muted">' + m.unit + '</span>' : ''}</span><span class="pdesc" title="${(m.short || '').replace(/"/g, '&quot;')}">${m.short || ''}</span></div>`);
+    html.push(`<div class="prow${n in ov ? ' edited' : ''}" data-n="${n}"><span class="pname">${n in ov ? '● ' : ''}${n}</span>`
+      + `<span class="pval">${num6(v)}${m.unit ? ' <span class="muted">' + m.unit + '</span>' : ''}</span>`
+      + `${defaultCell(n, v)}<span class="pdesc" title="${(m.short || '').replace(/"/g, '&quot;')}">${m.short || ''}</span></div>`);
   }
-  $('#param-list').innerHTML = html.join('') + (shown > 40 ? '<div class="hint">… more matches, refine the search</div>' : '');
-  $$('#param-list .prow').forEach(el => el.addEventListener('click', () => openParam(el.dataset.n)));
+  $('#param-list').innerHTML = html.join('') || '<div class="hint">nothing matches that.</div>';
+  $$('#param-list .prow').forEach(el => el.addEventListener('click', () => addOverride(el.dataset.n)));
 }
-let selectedParam = null;
-function openParam(n) {
-  selectedParam = n;
-  const p = params[n], m = meta[n] || {};
-  const ed = $('#param-editor');
-  ed.classList.remove('hidden');
-  let input;
-  if (m.values && m.values.length) {
-    input = `<select id="pe-value">${m.values.map(o => `<option value="${o.value}" ${+o.value === +p.value ? 'selected' : ''}>${o.value}: ${o.description}</option>`).join('')}</select>`;
-  } else if (m.bitmask && m.bitmask.length) {
-    input = `<div id="pe-bits">${m.bitmask.map(b => `<label class="row"><input type="checkbox" data-bit="${b.index}" ${(p.value >> b.index) & 1 ? 'checked' : ''}> ${b.index}: ${b.description}</label>`).join('')}</div>`;
-  } else {
-    input = `<input id="pe-value" type="number" step="${m.increment || (p.type === 6 ? 1 : 'any')}" value="${p.value}" ${m.min != null ? 'min="' + m.min + '"' : ''} ${m.max != null ? 'max="' + m.max + '"' : ''}>`;
-  }
-  ed.innerHTML = `<div><span class="pn">${n}</span> <span class="muted">${m.group || ''}</span></div>
-    <div>${m.short || ''}</div>
-    <div class="long">${m.long || ''}</div>
-    <div class="meta">${p.type === 6 ? 'INT32' : 'FLOAT'}${m.unit ? ' · ' + m.unit : ''}${m.min != null ? ' · min ' + m.min : ''}${m.max != null ? ' · max ' + m.max : ''}${m.default != null ? ' · default ' + m.default : ''}${m.reboot ? ' · <span class="warn">reboot required</span>' : ''}</div>
-    <div class="row">${input}<button id="pe-set" class="primary small">set</button><button id="pe-close" class="small">close</button><span id="pe-result"></span></div>`;
-  $('#pe-close').addEventListener('click', () => { ed.classList.add('hidden'); selectedParam = null; renderParams(); });
-  $('#pe-set').addEventListener('click', async () => {
-    let value;
-    if ($('#pe-bits')) value = $$('#pe-bits input').reduce((acc, cb) => acc | (cb.checked ? (1 << +cb.dataset.bit) : 0), 0);
-    else value = parseFloat($('#pe-value').value);
-    $('#pe-result').textContent = '…';
-    try {
-      const r = await setParamValue(n, value);
-      $('#pe-result').innerHTML = r.ok ? `<span class="ok">✓ ${r.value} · saved with the airframe</span>` : `<span class="err">${r.error}</span>`;
-    } catch (e) { $('#pe-result').innerHTML = `<span class="err">${e.message}</span>`; }
-  });
-  renderParams();
+async function addOverride(n) {
+  const current = params[n] ? params[n].value : ((meta[n] || {}).default ?? 0);
+  try {
+    await api('/api/airframe/override', { name: n, value: current });
+    airframe.px4_overrides = { ...(airframe.px4_overrides || {}), [n]: current };
+    markDirty();
+    await loadExport();
+    openFind(false);
+    const row = $(`#overrides input[data-n="${n}"]`);
+    if (row) { row.focus(); row.select(); }
+  } catch (e) { logLine('[params] ' + e.message); }
 }
-$('#param-search').addEventListener('input', renderParams);
-$('#param-group').addEventListener('change', renderParams);
-$('#param-refresh').addEventListener('click', async () => { $('#param-count').textContent = 'loading…'; await api('/api/params/refresh', {}); await loadParams(); });
-$('#param-save').addEventListener('click', () => api('/api/params/save', {}));
-$('#param-reboot').addEventListener('click', () => { if (confirmTwice('param-reboot', $('#param-reboot'), 'reboot')) api('/api/px4/command', { command: 'reboot' }); });
+function openFind(on) {
+  findOpen = on;
+  $('#param-find').hidden = !on;
+  $('#param-add').classList.toggle('active', on);
+  if (on) { ensureParams().then(renderFind).catch(() => { }); $('#param-search').value = ''; $('#param-search').focus(); renderFind(); }
+}
+$('#param-add').addEventListener('click', () => openFind(!findOpen));
+$('#param-search').addEventListener('input', renderFind);
+$('#param-search').addEventListener('keydown', (e) => { if (e.key === 'Escape') openFind(false); });
 $('#param-meta-fetch').addEventListener('click', async () => {
   $('#param-count').textContent = 'downloading descriptions via MAVLink FTP…';
   try { const r = await api('/api/params/meta/fetch', {}); await loadMeta(); logLine(`[ui] ${r.count} parameter descriptions from ${r.source}`); }
@@ -1220,15 +1281,17 @@ async function recover(btn, full) {
   btn.textContent = label; btn.disabled = false;
 }
 $('#btn-reset').addEventListener('click', (e) => recover(e.target, true));     // everything: vehicle + PX4 reboot
-$('#btn-pause').addEventListener('click', async () => { const r = await api('/api/sim/pause', {}); $('#btn-pause').textContent = r.paused ? 'Resume' : 'Pause'; });
-const CAM_MODES = ['static', 'track', 'follow'], CAM_LABELS = { static: 'Static', track: 'Track', follow: 'Follow' };
-let camMode = 'static';
-$('#btn-follow').addEventListener('click', (e) => {
-  camMode = CAM_MODES[(CAM_MODES.indexOf(camMode) + 1) % CAM_MODES.length];
-  e.target.textContent = CAM_LABELS[camMode];
-  e.target.classList.toggle('on', camMode !== 'static');
-  scene.setCameraMode(camMode);
+$('#btn-pause').addEventListener('click', async () => {
+  const r = await api('/api/sim/pause', {});
+  if (!r.paused) { stopPlaying(); replayT = null; pausedByScrub = false; }   // running again: back to the live view
+  $('#btn-pause').textContent = r.paused ? 'Resume' : 'Pause';
 });
+// The camera follows the aircraft, always: there is no mode to choose. Move it yourself and the only
+// button is the one that brings it back.
+let camMode = 'follow';
+scene.setCameraMode('follow');
+scene.onCameraMoved(() => { $('#recenter').hidden = false; });
+$('#recenter').addEventListener('click', (e) => { scene.recenterView(); e.currentTarget.hidden = true; });
 
 // Hardware sliders send short PX4 actuator-test pulses only while held.
 let motorTestTimer = null, motorTestBusy = false, heldMotor = null, motorTestStarted = 0;
@@ -1364,114 +1427,197 @@ $('#motor-enable').addEventListener('change', (e) => {
 // ============================================================ websocket + status
 function applyStatus(s) {
   status = s;
-  const none = !s.conn_mode;
-  // One readout for "who is flying": the link, the mode and whether it is armed.
-  const where = none ? 'no link' : s.flashing ? 'flashing' : (s.mode === 'hitl' ? 'Pixhawk' : 'SITL');
-  let state;
-  if (s.resetting > 0) state = `resetting ${Math.ceil(s.resetting)} s`;
-  else if (s.paused) state = 'paused';
-  else if (!s.connected) state = none ? 'open Connect' : (s.px4_running ? 'starting' : 'waiting');
-  else state = (s.mode_name || '—') + (s.armed ? ' · armed' : '');
-  $('#ro-fc-v').textContent = `${where} · ${state}`;
-  $('#ro-fc').classList.toggle('warn', !s.connected && !none);
-  $('#ro-fc').classList.toggle('crit', !!s.conn_error);
-  $('#ro-fc .dot').classList.toggle('on', !!s.connected);
-  $('#ro-fc').title = none ? 'Not connected. Click to open Connect.'
-    : `${s.address || 'SITL'}${s.mode === 'hitl' && !s.hil_enabled ? ' · HIL OFF (set SYS_HITL=1)' : ''}`;
-  if (!s.flashing && s.mode !== 'hitl' && s.px4_ports && s.px4_ports.length) {
-    $('#ro-fc-v').textContent = `Pixhawk on ${s.px4_ports[0].replace('/dev/', '')} · connect`;
-    $('#ro-fc').classList.add('warn');
-  }
   if (s.params_session !== undefined && s.params_session !== paramsSession) {   // board (re)connected or reflashed: forget the old list
     paramsSession = s.params_session; paramsLoaded = false; params = {};
   }
   if (s.params_loaded && s.param_count && s.params_loaded >= s.param_count && !paramsLoaded
-      && (hardwareMotors() || rcVisible() || $('#tab-px4').classList.contains('active') || $('#tab-mission').classList.contains('active')))
+      && (hardwareMotors() || rcVisible() || $('#tab-px4').classList.contains('active') || $('#tab-sequences').classList.contains('active')))
     ensureParams().then(fillTakeoffLanding).catch(() => { });
   if (rcVisible()) renderModeButtons();
-  if ($('#tab-mission').classList.contains('active')) fillTakeoffLanding();
+  if ($('#tab-sequences').classList.contains('active')) fillTakeoffLanding();
+  // the switch over the 3D view says which way the whole thing is running, on every tab
+  paintModeSwitch(s);
   updateFooter();
+}
+// Green means this mode is doing what it says: SITL flying the simulation, the board flying it in HITL
+// (HIL actually enabled), or the aircraft's telemetry arriving in FLIGHT. Anything else is red, and the
+// tooltip says what is missing.
+function paintModeSwitch(s) {
+  s = s || {};
+  const real = !s.conn_mode ? '' : s.conn_mode === 'sitl' ? 'sitl' : (s.hil_enabled === false || s.listening ? 'real' : 'hitl');
+  const shown = modeWanted || real;
+  $$('#mode-switch button').forEach(b => b.classList.toggle('active', b.dataset.link === shown));
+  let ok = false, why = '';
+  const onBoard = s.conn_mode === 'hitl';
+  const flying = (s.mode_name && !/^mode\d+$/.test(s.mode_name) ? s.mode_name : '—') + (s.armed ? ' · ARMED' : '');
+  if (s.resetting > 0) why = `resetting, ${Math.ceil(s.resetting)} s`;
+  else if (s.flashing) why = 'flashing the board';
+  else if (shown === 'sitl') {
+    ok = !!(s.conn_mode === 'sitl' && s.connected && s.ctl_connected);
+    why = ok ? flying
+             : s.conn_mode !== 'sitl' ? 'not started: press SITL'
+             : s.px4_running ? 'PX4 starting…' : 'no PX4';
+  } else if (shown === 'hitl') {
+    ok = !!(onBoard && s.ctl_connected && s.hil_enabled && !s.listening);
+    why = !onBoard ? `no flight controller on USB (still ${s.conn_mode || 'off'})`
+        : !s.ctl_connected ? 'no answer from the board'
+        : s.listening ? 'the board is on its own sensors (real flight)'
+        : !s.hil_enabled ? 'the board has HIL off (SYS_HITL = 0)'
+        : flying;
+  } else if (shown === 'real') {
+    const fresh = s.telemetry_age != null && s.telemetry_age < 3;
+    ok = !!(onBoard && s.listening && s.ctl_connected && fresh);
+    why = !onBoard ? `no radio or board on USB (still ${s.conn_mode || 'off'})`
+        : !s.ctl_connected ? 'no link to the aircraft'
+        : !s.listening ? 'connected, but the simulator is still driving it'
+        : !fresh ? 'link up, but the aircraft is not saying where it is'
+        : flying;
+  } else why = 'nothing connected';
+  if (s.conn_error) { ok = false; why = s.conn_error; }
+  $('#link-light i').classList.toggle('on', ok);
+  $('#link-light').classList.toggle('crit', !ok);
+  const MODE_LABEL = { sitl: 'SITL', hitl: 'HITL', real: 'FLIGHT' };
+  $('#link-light').title = `${MODE_LABEL[shown] || 'NO MODE'} · ${why}`;
 }
 const effectiveMax = (r) => (r.enabled === false ? 0 : r.max_thrust);
 function applyState(st) {
   if (replayT == null) scene.updateState(st);   // while scrubbing, the view belongs to the recording
+  // The recording keeps the wind's strength but not its direction, so the arrow belongs to the live
+  // simulation only; while you are inside a recording there is nothing honest to point.
+  scene.setWind(replayT == null ? st.wind : null);
   $('#btn-pause').textContent = st.paused ? 'Resume' : 'Pause';
   $('#btn-pause').classList.toggle('armed', !!st.paused);
 
   const f = st.forces || {};
-  const weight = airframe && airframe.mass ? (+airframe.mass.mass || 0) * 9.80665 : 0;
 
-  // Power: what the motors are drawing, and how much of what they can draw. Every field is written with a
-  // fixed number of digits into a fixed-width box, so nothing on this bar moves as the numbers change.
-  {
-    const w = +f.power || 0;
-    const cap = airframe ? airframe.rotors.reduce((a, r) => a + (r.enabled === false ? 0 : (+r.max_power_w || 0)), 0) : 0;
-    $('#ro-power').textContent = cap > 0 ? `${pad(w, 0, 5)} W  ${pad(100 * w / cap, 0, 3)}%` : `${pad(w, 0, 5)} W`;
+  // how long the charge lasts at this draw: the battery chip says it, if it is on the overlay
+  const cap = +((airframe && airframe.design && airframe.design.battery_wh) || 0), pw = +st.power_avg_w || 0;
+  batteryMinutes = cap > 0 && pw > 5 ? (Math.max(0, cap - (+st.energy_wh || 0)) / pw) * 60 : null;
+  const battChip = $('#overlay-chips [data-v="battery"]');
+  if (battChip) {
+    const pct = cap > 0 ? 100 * Math.max(0, cap - (+st.energy_wh || 0)) / cap : 100;
+    battChip.parentElement.classList.toggle('warn', cap > 0 && pct <= 25 && pct > 10);
+    battChip.parentElement.classList.toggle('crit', cap > 0 && pct <= 10);
   }
-  {
-    const cap = +((airframe && airframe.design && airframe.design.battery_wh) || 0);
-    const el = $('#ro-batt'), v = $('#ro-batt-v');
-    if (cap > 0) {
-      const used = +st.energy_wh || 0, left = Math.max(0, cap - used), pct = 100 * left / cap, pw = +st.power_avg_w || 0;
-      const mins = pw > 5 ? (left / pw) * 60 : null;
-      v.textContent = `${pad(pct, 0, 3)}%  ${mins == null ? ' — ' : pad(mins, 0, 3) + ' min'}`;
-      el.title = `${left.toFixed(1)} of ${cap.toFixed(0)} Wh left · ${pw.toFixed(0)} W average. Click to set the capacity`;
-      el.classList.toggle('warn', pct <= 25 && pct > 10);
-      el.classList.toggle('crit', pct <= 10);
-    } else { v.textContent = '  —'; el.title = 'Set the battery capacity (Wh) on the Geometry tab'; el.classList.remove('warn', 'crit'); }
-  }
-  {
-    const hasWing = airframe && (airframe.wings || []).some(w => w.enabled !== false);
-    const el = $('#ro-lift');
-    el.textContent = hasWing && f.lift != null && weight > 0
-      ? `${pad(+f.lift, 0, 4)} N  ${pad(100 * f.lift / weight, 0, 3)}%` : '   —';
-    el.parentElement.classList.toggle('warn', !!f.stalled);
-    el.parentElement.title = 'lift from the wings, and as a share of the weight' + (f.stalled ? ' · a wing is STALLED' : '');
-  }
-  $('#ro-speed').textContent = `${pad(+f.airspeed || 0, 1, 4)} m/s`;
-  $('#ro-alt').textContent = `${pad(-st.pos[2], 2, 5)} m`;
-  {
-    const w = st.wind || [0, 0, 0];
-    const sp = Math.hypot(w[0], w[1], w[2]);
-    const from = sp > 0.05 ? ((Math.atan2(-w[1], -w[0]) * 180 / Math.PI) + 360) % 360 : null;
-    $('#ro-wind').textContent = sp < 0.05 ? ` 0.0 m/s` : `${pad(sp, 1, 4)} m/s ${pad(from, 0, 3)}°`;
-  }
+  // a stalled wing is worth saying out loud wherever the lift chip happens to be
+  const liftChip = $('#overlay-chips [data-v="lift"]');
+  if (liftChip) liftChip.parentElement.classList.toggle('warn', !!f.stalled);
   showWindNow(st);
   if (airframe) updateMotorSliders(st);
 }
 const logPre = $('#log-pre');
-function logLine(s) { logPre.textContent += s + '\n'; if (logPre.textContent.length > 40000) logPre.textContent = logPre.textContent.slice(-30000); const b = $('#log-body'); b.scrollTop = b.scrollHeight; }
-$('#log-toggle').addEventListener('click', (e) => { const c = $('#log').classList.toggle('collapsed'); e.target.textContent = c ? 'Show' : 'Hide'; });
+// This window is what the flight controller said, and nothing else: PX4's own console and the events it
+// sends ([px4] ...). The app's own chatter goes to the browser console, where it belongs - the places that
+// need to tell you something (the sections, the status lines) say it themselves.
+let flightLog = '';
+function logLine(s) {
+  if (!String(s).startsWith('[px4]')) { console.log(s); return; }
+  flightLog += String(s).slice(6) + '\n';
+  if (flightLog.length > 60000) flightLog = flightLog.slice(-45000);
+  if (shownRunLog === null) showLogText(flightLog);
+}
+let shownRunLog = null;                    // the log of a saved run, while one is selected
+function showLogText(text) {
+  logPre.textContent = text;
+  const b = $('#log-body');
+  b.scrollTop = b.scrollHeight;
+}
 
 // ============================================================ the log window: terminal, graphs, replay
 // Two views of one flight. The terminal is what the app and PX4 said; the graph is what the aircraft did.
 // The server records every run at 20 Hz with the airframe and the parameters that produced it, so a flight
 // can be scrubbed afterwards — the 3D view follows the slider — kept, named and loaded back. The graph
 // itself is drawn from a buffer this page fills from the live state, so it is there while the sim runs.
-const SERIES = [
-  { key: 'power', label: 'power', unit: 'W', c: '#f59e0b' },
-  { key: 'battery', label: 'battery', unit: '%', c: '#22c55e' },
-  { key: 'lift', label: 'wing lift', unit: 'N', c: '#38bdf8' },
-  { key: 'thrust', label: 'thrust', unit: 'N', c: '#a78bfa' },
-  { key: 'airspeed', label: 'airspeed', unit: 'm/s', c: '#06b6d4' },
-  { key: 'speed', label: 'ground speed', unit: 'm/s', c: '#0ea5e9' },
-  { key: 'height', label: 'height', unit: 'm', c: '#ef4444' },
-  { key: 'wind', label: 'wind', unit: 'm/s', c: '#94a3b8' },
-  { key: 'roll', label: 'roll', unit: '°', c: '#f472b6' },
-  { key: 'pitch', label: 'pitch', unit: '°', c: '#fb923c' },
-  { key: 'yaw', label: 'yaw', unit: '°', c: '#c084fc' },
-  { key: 'p', label: 'roll rate', unit: '°/s', c: '#fda4af' },
-  { key: 'q', label: 'pitch rate', unit: '°/s', c: '#fcd34d' },
-  { key: 'r', label: 'yaw rate', unit: '°/s', c: '#d8b4fe' },
-  { key: 'n', label: 'north', unit: 'm', c: '#4ade80' },
-  { key: 'e', label: 'east', unit: 'm', c: '#2dd4bf' },
-  { key: 'vd', label: 'climb rate', unit: 'm/s', c: '#60a5fa' },
-  { key: 'armed', label: 'armed', unit: '', c: '#64748b' },
-];
-// The columns the recorder writes on the server (sim/recorder.py). The live graph is that recording, polled
-// while it is on screen, not a second copy kept here: what is plotted is exactly what gets saved.
-const LIVE_COLS = ['t', 'n', 'e', 'd', 'vn', 've', 'vd', 'qw', 'qx', 'qy', 'qz', 'roll', 'pitch', 'yaw',
-  'p', 'q', 'r', 'height', 'speed', 'airspeed', 'thrust', 'power', 'lift', 'battery', 'wind', 'armed', 'on_ground'];
+// Every column the recorder writes can be plotted and can be put on the 3D view. There are too many to
+// list flat - ten motors are thirty of them - so each one says which drawer it belongs in, and the pickers
+// are built from that. The catalogue follows the recording: a design with more rotors simply has more
+// entries, and a run saved earlier brings its own columns with it.
+const SERIES_BASE = {
+  power:     { label: 'power', unit: 'W', c: '#f59e0b', cat: 'Power' },
+  battery:   { label: 'battery', unit: '%', c: '#22c55e', cat: 'Power' },
+  thrust:    { label: 'thrust', unit: 'N', c: '#a78bfa', cat: 'Flight' },
+  lift:      { label: 'wing lift', unit: 'N', c: '#38bdf8', cat: 'Flight' },
+  airspeed:  { label: 'airspeed', unit: 'm/s', c: '#06b6d4', cat: 'Flight' },
+  speed:     { label: 'ground speed', unit: 'm/s', c: '#0ea5e9', cat: 'Flight' },
+  height:    { label: 'height', unit: 'm', c: '#ef4444', cat: 'Flight' },
+  wind:      { label: 'wind', unit: 'm/s', c: '#94a3b8', cat: 'Flight' },
+  n:         { label: 'north', unit: 'm', c: '#4ade80', cat: 'Flight' },
+  e:         { label: 'east', unit: 'm', c: '#2dd4bf', cat: 'Flight' },
+  d:         { label: 'down', unit: 'm', c: '#14b8a6', cat: 'Flight' },
+  vn:        { label: 'speed north', unit: 'm/s', c: '#34d399', cat: 'Flight' },
+  ve:        { label: 'speed east', unit: 'm/s', c: '#5eead4', cat: 'Flight' },
+  vd:        { label: 'climb rate', unit: 'm/s', c: '#60a5fa', cat: 'Flight' },
+  roll:      { label: 'roll', unit: '°', c: '#f472b6', cat: 'Attitude' },
+  pitch:     { label: 'pitch', unit: '°', c: '#fb923c', cat: 'Attitude' },
+  yaw:       { label: 'yaw', unit: '°', c: '#c084fc', cat: 'Attitude' },
+  p:         { label: 'roll rate', unit: '°/s', c: '#fda4af', cat: 'Attitude' },
+  q:         { label: 'pitch rate', unit: '°/s', c: '#fcd34d', cat: 'Attitude' },
+  r:         { label: 'yaw rate', unit: '°/s', c: '#d8b4fe', cat: 'Attitude' },
+  ax:        { label: 'accel X', unit: 'm/s²', c: '#f87171', cat: 'Sensors' },
+  ay:        { label: 'accel Y', unit: 'm/s²', c: '#fb7185', cat: 'Sensors' },
+  az:        { label: 'accel Z', unit: 'm/s²', c: '#f43f5e', cat: 'Sensors' },
+  gx:        { label: 'gyro X', unit: '°/s', c: '#a3e635', cat: 'Sensors' },
+  gy:        { label: 'gyro Y', unit: '°/s', c: '#84cc16', cat: 'Sensors' },
+  gz:        { label: 'gyro Z', unit: '°/s', c: '#65a30d', cat: 'Sensors' },
+  alt_baro:  { label: 'baro height', unit: 'm', c: '#fca5a5', cat: 'Sensors' },
+  flow_x:    { label: 'flow X', unit: 'rad/s', c: '#38bdf8', cat: 'H-flow' },
+  flow_y:    { label: 'flow Y', unit: 'rad/s', c: '#0284c7', cat: 'H-flow' },
+  flow_range:{ label: 'flow range', unit: 'm', c: '#7dd3fc', cat: 'H-flow' },
+  flow_q:    { label: 'flow quality', unit: '', c: '#bae6fd', cat: 'H-flow' },
+  armed:     { label: 'armed', unit: '', c: '#64748b', cat: 'State' },
+  on_ground: { label: 'on ground', unit: '', c: '#475569', cat: 'State' },
+  mode:      { label: 'flight mode', unit: '', c: '#818cf8', cat: 'State',
+               desc: "the mode PX4 is in, as it reports it in its heartbeat" },
+  qw: null, qx: null, qy: null, qz: null,            // the quaternion is for replay, not for reading
+};
+const MOTOR_KIND = {
+  cmd:    { label: 'throttle', unit: '', hue: 24, desc: 'what PX4 asks this motor for, 0 to 1' },
+  spool:  { label: 'spooled', unit: '', hue: 150, desc: 'what the motor has actually reached: the throttle after the spool-up lag' },
+  thrust: { label: 'thrust', unit: 'N', hue: 272, desc: 'the force this rotor is making at that spooled throttle, newtons' },
+};
+const CAT_ORDER = ['Flight', 'Attitude', 'Motors', 'Sensors', 'H-flow', 'Power', 'State'];
+// Inside a drawer the order is the one you would read them in, not the order the recorder happens to
+// write them: the three positions together, then the three speeds, and so on.
+const SERIES_ORDER = ['height', 'speed', 'airspeed', 'vd', 'n', 'e', 'd', 'vn', 've', 'thrust', 'lift', 'wind',
+  'mode',
+  'roll', 'pitch', 'yaw', 'p', 'q', 'r',
+  'ax', 'ay', 'az', 'gx', 'gy', 'gz', 'alt_baro',
+  'flow_x', 'flow_y', 'flow_range', 'flow_q', 'power', 'battery', 'armed', 'on_ground'];
+const seriesRank = (key) => {
+  const i = SERIES_ORDER.indexOf(key);
+  if (i >= 0) return i;
+  const m = key.match(/^m(\d+)_(cmd|spool|thrust)$/);   // motor by motor, in the order a motor spins up
+  return m ? 1000 + (+m[1]) * 10 + ['cmd', 'spool', 'thrust'].indexOf(m[2]) : 9000;
+};
+function describeSeries(key) {
+  if (key in SERIES_BASE) return SERIES_BASE[key];
+  const m = key.match(/^m(\d+)_(cmd|spool|thrust)$/);
+  if (m) {
+    const k = MOTOR_KIND[m[2]], i = +m[1];
+    return { label: `motor ${i} ${k.label}`, unit: k.unit, cat: 'Motors', desc: k.desc,
+             c: `hsl(${(k.hue + i * 37) % 360} 70% 52%)` };
+  }
+  return { label: key, unit: '', c: '#94a3b8', cat: 'State' };
+}
+let SERIES = [];
+let seriesSignature = null;
+function rebuildSeries(cols) {
+  // Compare against the columns, not against the catalogue: some columns (the quaternion) have no entry,
+  // so the two lengths never match and this used to rebuild on every poll - four times a second, which
+  // replaced the chips under the pointer and made them impossible to drag.
+  const keys = (cols || LIVE_COLS).filter(k => k !== 't');
+  const sig = keys.join(',');
+  if (sig === seriesSignature) return;
+  seriesSignature = sig;
+  SERIES = keys.map(k => ({ key: k, ...describeSeries(k) })).filter(x => x.label);
+  buildPicker();
+  renderOverlayChips();
+}
+// The columns the recorder writes on the server (sim/recorder.py), before the per-rotor ones it appends for
+// the design being flown. What is plotted is exactly what gets saved; never reorder these.
+const LIVE_COLS = ['t', 'n', 'e', 'd', 'vn', 've', 'vd', 'qw', 'qx', 'qy', 'qz', 'roll', 'pitch', 'yaw', 'p', 'q',
+  'r', 'height', 'speed', 'airspeed', 'thrust', 'power', 'lift', 'battery', 'wind', 'armed', 'on_ground', 'ax', 'ay',
+  'az', 'gx', 'gy', 'gz', 'alt_baro', 'flow_x', 'flow_y', 'flow_range', 'flow_q'];
 let liveRun = { columns: LIVE_COLS, rows: [] };
 let shownRun = null;                    // a loaded saved run, or null while the live recording is shown
 let graphOn = false;                    // the graph view is the one on screen
@@ -1494,15 +1640,35 @@ async function pollLive(again = true) {
   finally { polling = false; }
   if (j.total < liveRun.rows.length || j.since > liveRun.rows.length) {   // the sim was reset: a new run
     liveRun = { columns: j.columns || LIVE_COLS, rows: [] };
+    rebuildSeries(liveRun.columns);
     replayT = null;
     if (again) await pollLive(false);                 // refill now, so the plot never blinks empty
     return;
   }
   liveRun.columns = j.columns || LIVE_COLS;
   if (j.rows && j.rows.length) liveRun.rows = liveRun.rows.concat(j.rows);
+  if (!shownRun) rebuildSeries(liveRun.columns);
+  updateReadouts();
 }
 
 const runData = () => shownRun || liveRun;
+// The plot shows a slice of the recording: all of it until you zoom, and then whatever you zoomed to.
+// Zooming is on the time axis only - the traces keep their own scales, now taken over what is on screen,
+// so zooming into a quiet stretch shows what happened in it instead of a flat line.
+let viewT0 = null, viewT1 = null;
+const zoomed = () => viewT0 != null;
+function viewWindow(rows) {
+  const t0 = rows[0][0], t1 = rows[rows.length - 1][0];
+  if (!zoomed()) return [t0, t1];
+  const lo = Math.max(t0, Math.min(viewT0, t1 - 0.2)), hi = Math.min(t1, Math.max(lo + 0.2, viewT1));
+  return [lo, hi];
+}
+function setWindow(lo, hi, rows) {
+  const t0 = rows[0][0], t1 = rows[rows.length - 1][0];
+  if (hi - lo >= (t1 - t0) - 1e-6) { viewT0 = viewT1 = null; }      // the whole thing: back to following
+  else { viewT0 = Math.max(t0, lo); viewT1 = Math.min(t1, hi); }
+  $('#scrub-fit').hidden = !zoomed();
+}
 function rowAt(data, t) {
   const rows = data.rows;
   if (!rows.length) return -1;
@@ -1512,6 +1678,47 @@ function rowAt(data, t) {
   return lo;
 }
 
+// Every number on screen that belongs to a column - the chips in the picker, the legend, and the ones
+// chosen onto the 3D view - is written here, from the row under the cursor (or the last one).
+function updateReadouts() {
+  const data = runData(), rows = data.rows || [], cols = data.columns || LIVE_COLS;
+  if (!rows.length) return;
+  const row = rows[rowAt(data, replayT)];
+  const chips = {};
+  $$('[data-v]').forEach(el => (chips[el.dataset.v] = chips[el.dataset.v] || []).push(el));
+  for (const key of Object.keys(chips)) {
+    const ci = cols.indexOf(key);
+    chips[key].forEach(el => el.textContent = ci < 0 ? '—' : formatSeries(key, row[ci]));
+  }
+}
+// A few of them read better with what they are a share of, which is the airframe's business, not the
+// recording's: power against what the motors can draw, lift against the weight.
+// PX4's mode as the recorder keeps it: main mode, Auto's sub-mode behind the point (see Simulator._link_status)
+const PX4_MAIN_MODES = { 1: 'Manual', 2: 'Altitude', 3: 'Position', 5: 'Acro', 6: 'Offboard', 7: 'Stabilized',
+                         8: 'Rattitude', 9: 'Simple', 10: 'Termination' };
+const PX4_AUTO_MODES = { 1: 'Ready', 2: 'Takeoff', 3: 'Hold', 4: 'Mission', 5: 'RTL', 6: 'Land', 8: 'Follow', 9: 'Precland' };
+function modeLabel(v) {
+  const main = Math.floor(v + 1e-6), sub = Math.round((v - main) * 100);
+  if (!main) return '—';
+  return main === 4 ? (PX4_AUTO_MODES[sub] || `Auto ${sub}`) : (PX4_MAIN_MODES[main] || `mode ${main}`);
+}
+function formatSeries(key, v) {
+  if (!isFinite(v)) return '—';
+  const u = (describeSeries(key) || {}).unit || '';
+  const num = Math.abs(v) >= 100 ? v.toFixed(0) : Math.abs(v) >= 10 ? v.toFixed(1) : v.toFixed(2);
+  if (key === 'power' && airframe) {
+    const cap = airframe.rotors.reduce((a, r) => a + (r.enabled === false ? 0 : (+r.max_power_w || 0)), 0);
+    if (cap > 0) return `${v.toFixed(0)} W  ${(100 * v / cap).toFixed(0)}%`;
+  }
+  if (key === 'lift' && airframe && airframe.mass) {
+    const w = (+airframe.mass.mass || 0) * 9.80665;
+    if (w > 0) return `${v.toFixed(0)} N  ${(100 * v / w).toFixed(0)}%`;
+  }
+  if (key === 'armed' || key === 'on_ground') return v > 0.5 ? 'yes' : 'no';
+  if (key === 'mode') return modeLabel(v);
+  if (key === 'battery') return `${v.toFixed(0)} %${batteryMinutes == null ? '' : '  ' + batteryMinutes.toFixed(0) + ' min'}`;
+  return num + (u ? ' ' + u : '');
+}
 function drawGraph() {
   if (!graphOn) return;
   const host = $('#graph-plot'), data = runData(), rows = data.rows || [];
@@ -1519,24 +1726,23 @@ function drawGraph() {
   const W = Math.max(120, host.clientWidth), H = Math.max(60, host.clientHeight);
   const T = 6, B = 14, L = 2, R = 2, ph = H - T - B, pw = W - L - R;
   const cursor = rowAt(data, replayT);
-  const chips = {};
-  $$('#graph-body [data-v]').forEach(el => (chips[el.dataset.v] = chips[el.dataset.v] || []).push(el));
-  const show = (key, text) => (chips[key] || []).forEach(el => el.textContent = text);
+  updateReadouts();
   if (rows.length < 2) {
     host.innerHTML = `<svg viewBox="0 0 ${W} ${H}"><text x="${W / 2}" y="${H / 2}" text-anchor="middle">`
       + `${shownRun ? 'this run has no samples' : 'nothing recorded yet — start the simulation'}</text></svg>`;
-    Object.keys(chips).forEach(k => show(k, ''));
     $('#scrub-label').textContent = '—';               // never a time that belongs to a plot that is not there
     return;
   }
-  const t0 = rows[0][0], t1 = rows[rows.length - 1][0], span = Math.max(1e-6, t1 - t0);
-  const x = (t) => L + pw * (t - t0) / span;
-  const stride = Math.max(1, Math.ceil(rows.length / Math.max(200, pw)));
+  const t1 = rows[rows.length - 1][0];
+  const [vt0, vt1] = viewWindow(rows), span = Math.max(1e-6, vt1 - vt0);
+  const x = (t) => L + pw * (t - vt0) / span;
+  const i0 = Math.max(0, rowAt(data, vt0) - 1), i1 = Math.min(rows.length - 1, rowAt(data, vt1) + 1);
+  const stride = Math.max(1, Math.ceil((i1 - i0 + 1) / Math.max(200, pw)));
 
   let g = '';
   for (let i = 0; i <= 4; i++) { const y = T + ph * i / 4; g += `<line class="grid" x1="${L}" y1="${y.toFixed(1)}" x2="${W - R}" y2="${y.toFixed(1)}"/>`; }
-  const step = [0.5, 1, 2, 5, 10, 20, 30, 60, 120, 300, 600].find(s => span / s <= 8) || Math.ceil(span / 8);
-  for (let t = Math.ceil(t0 / step) * step; t <= t1; t += step) {
+  const step = [0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 30, 60, 120, 300, 600].find(s => span / s <= 8) || Math.ceil(span / 8);
+  for (let t = Math.ceil(vt0 / step) * step; t <= vt1; t += step) {
     g += `<line class="grid" x1="${x(t).toFixed(1)}" y1="${T}" x2="${x(t).toFixed(1)}" y2="${T + ph}"/>`
       + `<text x="${x(t).toFixed(1)}" y="${H - 3}" text-anchor="middle">${t.toFixed(step < 1 ? 1 : 0)}s</text>`;
   }
@@ -1544,41 +1750,49 @@ function drawGraph() {
   let lines = '';
   for (const s of SERIES) {
     const ci = cols.indexOf(s.key);
-    if (ci < 0) { show(s.key, ''); continue; }
-    const v = rows[cursor][ci];
-    show(s.key, (Math.abs(v) >= 100 ? v.toFixed(0) : Math.abs(v) >= 10 ? v.toFixed(1) : v.toFixed(2)) + (s.unit ? ' ' + s.unit : ''));
-    if (!picked.has(s.key)) continue;
+    if (ci < 0 || !picked.has(s.key)) continue;
     // Each trace gets its own scale, since they share no unit. The scale includes zero unless the trace
     // actually moves through a good part of its own range: without that, a quantity sitting still at 0.35 m
     // with a millimetre of noise would be drawn as a full-height sawtooth and read as violent motion.
     let lo = Infinity, hi = -Infinity;
-    for (const r of rows) { const v = r[ci]; if (v < lo) lo = v; if (v > hi) hi = v; }
+    for (let i = i0; i <= i1; i++) { const v = rows[i][ci]; if (v < lo) lo = v; if (v > hi) hi = v; }
     const z0 = Math.min(lo, 0), z1 = Math.max(hi, 0);
     if ((hi - lo) <= 0.25 * (z1 - z0)) { lo = z0; hi = z1; }
     const pad2 = (hi - lo) < 1e-9 ? 1 : (hi - lo) * 0.08;
     lo -= pad2; hi += pad2;
     const y = (v) => T + ph * (1 - (v - lo) / (hi - lo));
     let d = '';
-    for (let i = 0; i < rows.length; i += stride) d += (d ? 'L' : 'M') + x(rows[i][0]).toFixed(1) + ' ' + y(rows[i][ci]).toFixed(1);
-    const last = rows[rows.length - 1];
-    d += 'L' + x(last[0]).toFixed(1) + ' ' + y(last[ci]).toFixed(1);
+    for (let i = i0; i <= i1; i += stride) d += (d ? 'L' : 'M') + x(rows[i][0]).toFixed(1) + ' ' + y(rows[i][ci]).toFixed(1);
+    d += 'L' + x(rows[i1][0]).toFixed(1) + ' ' + y(rows[i1][ci]).toFixed(1);
     lines += `<path class="ln" d="${d}" stroke="${s.c}"/>`;
   }
-  const cx = x(rows[cursor][0]).toFixed(1);
-  const cur = replayT == null ? '' : `<line class="cursor" x1="${cx}" y1="${T}" x2="${cx}" y2="${T + ph}"/>`;
+  const ct = rows[cursor][0], cx = x(ct).toFixed(1);
+  const cur = replayT == null || ct < vt0 || ct > vt1 ? ''
+    : `<line class="cursor" x1="${cx}" y1="${T}" x2="${cx}" y2="${T + ph}"/>`;
   host.innerHTML = `<svg viewBox="0 0 ${W} ${H}">${g}${lines}${cur}</svg>`;
-  $('#scrub-label').textContent = `${pad(rows[cursor][0], 1, 6)} / ${t1.toFixed(1)} s`
-    + (replayT == null ? ' · live' : ' · scrubbed, the 3D view is at this instant');
+  $('#scrub-label').textContent = `${pad(ct, 1, 6)} / ${t1.toFixed(1)} s`
+    + (zoomed() ? ` · ${span.toFixed(span < 10 ? 1 : 0)} s shown` : '')
+    + (replayT == null ? ' · live' : playing ? ' · playing the recording' : ' · scrubbed, the 3D view is at this instant');
   $('#scrub-resume').hidden = replayT == null;
+  $('#scrub-play').textContent = playing ? 'Pause' : 'Play';
+  $('#scrub-play').classList.toggle('primary', playing);
 }
 
 // The traces are chosen from one dropdown of checkboxes; the ones that are on are listed beside it with
 // their value at the cursor, so the row stays a single line however many are plotted.
+function pickerHtml(set, withValue) {
+  const has = (k) => set.has ? set.has(k) : set.includes(k);
+  const cats = [...new Set(SERIES.map(s => s.cat))].sort((a, b) => CAT_ORDER.indexOf(a) - CAT_ORDER.indexOf(b));
+  return cats.map(cat => `<div class="cat">${esc(cat)}</div>`
+    + SERIES.filter(s => s.cat === cat).sort((a, b) => seriesRank(a.key) - seriesRank(b.key)).map(s =>
+      `<label data-key="${s.key}" style="--c:${s.c}" title="${esc(s.desc || s.label)}">`
+      + `<input type="checkbox" ${has(s.key) ? 'checked' : ''}>`
+      + `<i class="sw"></i><span class="nm">${esc(s.label)}</span>`
+      + (withValue ? `<b class="num" data-v="${esc(s.key)}"></b>` : '') + `</label>`).join('')).join('');
+}
 function buildPicker() {
   const pop = $('#series-pop');
-  pop.innerHTML = SERIES.map(s => `<label data-key="${s.key}" style="--c:${s.c}">`
-    + `<input type="checkbox" ${picked.has(s.key) ? 'checked' : ''}><i class="sw"></i>`
-    + `<span class="nm">${esc(s.label)}</span><b class="num" data-v="${esc(s.key)}"></b></label>`).join('');
+  pop.innerHTML = pickerHtml(picked, true);
   pop.querySelectorAll('label').forEach(lab => {
     const key = lab.dataset.key;
     lab.querySelector('input').addEventListener('change', (e) => {
@@ -1587,7 +1801,100 @@ function buildPicker() {
     });
   });
   buildLegend();
+  updateReadouts();
 }
+// The same catalogue, chosen onto the 3D view instead of into the plot.
+let batteryMinutes = null;             // what the gauge knows and the recording does not
+// A list, not a set: the order is the order they sit in on the view, and dragging one changes it.
+let overlayPicked = ['battery', 'power', 'lift', 'speed', 'height', 'wind'];
+try { const p = JSON.parse(localStorage.getItem('airframe-overlay') || 'null'); if (Array.isArray(p)) overlayPicked = [...new Set(p)]; } catch { }
+const saveOverlay = () => {
+  overlayPicked = [...new Set(overlayPicked)];       // one chip per quantity, however it was dragged
+  try { localStorage.setItem('airframe-overlay', JSON.stringify(overlayPicked)); } catch { }
+};
+// Dragging a chip never touches the DOM while the pointer is down: the old version moved nodes about as
+// you went, and a redraw landing mid-drag left it holding a detached node, which it then put back - that
+// is where the duplicates came from. Now the move is worked out from the pointer and applied once, on
+// release, from the list rather than from the elements.
+let chipDrag = null;
+function renderOverlayChips() {
+  const host = $('#overlay-chips');
+  if (!host) return;
+  overlayPicked = [...new Set(overlayPicked)];
+  const known = new Map(SERIES.map(s => [s.key, s]));
+  host.innerHTML = overlayPicked.filter(k => known.has(k)).map(k => {
+    const s = known.get(k);
+    return `<span class="pill st ro chip" data-k="${esc(k)}" title="${esc(s.desc || s.label)} · drag to move it">`
+      + `<span class="k">${esc(s.label)}</span><b data-v="${esc(k)}">—</b></span>`;
+  }).join('');
+  host.querySelectorAll('.chip').forEach(el => {
+    el.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0) return;
+      chipDrag = { key: el.dataset.k, el, x0: e.clientX, moved: false, target: null, before: false };
+      el.setPointerCapture(e.pointerId);
+    });
+    el.addEventListener('pointermove', (e) => {
+      const d = chipDrag;
+      if (!d || d.el !== el) return;
+      if (!d.moved && Math.abs(e.clientX - d.x0) < 4) return;
+      d.moved = true;
+      el.classList.add('dragging');
+      const chips = [...host.querySelectorAll('.chip')];
+      chips.forEach(c => c.classList.remove('drop-before', 'drop-after'));
+      const over = chips.find(c => {
+        const r = c.getBoundingClientRect();
+        return e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top - 8 && e.clientY <= r.bottom + 8;
+      });
+      if (over && over !== el) {
+        const r = over.getBoundingClientRect();
+        d.before = e.clientX < r.left + r.width / 2;
+        d.target = over.dataset.k;
+        over.classList.add(d.before ? 'drop-before' : 'drop-after');
+      } else d.target = null;
+    });
+    const finish = () => {
+      const d = chipDrag;
+      chipDrag = null;
+      el.classList.remove('dragging');
+      host.querySelectorAll('.chip').forEach(c => c.classList.remove('drop-before', 'drop-after'));
+      if (!d || !d.moved || !d.target) return;
+      const list = overlayPicked.filter(k => k !== d.key);
+      const at = list.indexOf(d.target) + (d.before ? 0 : 1);
+      list.splice(Math.max(0, at), 0, d.key);
+      overlayPicked = list;
+      saveOverlay();
+      renderOverlayChips();
+    };
+    el.addEventListener('pointerup', finish);
+    el.addEventListener('pointercancel', finish);
+  });
+  const pop = $('#overlay-pop');
+  pop.innerHTML = pickerHtml(overlayPicked, false);
+  pop.querySelectorAll('label').forEach(lab => {
+    const key = lab.dataset.key;
+    lab.querySelector('input').addEventListener('change', (e) => {
+      overlayPicked = e.target.checked ? [...overlayPicked.filter(k => k !== key), key]
+                                       : overlayPicked.filter(k => k !== key);
+      saveOverlay();
+      renderOverlayChips();
+    });
+  });
+  updateReadouts();
+}
+$('#overlay-btn').addEventListener('click', (e) => {
+  e.stopPropagation();
+  const pop = $('#overlay-pop');
+  pop.hidden = !pop.hidden;
+  if (!pop.hidden) {                       // fixed, so it is not cut off by the panel it sits in
+    const r = e.currentTarget.getBoundingClientRect();
+    pop.style.left = Math.max(8, Math.min(r.left, innerWidth - 340)) + 'px';
+    pop.style.top = (r.bottom + 6) + 'px';
+  }
+});
+document.addEventListener('click', (e) => {
+  if ($('#overlay-pop').hidden || e.composedPath().includes($('#overlay-menu'))) return;
+  $('#overlay-pop').hidden = true;
+});
 function buildLegend() {
   $('#series-btn').textContent = `Data (${picked.size})`;
   $('#series-legend').innerHTML = SERIES.filter(s => picked.has(s.key)).map(s =>
@@ -1624,25 +1931,98 @@ let pausedByScrub = false;
 function scrubTo(clientX) {
   const data = runData(), rows = data.rows || [];
   if (rows.length < 2) return;
+  replayT = timeAt(clientX, rows);
+  applyReplay(); drawGraph();
+}
+function timeAt(clientX, rows) {
   const box = $('#graph-plot').getBoundingClientRect();
   const f = Math.max(0, Math.min(1, (clientX - box.left - 2) / Math.max(1, box.width - 4)));
-  const t0 = rows[0][0], t1 = rows[rows.length - 1][0];
-  replayT = t0 + f * (t1 - t0);
-  applyReplay(); drawGraph();
+  const [vt0, vt1] = viewWindow(rows);
+  return vt0 + f * (vt1 - vt0);
 }
 $('#graph-plot').addEventListener('pointerdown', async (e) => {
   const rows = (runData().rows || []);
   if (rows.length < 2) return;
   e.preventDefault();
+  stopPlaying();
   $('#graph-plot').setPointerCapture(e.pointerId);
-  if (!shownRun && !status.paused && !pausedByScrub) {
-    pausedByScrub = true;
-    api('/api/sim/pause', { paused: true }).catch(err => logLine('[ui] ' + err.message));
-  }
+  pauseForReplay();
   scrubTo(e.clientX);
 });
 $('#graph-plot').addEventListener('pointermove', (e) => { if (e.buttons & 1) scrubTo(e.clientX); });
+// Playing the recording back: the cursor is a clock that runs on its own, and the 3D view follows it. The
+// simulation stays paused throughout - the view cannot be half replay and half live.
+let playing = false, playFrom = 0, playWall = 0, playFrame = 0;
+const playSpeed = () => +$('#scrub-speed').value || 1;
+// changing the speed mid-play keeps the cursor where it is and runs on from there
+$('#scrub-speed').addEventListener('change', () => { if (playing) { playFrom = replayT; playWall = performance.now(); } });
+let pauseAskedAt = 0;        // the status takes a moment to agree that we paused; until then, do not read it
+async function pauseForReplay() {
+  if (!shownRun && !status.paused && !pausedByScrub) {
+    pausedByScrub = true;
+    pauseAskedAt = Date.now();
+    try { await api('/api/sim/pause', { paused: true }); status.paused = true; }
+    catch (err) { logLine('[ui] ' + err.message); }
+  }
+}
+function stopPlaying() {
+  playing = false;
+  cancelAnimationFrame(playFrame);
+  drawGraph();
+}
+function playTick() {
+  if (!playing) return;
+  const data = runData(), rows = data.rows || [];
+  if (rows.length < 2) return stopPlaying();
+  const t1 = rows[rows.length - 1][0];
+  replayT = playFrom + (performance.now() - playWall) / 1000 * playSpeed();
+  if (replayT >= t1) { replayT = t1; applyReplay(); return stopPlaying(); }
+  // keep the cursor on screen when the view is zoomed in
+  if (zoomed()) {
+    const span = viewT1 - viewT0;
+    if (replayT > viewT1 - span * 0.1) setWindow(replayT - span * 0.9, replayT + span * 0.1, rows);
+    else if (replayT < viewT0) setWindow(replayT, replayT + span, rows);
+  }
+  applyReplay(); drawGraph();
+  playFrame = requestAnimationFrame(playTick);
+}
+$('#scrub-play').addEventListener('click', async () => {
+  if (playing) return stopPlaying();
+  const data = runData(), rows = data.rows || [];
+  if (rows.length < 2) return;
+  await pauseForReplay();
+  const t0 = viewWindow(rows)[0], t1 = rows[rows.length - 1][0];
+  if (replayT == null || replayT >= t1 - 1e-3) replayT = t0;      // at the end, or live: start from the left
+  playFrom = replayT; playWall = performance.now();
+  playing = true;
+  playFrame = requestAnimationFrame(playTick);
+  drawGraph();
+});
+$('#scrub-fit').addEventListener('click', () => {
+  viewT0 = viewT1 = null; $('#scrub-fit').hidden = true; drawGraph();
+});
+// Pinch on a trackpad arrives as a wheel event with ctrlKey: zoom the time axis about the pointer. A plain
+// two-finger scroll pans, so the two gestures do what they do everywhere else.
+$('#graph-plot').addEventListener('wheel', (e) => {
+  const rows = (runData().rows || []);
+  if (rows.length < 2) return;
+  e.preventDefault();
+  const [vt0, vt1] = viewWindow(rows), span = vt1 - vt0;
+  if (e.ctrlKey || e.metaKey || Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+    const at = timeAt(e.clientX, rows);
+    const k = Math.exp((e.ctrlKey || e.metaKey ? e.deltaY * 0.01 : e.deltaY * 0.0015));
+    const next = Math.max(0.2, Math.min(rows[rows.length - 1][0] - rows[0][0], span * k));
+    const f = span > 0 ? (at - vt0) / span : 0.5;
+    setWindow(at - next * f, at + next * (1 - f), rows);
+  } else {
+    const dt = span * e.deltaX * 0.002;
+    setWindow(vt0 + dt, vt1 + dt, rows);
+  }
+  drawGraph();
+}, { passive: false });
+$('#graph-plot').addEventListener('dblclick', () => { viewT0 = viewT1 = null; $('#scrub-fit').hidden = true; drawGraph(); });
 $('#scrub-resume').addEventListener('click', async () => {
+  stopPlaying();
   replayT = null;
   if (shownRun) await selectRun('');            // a kept run has no "now" to go back to: return to the live one
   if (pausedByScrub) {
@@ -1660,7 +2040,7 @@ function showGraph(on) {
   $('#view-graph').classList.toggle('active', on);
   const log = $('#log');
   if (on) {
-    if (log.classList.contains('collapsed')) { log.classList.remove('collapsed'); $('#log-toggle').textContent = 'Hide'; }
+    log.classList.remove('collapsed');
     if (log.getBoundingClientRect().height < 260) log.style.height = '300px';
     loadRunList();
     drawGraph();
@@ -1669,7 +2049,9 @@ function showGraph(on) {
       if (!graphOn) return;
       // Pause was released somewhere else (the button over the 3D view): the recording is no longer where
       // the aircraft is, so go back to following it.
-      if (replayT != null && pausedByScrub && !status.paused) { replayT = null; pausedByScrub = false; }
+      if (replayT != null && pausedByScrub && !status.paused && Date.now() - pauseAskedAt > 1500) {
+        replayT = null; pausedByScrub = false; stopPlaying();
+      }
       if (!shownRun) await pollLive();
       drawGraph();
     };
@@ -1678,8 +2060,17 @@ function showGraph(on) {
   } else {
     clearInterval(graphTimer); graphTimer = null;
   }
+  liveTick();
   try { localStorage.setItem('airframe-logview', on ? 'graph' : 'log'); } catch { }
 }
+// The overlay reads the same recording as the graph, so it is polled whether or not the graph is on screen.
+let liveTimer = null;
+async function liveTick() {
+  clearTimeout(liveTimer);
+  if (!graphOn && !shownRun) { await pollLive(); updateReadouts(); }
+  liveTimer = setTimeout(liveTick, 400);
+}
+liveTick();
 $('#view-log').addEventListener('click', () => showGraph(false));
 $('#view-graph').addEventListener('click', () => showGraph(true));
 new ResizeObserver(() => drawGraph()).observe($('#graph-plot'));
@@ -1702,27 +2093,52 @@ async function loadRunList(select) {
 function runButtons() {
   const has = !!$('#run-pick').value;
   ['#run-rename', '#run-delete', '#run-load'].forEach(s => $(s).hidden = !has);
-  $('#run-save').hidden = has;
+  $('#run-save').hidden = has;         // a saved run is already saved; this button is for the live one
 }
 async function selectRun(id) {
   if (!id) {
     shownRun = null; replayT = null;
+    shownRunLog = null; showLogText(flightLog);
   } else {
     try { shownRun = await api('/api/runs/' + encodeURIComponent(id)); }
     catch (err) { logLine('[runs] ' + err.message); shownRun = null; }
     replayT = shownRun && shownRun.rows.length ? shownRun.rows[0][0] : null;
+    shownRunLog = (shownRun && shownRun.log)
+      ? shownRun.log.map(l => String(l[1]).replace(/^\[px4\] /, '')).join('\n') : '';
+    showLogText(shownRunLog || 'this run was saved without the flight computer log');
+    if (shownRun) rebuildSeries(shownRun.columns);
     applyReplay();
   }
   runButtons();
   drawGraph();
 }
 $('#run-pick').addEventListener('change', (e) => selectRun(e.target.value));
+$('#run-reset').addEventListener('click', async (e) => {
+  if (shownRun) { await selectRun(''); return; }          // looking at a saved run: just go back to the live one
+  if (!confirmTwice('run-reset', e.currentTarget, 'throw this recording away')) return;
+  try {
+    await api('/api/runs/clear', {});
+    liveRun = { columns: LIVE_COLS, rows: [] };
+    flightLog = ''; shownRunLog = null; showLogText('');   // the terminal belongs to the same run
+    replayT = null; viewT0 = viewT1 = null; $('#scrub-fit').hidden = true;
+    stopPlaying();
+    drawGraph();
+    console.log('[runs] graph and log reset; the simulation kept running');
+  } catch (err) { logLine('[runs] ' + err.message); }
+});
 $('#run-save').addEventListener('click', async (e) => {
   e.target.disabled = true;
   try {
-    const r = await api('/api/runs/save', { name: '' });
-    if (r.ok) { await loadRunList(r.id); await selectRun(r.id); logLine(`[runs] kept ${r.id} (${(+r.duration).toFixed(1)} s)`); }
-    else logLine('[runs] nothing to keep: ' + (r.error || ''));
+    const r = await api('/api/runs/save', { name: '', clear: true });
+    if (r.ok) {
+      liveRun = { columns: LIVE_COLS, rows: [] };     // the graph starts again, the simulation never stopped
+      flightLog = ''; shownRunLog = null; showLogText('');   // and so does the log: that run has both halves
+      replayT = null; viewT0 = viewT1 = null; $('#scrub-fit').hidden = true;
+      stopPlaying();
+      await loadRunList('');
+      drawGraph();
+      logLine(`[runs] saved ${r.id} (${(+r.duration).toFixed(1)} s) · the graph starts again`);
+    } else logLine('[runs] nothing to save: ' + (r.error || ''));
   } catch (err) { logLine('[runs] ' + err.message); }
   e.target.disabled = false;
 });
@@ -1758,12 +2174,15 @@ $('#run-load').addEventListener('click', async (e) => {
   } catch (err) { logLine('[runs] ' + err.message); }
 });
 try { if (localStorage.getItem('airframe-logview') === 'graph') showGraph(true); } catch { }
-$('#btn-theme').addEventListener('click', () => {
-  const dark = document.documentElement.dataset.theme !== 'dark';
-  document.documentElement.dataset.theme = dark ? 'dark' : 'light';
-  try { localStorage.setItem('airframe-theme', dark ? 'dark' : 'light'); } catch { }
-  scene.setTheme(dark ? 'dark' : 'light');
-});
+// Light or dark is the computer's business, not a button here: follow it, and keep following when it changes.
+const systemDark = window.matchMedia('(prefers-color-scheme: dark)');
+function applySystemTheme() {
+  const name = systemDark.matches ? 'dark' : 'light';
+  document.documentElement.dataset.theme = name;
+  scene.setTheme(name);
+}
+systemDark.addEventListener('change', applySystemTheme);
+applySystemTheme();
 
 function connectWs() {
   const ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws');
@@ -1773,7 +2192,7 @@ function connectWs() {
     if (m.type === 'airframe') { setAirframe(m.airframe); }
     if (m.type === 'state') { lastRc = m.rc || {}; lastManual = m.manual || {}; applyState(m.state); if (m.status) applyStatus(m.status); if (m.log) m.log.forEach(l => logLine(l[1])); if (rcVisible()) renderRcLive(); }
   };
-  ws.onclose = () => { $('#ro-fc-v').textContent = 'disconnected'; logLine('[ui] websocket closed; reconnecting'); setTimeout(connectWs, 800); };
+  ws.onclose = () => { $('#link-light i').classList.remove('on'); console.log('[ui] websocket closed; reconnecting'); setTimeout(connectWs, 800); };
 }
 connectWs();
 loadPresetList();
@@ -1834,7 +2253,7 @@ api('/api/log?since=0').then(lines => lines.forEach(l => logLine(l[1]))).catch((
   drag($('#resize-side'), 'x', sideMove);
 
   const logMove = (dy) => {
-    if (log.classList.contains('collapsed')) { log.classList.remove('collapsed'); $('#log-toggle').textContent = 'Hide'; }
+    log.classList.remove('collapsed');
     const h = Math.min(window.innerHeight * 0.7, Math.max(48, logMove.startH - dy));
     log.style.height = h + 'px'; layout.logH = Math.round(h);
   };
@@ -1856,14 +2275,67 @@ function linkNow(c) {
   if (c.mode === 'sitl') return 'sitl';
   return status.hil_enabled === false ? 'real' : 'hitl';
 }
-$('#ro-fc').addEventListener('click', async () => { openTab('controller'); });
-$('#conn-sitl').addEventListener('click', async () => { await connCall('/api/connection/connect', { mode: 'sitl' }); });
-$('#conn-hitl').addEventListener('click', async (e) => {
-  if (!lastPorts.length) { $('#conn-error').textContent = 'No flight controller on USB. Plug it in and click Rescan.'; return; }
-  if (status.hil_enabled === false && !confirmTwice('return-hitl', e.currentTarget, 'put the board back into HITL')) return;
-  if (status.hil_enabled === false) { const r = await api('/api/connection/enable_hitl', {}); $('#real-flight-result').textContent = r.ok ? 'Returning to HITL…' : r.error; return; }
-  await connectHitl((lastPorts.find(p => p.likely_px4) || lastPorts[0]).device);
-});
+// Pressing one of the three is a decision, not a request that can be refused: the switch moves there and
+// stays there. Whether it is actually working is the light's job - green when the link is doing what the
+// mode says it should, red when it is not, with the reason on hover.
+let modeWanted = null;
+function wantMode(k) { modeWanted = k; paintModeSwitch(status); }
+async function goSitl() {
+  wantMode('sitl');
+  markSaved('Starting SITL…', 4000);
+  await connCall('/api/connection/connect', { mode: 'sitl' });
+}
+// The switch works from any tab, so it cannot rely on a port list that only the PX4 tab keeps up to date,
+// and it cannot answer in a box on a tab you are not looking at: it says what happened in the bar.
+async function boardPort() {
+  if (lastPorts.length) return lastPorts.find(p => p.likely_px4) || lastPorts[0];
+  try {
+    const c = await api('/api/connection');
+    lastPorts = c.ports || [];
+  } catch { return null; }
+  return lastPorts.find(p => p.likely_px4) || lastPorts[0] || null;
+}
+async function goHitl(btn) {
+  wantMode('hitl');
+  const port = await boardPort();
+  if (!port) {
+    markSaved('HITL: no flight controller on USB', 5000);
+    $('#conn-error').textContent = 'No flight controller on USB. Plug it in and click Rescan.';
+    return;
+  }
+  if (status.hil_enabled === false && !confirmTwice('return-hitl', btn, 'put the board back into HITL')) return;
+  if (status.hil_enabled === false) {
+    const r = await api('/api/connection/enable_hitl', {});
+    markSaved(r.ok ? 'Returning to HITL…' : r.error, 4000);
+    $('#real-flight-result').textContent = r.ok ? 'Returning to HITL…' : r.error;
+    return;
+  }
+  markSaved('Connecting to ' + port.device.replace('/dev/', '') + '…', 4000);
+  await connectHitl(port.device);
+}
+// FLIGHT: the aircraft is flying on its own sensors and this app only listens - no sensors injected, the
+// 3D view and the graph fed by its telemetry. It is the mode for watching a real flight over a radio.
+async function goFlight(btn) {
+  if (!confirmTwice('listen-flight', btn, 'stop simulating and listen to the aircraft')) return;
+  wantMode('real');
+  const dev = ((await boardPort()) || {}).device;
+  if (!dev && status.conn_mode !== 'hitl') {
+    markSaved('Real flight: no radio or board on USB', 5000);
+    $('#conn-error').textContent = 'No flight controller or telemetry radio on USB. Plug one in and click Rescan.';
+    return;
+  }
+  markSaved('Listening to the aircraft…', 4000);
+  // a radio runs at its own speed; the server picks 57600 for one that is not a Pixhawk unless told
+  const baud = $('#conn-baud').dataset.touched ? +$('#conn-baud').value : undefined;
+  await connCall('/api/connection/flight', { serial: dev, baud });
+}
+$('#conn-baud').addEventListener('change', (e) => { e.target.dataset.touched = '1'; });
+$('#conn-sitl').addEventListener('click', goSitl);
+$('#conn-hitl').addEventListener('click', (e) => goHitl(e.currentTarget));
+$$('#mode-switch button').forEach(b => b.addEventListener('click', (e) => {
+  const k = b.dataset.link;
+  if (k === 'sitl') goSitl(); else if (k === 'hitl') goHitl(e.currentTarget); else goFlight(e.currentTarget);
+}));
 $('#conn-real').addEventListener('click', async (e) => {
   const b = e.currentTarget;
   if (status.armed || !status.ctl_connected || !hardwareMotors()) { $('#real-flight-result').textContent = 'Connect a disarmed Pixhawk over USB first.'; return; }
@@ -1892,15 +2364,17 @@ async function connCall(path, body) {
   $('#conn-error').textContent = '';
   $('#conn-current').innerHTML = '<span class="muted">Working…</span>';
   try { await api(path, body); paramsLoaded = false; } catch (e) { $('#conn-error').textContent = e.message; }
-  await refreshConnection();
+  await refreshConnection(true);
 }
-async function refreshConnection() {
+// The flight controller section lives on the PX4 tab. Anywhere else there is nothing on screen to keep
+// up to date - except right after pressing one of its buttons, which refreshes whatever tab you are on.
+async function refreshConnection(force = false) {
   clearTimeout(connTimer);
-  if (!$('#tab-controller').classList.contains('active')) return;
+  if (!force && !$('#tab-px4').classList.contains('active')) return;
   let c;
   try { c = await api('/api/connection'); } catch (e) { $('#conn-error').textContent = e.message; return; }
   const L = c.link, where = linkNow(c);
-  $$('#conn-modes button').forEach(b => b.classList.toggle('active', b.dataset.link === where));
+  $$('#conn-modes button, #mode-switch button').forEach(b => b.classList.toggle('active', b.dataset.link === where));
   if (!c.mode) $('#conn-current').innerHTML = '';
   else if (c.mode === 'sitl') $('#conn-current').innerHTML =
     `<span class="hint">instance ${c.px4_instance ?? 0} · tcp ${esc(L.address)} · ${esc(L.ctl_address)}</span>`;
@@ -2060,6 +2534,16 @@ $('#fw-text').addEventListener('input', () => {
   $('#fw-save').disabled = !fwDirty;
 });
 $('#fw-revert').addEventListener('click', () => openFirmwareFile($('#fw-file').value));
+$('#fw-code').addEventListener('click', async (e) => {
+  const path = $('#fw-file').value;
+  if (!path) return;
+  e.currentTarget.disabled = true;
+  try {
+    await api('/api/firmware/open', { path });
+    logLine('[firmware] opened ' + path + ' in VS Code');
+  } catch (err) { logLine('[firmware] ' + err.message); }
+  e.currentTarget.disabled = false;
+});
 $('#fw-save').addEventListener('click', async e => {
   const b = e.currentTarget;
   b.disabled = true;
@@ -2223,7 +2707,7 @@ function renderRcBoard() {
   const cs = $('#rc-cal-start'); if (cs) cs.onclick = (e) => { e.preventDefault(); rcCal = { step: 1, min: [], max: [] }; };
 }
 // The remote (indicator, channel table, mapping) is on the Controller tab, beside the link it comes in on.
-const rcVisible = () => $('#tab-controller').classList.contains('active');
+const rcVisible = () => $('#tab-live').classList.contains('active');
 function renderRcLive() {
   const now = performance.now();
   if (now - rcLastRender < 80) return;
@@ -2515,13 +2999,89 @@ function showWindNow(st) {
   $('#wind-now').textContent = sp < 0.05 && Math.abs(w[2]) < 0.05 ? 'calm'
     : `${sp.toFixed(1)} m/s from ${windFromVec(w[0], w[1]).toFixed(0)}°${Math.abs(w[2]) > 0.05 ? `, ${w[2].toFixed(1)} down` : ''}`;
 }
-async function applyWind(speed, dir, down) {
-  const [north, east] = windVec(speed, dir);
-  try { await api('/api/sim/wind', { north, east, down }); logLine(`[wind] ${speed} m/s from ${dir}°`); }
-  catch (e) { logLine('[wind] ' + e.message); }
+// The wind is a model on the server (sim/wind.py): a mean, and optionally gusts that wander around it.
+// The preview is drawn from what that model says it will blow, asked for over the wire, so the picture and
+// the air the aircraft flies in come from one piece of arithmetic.
+let windGusty = false;
+const windModel = () => ({
+  speed: +$('#wind-speed').value || 0, direction_deg: +$('#wind-dir').value || 0, down: +$('#wind-down').value || 0,
+  gusty: windGusty, gust_speed: +$('#wind-gust').value || 0,
+  gust_period_s: +$('#wind-period').value || 8, gust_dir_deg: +$('#wind-swing').value || 0,
+});
+function fillWindModel(w) {
+  if (!w) return;
+  windGusty = !!w.gusty;
+  $('#wind-speed').value = +(+w.speed).toFixed(2);
+  $('#wind-dir').value = +(+w.direction_deg).toFixed(0);
+  $('#wind-down').value = +(+w.down).toFixed(2);
+  $('#wind-gust').value = +(+w.gust_speed).toFixed(1);
+  $('#wind-period').value = +(+w.gust_period_s).toFixed(1);
+  $('#wind-swing').value = +(+w.gust_dir_deg).toFixed(0);
+  windKindUi();
 }
-$('#wind-apply').addEventListener('click', () => applyWind(+$('#wind-speed').value || 0, +$('#wind-dir').value || 0, +$('#wind-down').value || 0));
-$('#wind-calm').addEventListener('click', () => { $('#wind-speed').value = 0; $('#wind-down').value = 0; applyWind(0, 0, 0); });
+function windKindUi() {
+  $$('#wind-kind button').forEach(b => b.classList.toggle('active', (b.dataset.kind === 'gusty') === windGusty));
+  $('#wind-gust-fields').hidden = !windGusty;
+  drawWindPreview();
+}
+let windPreviewTimer = null, windPreview = null;
+function drawWindPreview() {
+  clearTimeout(windPreviewTimer);
+  windPreviewTimer = setTimeout(async () => {
+    try { windPreview = await api('/api/sim/wind/preview', { ...windModel(), seconds: 60 }); }
+    catch { return; }
+    paintWindPreview();
+  }, 120);
+}
+function paintWindPreview() {
+  const c = $('#wind-preview'), p = windPreview;
+  if (!c || !p) return;
+  const w = c.clientWidth || 300, h = 64;
+  const dpr = devicePixelRatio || 1;
+  c.width = w * dpr; c.height = h * dpr;
+  const g = c.getContext('2d'); g.scale(dpr, dpr); g.clearRect(0, 0, w, h);
+  const css = getComputedStyle(document.documentElement);
+  const hi = Math.max(1, ...p.speed) * 1.15;
+  const x = (i) => w * i / (p.t.length - 1), y = (v) => h - 4 - (h - 12) * v / hi;
+  // the mean, so a gust is visibly a swing about something
+  const mean = +$('#wind-speed').value || 0;
+  g.strokeStyle = (css.getPropertyValue('--text-2') || '#999').trim(); g.setLineDash([3, 3]); g.lineWidth = 1;
+  g.beginPath(); g.moveTo(0, y(mean)); g.lineTo(w, y(mean)); g.stroke(); g.setLineDash([]);
+  g.strokeStyle = '#0ea5e9'; g.lineWidth = 1.5; g.beginPath();
+  p.speed.forEach((v, i) => (i ? g.lineTo(x(i), y(v)) : g.moveTo(x(i), y(v))));
+  g.stroke();
+  // the direction as a band around the mean heading, drawn against the same box
+  if (windGusty && (+$('#wind-swing').value || 0) > 0) {
+    const d0 = +$('#wind-dir').value || 0, sw = Math.max(1, +$('#wind-swing').value || 1);
+    g.strokeStyle = 'rgba(148,163,184,0.85)'; g.lineWidth = 1; g.beginPath();
+    p.dir.forEach((d, i) => { const yy = h / 2 - (h / 2 - 6) * (d - d0) / (sw * 1.3); i ? g.lineTo(x(i), yy) : g.moveTo(x(i), yy); });
+    g.stroke();
+  }
+  g.fillStyle = (css.getPropertyValue('--text-2') || '#999').trim();
+  g.font = '10px -apple-system, system-ui, sans-serif';
+  g.fillText(`${Math.min(...p.speed).toFixed(1)}–${Math.max(...p.speed).toFixed(1)} m/s over 60 s`, 4, 11);
+}
+async function applyWind() {
+  try {
+    const r = await api('/api/sim/wind', windModel());
+    fillWindModel(r.wind);
+    const m = r.wind;
+    logLine(`[wind] ${m.gusty ? `${m.speed.toFixed(1)} ±${m.gust_speed.toFixed(1)} m/s gusting every ${m.gust_period_s}s` : `${m.speed.toFixed(1)} m/s`} from ${m.direction_deg.toFixed(0)}°`);
+  } catch (e) { logLine('[wind] ' + e.message); }
+}
+$$('#wind-kind button').forEach(b => b.addEventListener('click', () => { windGusty = b.dataset.kind === 'gusty'; windKindUi(); }));
+$$('#wind-speed, #wind-dir, #wind-down, #wind-gust, #wind-period, #wind-swing').forEach(el => el.addEventListener('input', drawWindPreview));
+$('#wind-apply').addEventListener('click', applyWind);
+$('#wind-calm').addEventListener('click', () => {
+  windGusty = false;
+  $('#wind-speed').value = 0; $('#wind-down').value = 0; $('#wind-gust').value = 0;
+  windKindUi(); applyWind();
+});
+// the fields are the wind as it is set, so they come back from the server: a Set wind step in a sequence
+// or another window changed it, and the tab should say so rather than show what was typed here last
+const loadWindModel = () => api_get('/api/sim/wind').then(r => fillWindModel(r.wind)).catch(() => { });
+loadWindModel();
+new ResizeObserver(() => paintWindPreview()).observe($('#wind-preview'));
 
 // ---- the actions a mission is built from, and the scenario phase each one becomes
 const MISSION_ACTIONS = {
@@ -2535,7 +3095,7 @@ const MISSION_ACTIONS = {
              phase: (a) => ({ type: 'cruise_velocity', speed: a.speed, duration: a.s }) },
   mode:    { label: 'Set mode', fields: [['mode', 'mode', 'hold', FLIGHT_MODES.map(m => m[0])]],
              phase: (a) => ({ type: 'mode', mode: a.mode }) },
-  wind:    { label: 'Change wind', fields: [['speed', 'm/s', 0], ['dir', 'from°', 0]],
+  wind:    { label: 'Set wind', fields: [['speed', 'm/s', 0], ['dir', 'from°', 0]],
              phase: (a) => ({ type: 'wind', ned: [...windVec(a.speed, a.dir), 0] }) },
   param:   { label: 'Set a parameter', fields: [['name', 'name', 'MPC_XY_VEL_MAX'], ['value', 'value', 0]],
              phase: (a) => ({ type: 'param', name: a.name, value: a.value }) },
@@ -2551,7 +3111,7 @@ const missionIndex = () => Math.max(0, Math.min(missions().length - 1, +(airfram
 const currentMission = () => missions()[missionIndex()];
 
 function newMission(name) {
-  return { name: name || `Mission ${missions().length + 1}`, wind: { speed: 0, dir: 0 }, max_time: 180,
+  return { name: name || `Mission ${missions().length + 1}`, max_time: 180,
            steps: [{ kind: 'takeoff', alt: 2 }, { kind: 'hover', s: 15 }, { kind: 'land' }] };
 }
 function describeStep(a) {
@@ -2588,8 +3148,6 @@ function renderMissions() {
   const idx = missionIndex();
   const m = currentMission();
   $('#mi-pick').innerHTML = missions().map((x, i) => `<option value="${i}"${i === idx ? ' selected' : ''}>${esc(x.name)} · ${x.steps.length} step${x.steps.length === 1 ? '' : 's'}</option>`).join('');
-  $('#mi-wind-speed').value = m.wind?.speed ?? 0;
-  $('#mi-wind-dir').value = m.wind?.dir ?? 0;
   $('#mi-max').value = m.max_time ?? 180;
   $('#mi-steps').innerHTML = m.steps.map((a, i) => {
     const open = i === editingStep;
@@ -2626,7 +3184,7 @@ function renderMissions() {
     const first = box.querySelector('[data-f]:not([data-f="kind"])');
     if (first && document.activeElement === document.body) first.focus();
   });
-  $('#mi-state').textContent = `${missions().length} mission${missions().length === 1 ? '' : 's'}`;
+  $('#mi-state').textContent = `${missions().length} sequence${missions().length === 1 ? '' : 's'}`;
   if (!$('#mi-kind').options.length) {
     $('#mi-kind').innerHTML = Object.entries(MISSION_ACTIONS).map(([k, v]) => `<option value="${k}">${esc(v.label)}</option>`).join('');
     renderMissionFields();
@@ -2652,12 +3210,11 @@ $('#mi-delete').addEventListener('click', (e) => {
   airframe.design.mission_index = 0;
   renderMissions(); pushAirframe(true);
 });
-$$('#mi-wind-speed, #mi-wind-dir, #mi-max').forEach(inp => inp.addEventListener('change', () => {
+$('#mi-max').addEventListener('change', () => {
   const m = currentMission(); if (!m) return;
-  m.wind = { speed: +$('#mi-wind-speed').value || 0, dir: +$('#mi-wind-dir').value || 0 };
   m.max_time = Math.max(10, +$('#mi-max').value || 180);
   pushAirframe(true);
-}));
+});
 $('#mi-add').addEventListener('click', () => {
   const m = currentMission(); if (!m) return;
   m.steps.push(readFields($('#mi-fields'), $('#mi-kind').value));
@@ -2675,9 +3232,8 @@ document.addEventListener('click', (e) => {
 
 // ---- flying it: the mission becomes a scenario and the runner takes it from there
 function missionScenario(m) {
-  const [n, e] = windVec(m.wind?.speed || 0, m.wind?.dir || 0);
   return {
-    name: m.name, max_time: m.max_time || 180, wind: [n, e, 0],
+    name: m.name, max_time: m.max_time || 180,
     phases: [{ type: 'wait_ready', timeout: 60 },
              ...m.steps.map(a => ({ name: describeStep(a), ...MISSION_ACTIONS[a.kind].phase(a) }))],
   };
@@ -2691,17 +3247,32 @@ $('#mi-run').addEventListener('click', async () => {
   pollMission();
 });
 $('#mi-stop').addEventListener('click', async () => {
-  try { await api('/api/sim/scenario/stop', {}); logLine('[mission] stopped'); } catch (err) { logLine('[mission] ' + err.message); }
+  try { await api('/api/sim/scenario/stop', {}); logLine('[sequence] stopped; the aircraft is still flying'); } catch (err) { logLine('[sequence] ' + err.message); }
 });
 let missionTimer = null;
+// Which step is being flown, marked on the step itself. The scenario's phase 0 is the wait for PX4 to be
+// ready, so step i is phase i + 1.
+function markRunningStep(step, state) {
+  $$('#mi-steps .step').forEach(el => {
+    const i = +el.dataset.step;
+    el.classList.toggle('now', i === step);
+    el.classList.toggle('done', step >= 0 && i < step);
+  });
+  $('#mi-state').textContent = state || `${missions().length} sequence${missions().length === 1 ? '' : 's'}`;
+}
 async function pollMission() {
   clearTimeout(missionTimer);
-  if (!$('#tab-mission').classList.contains('active')) return;
+  if (!$('#tab-sequences').classList.contains('active')) return;
   try {
     const r = await api_get('/api/sim/scenario');
     const p = r && r.phase;
-    $('#mi-progress').textContent = !r || !r.running && !p ? ''
-      : `${r.running ? 'flying' : (r.ok === false ? 'failed' : 'finished')}${p ? ' · ' + p.name : ''}${(r.failures || []).length ? ' · ' + r.failures[0] : ''}`;
+    const steps = (currentMission() || {}).steps || [];
+    const step = r && r.running && r.index > 0 && r.index - 1 < steps.length ? r.index - 1 : -1;
+    const what = !r || (!r.running && !p) ? ''
+      : r.running ? `step ${Math.max(1, r.index)} of ${steps.length}${p ? ' · ' + p.name : ''}`
+      : `${r.ok === false ? 'failed' : 'finished'}${(r.failures || []).length ? ' · ' + r.failures[0] : ''}`;
+    $('#mi-progress').textContent = what;
+    markRunningStep(step, r && (r.running || p) ? what : '');
   } catch { }
   missionTimer = setTimeout(pollMission, 1000);
 }
@@ -2711,13 +3282,13 @@ const jobsOpen = new Set();
 const mnum = (v, d = 2) => (v == null || !isFinite(v)) ? '—' : (+v).toFixed(d);
 async function refreshBatch() {
   clearTimeout(batchTimer);
-  if (!$('#tab-mission').classList.contains('active')) return;
+  if (!$('#tab-sequences').classList.contains('active')) return;
   pollJobs();
 }
 async function pollJobs() {
   try { const r = await api('/api/batch/jobs'); lastJobs = r; renderJobs(r); } catch (e) { }
   clearTimeout(batchTimer);
-  if ($('#tab-mission').classList.contains('active')) batchTimer = setTimeout(pollJobs, 1500);
+  if ($('#tab-sequences').classList.contains('active')) batchTimer = setTimeout(pollJobs, 1500);
 }
 function renderJobs(r) {
   const jobs = r.jobs || [];
@@ -2734,36 +3305,12 @@ function renderJobs(r) {
     const fails = (res.failures || []).length ? `<div class="err small">${(res.failures || []).map(esc).join('<br>')}</div>` : '';
     const detail = open ? `<tr class="detail"><td colspan="7">${j.running ? `<pre class="joblog">${(j.log || []).map(esc).join('\n')}</pre>` : `<pre class="joblog">${esc(JSON.stringify({ metrics: res.metrics, timing: res.timing, failures: res.failures, px4_params_verified: res.px4_params_verified, log: j.log }, null, 1))}</pre>`}</td></tr>` : '';
     return `<tr data-job="${esc(j.id)}" class="${open ? 'open' : ''}"><td class="idx mono">${esc(j.id)}</td><td>${esc(j.scenario)}</td><td>${st}</td><td class="num">${mnum(simT, 1)} s</td><td class="num">${mnum(wall, 0)} s</td><td class="num">${t.rtf != null ? mnum(t.rtf, 1) : '—'}</td>
-      <td class="metrics">${j.running ? `<span class="hint">${esc((j.log || []).slice(-1)[0] || 'starting…')}</span>` : phaseSummary(res) + fails + (res.animation_path ? `<a class="pill small" href="/api/batch/jobs/${encodeURIComponent(j.id)}/animation" data-animation-download>Download Blender animation</a>` : '')}</td></tr>` + detail;
+      <td class="metrics">${j.running ? `<span class="hint">${esc((j.log || []).slice(-1)[0] || 'starting…')}</span>` : phaseSummary(res) + fails}</td></tr>` + detail;
   }).join('');
   el.innerHTML = `<table class="grid jobs"><thead><tr><th>Job</th><th>Scenario</th><th>Status</th><th title="simulated time">Sim</th><th title="wall-clock time">Wall</th><th title="real-time factor">RTF</th><th>Metrics</th></tr></thead><tbody>${rows}</tbody></table>`;
-  $$('#batch-jobs [data-animation-download]').forEach(a => a.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); downloadAnimation(a.href, a); }));
   $$('#batch-jobs tr[data-job]').forEach(tr => tr.addEventListener('click', () => { const id = tr.dataset.job; if (jobsOpen.has(id)) jobsOpen.delete(id); else jobsOpen.add(id); if (lastJobs) renderJobs(lastJobs); }));
 }
 
-const liveBadge = document.createElement('div');
-liveBadge.style.cssText = 'position:absolute;top:12px;left:12px;background:#fff;color:#222;padding:10px 14px;border-radius:12px;z-index:4;display:none;box-shadow:0 2px 12px #0002';
-const liveLabel = document.createElement('span');
-const liveStop = document.createElement('button');
-liveStop.textContent = 'Stop test'; liveStop.style.marginLeft = '12px';
-liveStop.onclick = async () => { try { await api('/api/sim/scenario/stop', {}); } catch(e) { liveLabel.textContent = e.message; } };
-const liveAnimation = document.createElement('a');
-liveAnimation.textContent = 'Download Blender animation';
-liveAnimation.className = 'pill small';
-liveAnimation.href = '/api/sim/scenario/animation';
-liveAnimation.onclick = e => { e.preventDefault(); downloadAnimation(liveAnimation.href, liveAnimation); };
-liveAnimation.style.marginLeft = '12px';
-liveBadge.append(liveLabel, liveStop, liveAnimation); $('#viewport').append(liveBadge);
-let livePolling = false;
-setInterval(async () => {
-  if (livePolling) return; livePolling = true;
-  try {
-    const r = await api('/api/sim/scenario');
-    liveBadge.style.display = r.phase ? 'block' : 'none';
-    liveLabel.textContent = r.phase ? `${r.running ? 'LIVE TEST' : r.status.toUpperCase()} · ${r.phase.name || r.phase.type}` : '';
-    liveStop.hidden = !r.running;
-  } catch {} finally { livePolling = false; }
-}, 1000);
 
 $('#af-takeoff').addEventListener('change', async () => {
   const inp = $('#af-takeoff');
@@ -2796,28 +3343,22 @@ $('#af-takeoff').addEventListener('change', async () => {
   airframe.design.pixhawk_position ||= [...airframe.mass.cg];
   airframe.design.pixhawk_position[i] = v;
 }));
+['rr', 'rp', 'ry'].forEach((k, i) => bindNumber('imu-' + k, v => {
+  airframe.design ||= {};
+  airframe.design.pixhawk_rotation ||= [0, 0, 0];
+  airframe.design.pixhawk_rotation[i] = v;
+  fillSensorCard();
+}));
+['x', 'y', 'z'].forEach((axis, i) => bindNumber('flow-' + axis, v => { flowSensor().position[i] = v; }));
+['rr', 'rp', 'ry'].forEach((k, i) => bindNumber('flow-' + k, v => { flowSensor().rotation[i] = v; fillSensorCard(); }));
+bindNumber('flow-range', v => { flowSensor().range_m = Math.max(0.5, v); });
+$('#flow-on').addEventListener('change', e => {
+  const f = flowSensor();
+  f.enabled = e.target.checked;
+  if (f.enabled && !f.position.some(Number.isFinite)) f.position = [...airframe.mass.cg];
+  fillSensorCard(); pushAirframe(); markDirty();
+});
 
 $('#motor-test-stop').addEventListener('click', () => { stopMotorTest(); $('#motor-enable').checked=false; });
 
 
-$('#handover-mode').addEventListener('change', async e => {
-  if (status.armed) return;
-  const value = Number(e.target.value);
-  try {
-    await api('/api/airframe/override', { name: 'NLF_PILOT', value });
-    airframe.px4_overrides.NLF_PILOT = value;
-    markDirty();
-    logLine('[ui] Handover after nose lift: ' + e.target.selectedOptions[0].textContent + '. Update PX4 while disarmed to apply.');
-  } catch (err) { logLine('[ui] ' + err.message); }
-});
-// Indoor sensor set: no GPS fusion, barometer height. Position modes vanish, exactly as on the real aircraft indoors.
-$('#staged-rc-takeoff').addEventListener('change', async e => {
-  if (status.armed) return;
-  const value=e.target.checked?1:0;
-  try {
-    await api('/api/airframe/override', {name:'NLF_RC_THR',value});
-    airframe.px4_overrides.NLF_RC_THR=value;
-    markDirty();
-    logLine('[ui] Staged RC takeoff '+(value?'selected':'disabled')+'. Update PX4 while disarmed to apply. No board change made yet.');
-  } catch(err) { e.target.checked=!value; logLine('[ui] '+err.message); }
-});

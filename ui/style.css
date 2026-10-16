@@ -103,6 +103,19 @@ body.resizing-x { cursor: col-resize; } body.resizing-y { cursor: row-resize; }
 .panel.view { flex: 1; }
 #viewport { position: relative; flex: 1; min-height: 0; }
 #c { width: 100%; height: 100%; display: block; }
+#overlay .chip { cursor: grab; user-select: none; touch-action: none; }
+#overlay .chip.dragging { opacity: 0.45; cursor: grabbing; }
+#overlay .chip.drop-before { box-shadow: inset 0 0 0 1px var(--line), -3px 0 0 -1px var(--accent); }
+#overlay .chip.drop-after { box-shadow: inset 0 0 0 1px var(--line), 3px 0 0 -1px var(--accent); }
+/* what just happened, said where you are looking: under the aircraft, gone a moment later */
+#toast { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%) translateY(6px); z-index: 6;
+  padding: 6px 14px; border-radius: 999px; background: var(--panel); color: var(--text-2); font-size: 12px;
+  font-weight: 600; white-space: nowrap; box-shadow: 0 4px 16px rgba(0,0,0,0.18), inset 0 0 0 1px var(--line);
+  opacity: 0; pointer-events: none; transition: opacity 0.18s, transform 0.18s; }
+#toast.on { opacity: 1; transform: translateX(-50%) translateY(0); }
+#recenter { position: absolute; left: 12px; bottom: 12px; z-index: 5; background: var(--panel);
+  box-shadow: 0 2px 10px rgba(0,0,0,0.16), inset 0 0 0 1px var(--line); }
+#recenter[hidden] { display: none; }
 #hud { position: absolute; left: 18px; bottom: 14px; right: 18px; pointer-events: none; display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
 #rotor-readout { display: none; font-size: 13px; font-weight: 500; font-variant-numeric: tabular-nums; color: var(--text);
   background: var(--panel); padding: 6px 12px; border-radius: 999px; box-shadow: inset 0 0 0 1px var(--line); }
@@ -122,6 +135,17 @@ kbd { display: inline-block; min-width: 18px; text-align: center; padding: 0 5px
 }
 .pill.small { padding: 5px 10px; font-size: 13px; }
 .pills { display: flex; gap: 4px; }
+/* one control, three choices: a single pill with the chosen one filled in */
+.segmented { display: inline-flex; padding: 2px; gap: 2px; border-radius: 999px; background: var(--soft);
+  box-shadow: inset 0 0 0 1px var(--line); }
+.segmented button { border: 0; background: transparent; color: var(--text-2); cursor: pointer;
+  font: inherit; font-size: 11.5px; font-weight: 600; letter-spacing: 0.02em; padding: 3px 12px; border-radius: 999px; }
+.segmented button:hover { color: var(--text); }
+.segmented button.active { background: var(--panel); color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,0.14); }
+.link-light { padding: 5px 7px; }
+.link-light.crit { box-shadow: inset 0 0 0 1px var(--red); }
+.link-light.crit .dot { background: var(--red); }
+.link-light .dot { box-shadow: 0 0 6px color-mix(in srgb, currentColor 60%, transparent); }
 .pill[hidden], .pills[hidden] { display: none; }
 .pill.num { font-variant-numeric: tabular-nums; }
 button.pill:hover { background: var(--soft); color: var(--text); }
@@ -208,12 +232,15 @@ table.grid td.mono { font-family: var(--mono); font-size: 12px; }
 
 /* params */
 #param-list { font-size: 13px; }
-.prow { display: grid; grid-template-columns: 158px 92px 1fr; gap: 8px; padding: 6px 8px; border-radius: 8px; cursor: pointer; align-items: center; transition: background 0.12s; }
+.prow { display: grid; grid-template-columns: 158px 92px 74px 1fr; gap: 8px; padding: 6px 8px; border-radius: 8px; cursor: pointer; align-items: center; transition: background 0.12s; }
 .prow:hover { background: var(--ov-35); }
 .prow.selected { background: var(--sel-blk); }
 .prow .pname { font-family: var(--mono); font-size: 12px; font-weight: 500; color: var(--text); overflow: hidden; text-overflow: ellipsis; }
 .prow .pval { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
 .prow .pval .muted { font-weight: 500; font-size: 11px; }
+#wind-preview { width: 100%; height: 64px; display: block; border-radius: 8px; background: var(--ov-35); }
+.prow .pdef { text-align: right; font-size: 11px; font-variant-numeric: tabular-nums; }
+.prow .pdef.off { color: var(--accent); }
 .prow .pdesc { color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .editor { background: var(--panel); border-radius: 14px; box-shadow: 0 0 0 0.5px var(--rim), 0 1px 3px rgba(0, 0, 0, 0.04); padding: 12px 14px; margin: 8px 0 12px; font-size: 13px; line-height: 1.5; }
 .editor .pn { font-family: var(--mono); font-weight: 700; color: var(--accent); font-size: 13px; }
@@ -297,7 +324,11 @@ button.pill.armed:hover { filter: brightness(0.92); background: var(--red); colo
 #mode-pills .pill.active { background: var(--text); color: var(--bg); box-shadow: none; }
 
 /* edited parameters */
-.ov-row { display: grid; grid-template-columns: 150px 92px 90px 1fr 22px; gap: 8px; align-items: center; padding: 4px 0; border-bottom: 1px solid var(--line); font-size: 12px; }
+.ov-row { display: grid; grid-template-columns: 150px 92px 72px 72px 1fr 22px; gap: 8px; align-items: center; padding: 4px 0; border-bottom: 1px solid var(--line); font-size: 12px; }
+.ov-row.head { color: var(--text-3); font-size: 11px; padding-bottom: 2px; }
+.ov-row.head span:nth-child(2), .ov-row.head span:nth-child(3), .ov-row.head span:nth-child(4) { text-align: right; }
+.ov-row .ov-def { font-variant-numeric: tabular-nums; text-align: right; font-size: 11.5px; }
+.ov-row .ov-def.off { color: var(--accent); }
 .ov-row:last-child { border-bottom: 0; }
 .ov-row .pname { font-family: var(--mono); font-size: 12px; }
 .ov-row input { padding: 3px 6px; font-size: 12px; }
@@ -305,8 +336,9 @@ button.pill.armed:hover { filter: brightness(0.92); background: var(--red); colo
 .prow.edited .pname { color: var(--accent); }
 
 .ov-row.ro .ov-val { font-family: var(--mono); font-size: 11.5px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.ov-row.rotor { grid-template-columns: 110px 1fr 70px 60px 22px; }
-.ov-row.ro { grid-template-columns: 150px 92px 90px 1fr 22px; }
+.ov-row.ro { grid-template-columns: 150px 92px 72px 72px 1fr 22px; }
+/* the grouped rows carry one summary instead of a value and a default, so they keep five columns */
+.ov-row.ro.rotor, .ov-row.ro.funcs { grid-template-columns: 110px 1fr 70px 60px 22px; }
 .ov-sep { height: 1px; background: var(--line); margin: 8px 0; }
 #param-list { max-height: 360px; overflow-y: auto; }
 
@@ -443,7 +475,7 @@ table.grid.rc-map td.rc-state { color: var(--text-3); min-width: 56px; }
 /* ---- preset in the title bar: the name, what to load, its versions, and the push */
 input.name-input { background: transparent; border: 0; box-shadow: none; font-size: 15px; font-weight: 700;
   letter-spacing: -0.01em; color: var(--text); padding: 3px 8px; border-radius: 8px;
-  flex: 0 1 auto; width: 180px; min-width: 110px; }
+  flex: 0 1 auto; width: 132px; min-width: 90px; }
 input.name-input:hover { background: var(--soft); }
 input.name-input:focus { background: var(--panel); box-shadow: inset 0 0 0 1px var(--line); }
 select.preset-select { background-color: transparent; border: 0; box-shadow: none; border-radius: 999px;
@@ -464,9 +496,7 @@ select.preset-select:hover { background-color: var(--soft); color: var(--text); 
 .status .ro .k { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em;
   color: var(--text-3); }
 .status .ro b { font-weight: 700; display: inline-block; text-align: right; }
-#ro-fc-v  { min-width: 124px; text-align: left; }
 #ro-power { min-width: 88px; }
-#ro-batt-v{ min-width: 84px; }
 #ro-lift  { min-width: 82px; }
 #ro-speed { min-width: 58px; }
 #ro-alt   { min-width: 54px; }
@@ -479,6 +509,11 @@ select.preset-select:hover { background-color: var(--soft); color: var(--text); 
 #graph-body[hidden], #log-body[hidden] { display: none; }
 .series-row { display: flex; align-items: flex-start; gap: 8px; min-height: 24px; flex: none; }
 .series-menu { position: relative; flex: none; }
+.series-pop .cat { grid-column: 1 / -1; font-size: 10px; letter-spacing: 0.04em; text-transform: uppercase;
+  color: var(--text-3); padding: 7px 8px 2px; }
+/* the 3D panel clips its contents, so this one is placed against the window instead */
+#overlay-pop { position: fixed; top: auto; left: auto; max-height: min(60vh, 420px); }
+#overlay-chips { display: contents; }
 .series-pop { position: absolute; z-index: 40; top: calc(100% + 6px); left: 0; display: grid; gap: 1px 14px;
   grid-template-columns: repeat(2, minmax(150px, 1fr)); padding: 8px 10px; border-radius: 12px;
   background: var(--panel); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18), inset 0 0 0 1px var(--line);
@@ -502,17 +537,38 @@ select.preset-select:hover { background-color: var(--soft); color: var(--text); 
 #graph-plot .ln { fill: none; stroke-width: 1.6; stroke-linejoin: round; }
 #graph-plot .cursor { stroke: var(--red, #ff3b30); stroke-width: 1.5; }
 #graph-plot text { fill: var(--text-3); font-size: 10px; font-variant-numeric: tabular-nums; }
-.scrub-row { display: flex; align-items: center; justify-content: flex-end; }
+.scrub-row { display: flex; align-items: center; gap: 6px; padding-top: 4px; }
+.scrub-row select.preset-select { padding: 2px 4px 2px 8px; font-size: 11px; }
+/* the run picker carries one line of text, not the width of the longest run name there has ever been */
+select.run-pick { max-width: 132px; }
 input.run-name { width: 190px; flex: 0 0 auto; padding: 3px 9px; border-radius: 999px; font-size: 11.5px;
   box-shadow: inset 0 0 0 1px var(--accent); background: var(--panel); color: var(--text); }
 
 /* ---- preset row above the tabs: load a preset, or a version of this one */
-.preset-bar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 14px 22px 0; flex: none; }
-.preset-bar input.name-input { flex: 1 1 120px; width: auto; min-width: 110px; font-size: 14px;
-  background: var(--panel); box-shadow: inset 0 0 0 1px var(--line); padding: 5px 9px; }
+.preset-bar { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; padding: 10px 18px 0; flex: none; }
+.preset-bar input.name-input { flex: 1 1 110px; width: auto; min-width: 96px; font-size: 13px;
+  background: var(--panel); box-shadow: inset 0 0 0 1px var(--line); padding: 4px 9px; }
+.preset-bar .pill.small { padding: 4px 9px; font-size: 12px; }
+.preset-bar .icon-btn { padding: 4px 7px; line-height: 0; }
+.preset-bar .icon-btn svg { display: block; }
 .preset-bar select.preset-select { background-color: var(--panel); box-shadow: inset 0 0 0 1px var(--line); max-width: 150px; }
+/* the version picker is the name field's twin: same box, same height, its own chevron */
+.preset-bar select.preset-select.boxed { background-color: var(--panel); box-shadow: inset 0 0 0 1px var(--line);
+  border-radius: 999px; padding: 4px 24px 4px 10px; font-size: 12px; font-weight: 600; color: var(--text-2);
+  max-width: 180px; }
+.preset-bar select.preset-select.boxed:hover { color: var(--text); }
+/* the design's buttons, then room, then the versions */
+.bar-gap { width: 12px; flex: none; }
 .preset-bar select.preset-select:hover { background-color: var(--soft); }
-.preset-bar select.pick { flex: 0 0 auto; min-width: 0; width: 30px; padding: 5px 20px 5px 2px; }
+/* The name and the list of designs are one control: the field, with its arrow inside it on the right.
+   The select itself is laid over that corner and made invisible, so the list is the system's own. */
+.name-picker { position: relative; display: inline-flex; align-items: center; flex: 1 1 110px; min-width: 96px; }
+.name-picker input.name-input { flex: 1 1 auto; width: 100%; padding-right: 26px; }
+.preset-bar .name-picker select.pick { position: absolute; right: 0; top: 0; height: 100%; width: 26px;
+  min-width: 0; padding: 0; opacity: 0; cursor: pointer; background: transparent; }
+.name-picker::after { content: ""; position: absolute; right: 9px; top: 50%; margin-top: -2px; pointer-events: none;
+  border: 4px solid transparent; border-top-color: var(--text-3); }
+.name-picker:hover::after { border-top-color: var(--text-2); }
 
 /* ---- sections: one rule for every tab
    A section is the white box. Its title is the handle that opens and closes it, its contents sit directly
@@ -561,3 +617,8 @@ table.grid tr.pair-top input.sym, table.grid tr.pair-bottom input.sym { accent-c
 #mi-steps .step.editing { background: var(--sel-blk); border-radius: 10px; padding: 2px 6px; margin: 0 -6px; }
 #mi-steps .step [data-edit] { flex: 1; flex-wrap: wrap; row-gap: 4px; }
 #mi-steps .step + .step { margin-top: 2px; }
+/* the step being flown right now, and the ones already flown */
+#mi-steps .step.now { background: var(--sel-blk); border-radius: 10px; padding: 2px 6px; margin: 0 -6px; }
+#mi-steps .step.now .step-text { color: var(--accent); font-weight: 600; }
+#mi-steps .step.now .step-text b::after { content: "▸"; margin-left: 4px; }
+#mi-steps .step.done .step-text { color: var(--text-3); }

@@ -90,6 +90,9 @@ class PX4Link:
         self.board_sys: dict = {}            # SYS_STATUS: comm drop rate etc.
         self.rc: dict = {}                   # RC_CHANNELS from the autopilot
         self.board_att: dict = {}            # ATTITUDE as PX4 estimates it (in its own, possibly rotated, frame)
+        self.board_state: dict = {}          # where the aircraft is, as it reports it: LOCAL_POSITION_NED + the quaternion
+        self.board_motors: list[float] = []  # what the outputs are doing (ESC_STATUS / ACTUATOR_OUTPUT_STATUS)
+        self.block_hil = False               # listening to a real flight: never inject sensors
         self.manual_last: dict = {}          # last MANUAL_CONTROL we sent (USB joystick)
         self._shell_buf = bytearray()
         self._shell_lock = threading.Lock()
@@ -169,6 +172,18 @@ class PX4Link:
         with self._write_lock:
             self.conn.mav.hil_gps_send(**g)
 
+    def send_hil_optical_flow(self, f: dict) -> None:
+        if self.mode == "hitl" and (getattr(self, "block_hil", False) or self.params.get("SYS_HITL", {}).get("value") != 1):
+            return  # Never inject simulator sensors into a real-flight board.
+        with self._write_lock:
+            self.conn.mav.hil_optical_flow_send(**f)
+
+    def send_distance_sensor(self, d: dict) -> None:
+        if self.mode == "hitl" and (getattr(self, "block_hil", False) or self.params.get("SYS_HITL", {}).get("value") != 1):
+            return  # Never inject simulator sensors into a real-flight board.
+        with self._write_lock:
+            self.conn.mav.distance_sensor_send(**d)
+
     def send_hil_state_quaternion(self, st: dict) -> None:
         if self.mode == "hitl" and (getattr(self, "block_hil", False) or self.params.get("SYS_HITL", {}).get("value") != 1):
             return  # Never inject simulator sensors into a real-flight board.
@@ -193,6 +208,22 @@ class PX4Link:
     # heavy streams are throttled or switched off; the UI reads ATTITUDE, HIGHRES_IMU and the status messages.
     TELEMETRY_RATES_HZ = {30: 20, 105: 10, 31: 0, 33: 5, 32: 0, 331: 0, 65: 10, 83: 0, 36: 0, 141: 5, 24: 5, 74: 5, 85: 0,
                           12901: 0}   # ATTITUDE, HIGHRES_IMU, ATT_QUAT, GLOBAL_POS, LOCAL_POS, ODOMETRY, RC_CH, ATT_TGT, SERVO_RAW, ALT, GPS_RAW, VFR_HUD, POS_TGT, ODID
+
+    # Listening to a real flight: the streams that say where the aircraft is and what its motors are doing,
+    # at a rate the graph can use. Nothing is written to the vehicle beyond asking for these.
+    FLIGHT_RATES_HZ = {30: 25, 31: 25, 32: 25, 105: 20, 36: 10, 291: 5, 147: 2, 74: 5, 24: 2, 33: 5}
+    #                  ATTITUDE, ATT_QUAT, LOCAL_POS, HIGHRES_IMU, SERVO_OUT, ESC_STATUS, BATTERY, VFR_HUD, GPS, GLOBAL_POS
+
+    def request_flight_telemetry(self) -> None:
+        for msg_id, hz in self.FLIGHT_RATES_HZ.items():
+            self.send_command_long(mavlink.MAV_CMD_SET_MESSAGE_INTERVAL, float(msg_id), 1e6 / hz)
+            time.sleep(0.02)
+        self.log("[link] asked the aircraft for position, attitude and motor telemetry")
+
+    @property
+    def listening(self) -> bool:
+        """True when a board is flying on its own sensors and this app is only watching it."""
+        return self.mode == "hitl" and (self.block_hil or self.params.get("SYS_HITL", {}).get("value") != 1)
 
     def trim_telemetry(self) -> None:
         """Throttle the board's default telemetry streams (HITL); 0 Hz disables a stream."""
@@ -377,6 +408,16 @@ class PX4Link:
                         self._shell_buf += bytes(msg.data[:msg.count])
             elif t == "ATTITUDE":
                 self.board_att = {"roll": msg.roll, "pitch": msg.pitch, "yaw": msg.yaw, "t": time.time()}
+                self.board_state.update(rates=[msg.rollspeed, msg.pitchspeed, msg.yawspeed],
+                                        euler=[msg.roll, msg.pitch, msg.yaw], t_att=time.time())
+            elif t == "ATTITUDE_QUATERNION":
+                self.board_state.update(q=[msg.q1, msg.q2, msg.q3, msg.q4],
+                                        rates=[msg.rollspeed, msg.pitchspeed, msg.yawspeed], t_att=time.time())
+            elif t == "LOCAL_POSITION_NED":
+                self.board_state.update(pos=[msg.x, msg.y, msg.z], vel=[msg.vx, msg.vy, msg.vz], t_pos=time.time())
+            elif t == "ACTUATOR_OUTPUT_STATUS":
+                self.board_motors = [float(v) for v in list(msg.actuator)[:max(0, int(msg.active))]]
+
             elif t == "RC_CHANNELS":
                 n = int(msg.chancount)
                 vals = [getattr(msg, f"chan{i}_raw") for i in range(1, 19)]
@@ -655,6 +696,12 @@ class PX4Link:
             "actuator_armed": self.actuator_armed,
             "rx_types": dict(sorted(self.rx_types.items(), key=lambda kv: -kv[1])[:25]),
             "events": [e for e in list(self.recent_events)[-12:]],
+            "listening": self.listening,
+            # how long ago the aircraft last said where it is: a real flight is only "working" while this
+            # keeps arriving, and over a radio it is the first thing to go
+            "telemetry_age": round(time.time() - max(self.board_state.get("t_pos", 0.0),
+                                                     self.board_state.get("t_att", 0.0)), 2)
+            if self.board_state else None,
             "board_imu": self.board_imu,
             "board_sys": self.board_sys,
             "board_att": self.board_att,

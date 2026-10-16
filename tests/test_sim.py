@@ -314,7 +314,8 @@ def test_wait_wind_and_motor_failure_phases():
     advance(simr, runner, 0.3)
     assert runner.phase["name"] == "w1" and simr.sim.wind_ned.tolist() == [0.0, 0.0, 0.0]
     advance(simr, runner, 0.3)
-    assert simr.sim.wind_ned.tolist() == [-5.0, 1.0, 0.0]
+    # the wind is kept as a speed and a direction now (sim/wind.py), so a vector round-trips through trig
+    assert simr.sim.wind_ned.tolist() == pytest.approx([-5.0, 1.0, 0.0])
     assert simr.sim.rotors.scale.tolist() == [0.0, 1.0, 1.0, 1.0]
     assert runner.phase["name"] == "w2"
     advance(simr, runner, 1.0)
@@ -334,7 +335,7 @@ def test_scenario_initial_wind_applied():
     sc = Scenario(phases=[{"type": "wait", "duration": 0.1}], wind=[3, 0, 0])
     runner = ScenarioRunner(sc, FakeLink())
     advance(simr, runner, 0.05, physics=False)
-    assert simr.sim.wind_ned.tolist() == [3.0, 0.0, 0.0]
+    assert simr.sim.wind_ned.tolist() == pytest.approx([3.0, 0.0, 0.0])
 
 
 def test_hold_phase_sets_mode_and_target():
@@ -443,6 +444,6 @@ def test_simulator_without_link_idles():
     snap = simr.snapshot()
     assert snap["on_ground"] is True and len(snap["rotors"]) == 4 and snap["rotor_health"] == [1.0] * 4
     simr.set_wind(1.0, 2.0)
-    assert simr.sim.wind_ned.tolist() == [1.0, 2.0, 0.0]
+    assert simr.sim.wind_ned.tolist() == pytest.approx([1.0, 2.0, 0.0])
     simr.set_rotor_health([0.0])
     assert simr.snapshot()["rotor_health"] == [0.0, 1.0, 1.0, 1.0]

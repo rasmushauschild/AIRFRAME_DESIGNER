@@ -7,7 +7,7 @@ import pytest
 pytest.importorskip("OCP")
 
 from airframe_designer.geometry import cad as cadmod
-from airframe_designer.geometry.airframe import Airframe
+from airframe_designer.geometry.airframe import Airframe, quad_x
 from airframe_designer.geometry.paths import apply_variables, list_paths
 
 
@@ -57,7 +57,7 @@ def test_bodies_drive_the_cg(step_file):
     m = cadmod.model_from_import(r, "cad/two_bodies.step")
     m.rotation_deg = [180.0, 0.0, 0.0]          # Z-up CAD -> z down, y left -> right
     m.bodies[0].mass, m.bodies[1].mass = 20.0, 5.0
-    af = Airframe.load("airframes/quad_x.json")
+    af = quad_x()
     af.cad = m; af.mass.from_items = True; af.resolve_mass()
     # CAD z up -> FRD z down: the battery sits at (0.3, 0, -0.2)
     assert af.mass.mass == pytest.approx(25.0)
@@ -96,7 +96,7 @@ def test_rotation_origin_scale_and_paths(step_file):
     # the solid's inertia is rotated with the model and grows with scale^2
     it = m.mass_items()[0]
     assert it.inertia[2] == pytest.approx(r["bodies"][1]["inertia_unit"][2] / r["bodies"][1]["volume"] * 4)
-    af = Airframe.load("airframes/quad_x.json"); af.cad = m; af.mass.from_items = True; af.resolve_mass()
+    af = quad_x(); af.cad = m; af.mass.from_items = True; af.resolve_mass()
     assert "cad.bodies[1].mass" in list_paths(af)
     af2 = apply_variables(af, {"cad.bodies[Battery].mass": 3.0, "cad.bodies[Fuselage].mass": 1.0, "cad.bodies[0].offset[2]": -0.5})
     assert af2.mass.mass == pytest.approx(4.0)

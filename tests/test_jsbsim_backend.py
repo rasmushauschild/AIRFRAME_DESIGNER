@@ -8,6 +8,7 @@ the hover solve asks for, and position that agrees with its own integrated veloc
 That is a stricter standard than agreement was. Two engines can agree and both be wrong.
 """
 import math
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -44,7 +45,7 @@ def test_the_legs_compress_by_the_weight_divided_by_their_stiffness():
     geometry, exports to PX4 and treats as the resting posture is the pitch the aircraft really settles at.
     On ATLAS_09 those agree to a twentieth of a degree.
     """
-    af = Airframe.load("airframes/atlas_09.json")
+    af = Airframe.load(Path(__file__).parent / "data" / "atlas_09.json")
     af.resolve_mass()
     stiffness = sum(l.stiffness for l in af.active_legs())
     expected = af.mass.mass * G / stiffness

@@ -138,3 +138,14 @@ the 3D view are cached beside the STEP file as `<file>.bodies.json` (regenerated
 `MassItem` gained `inertia_products` (Ixy Ixz Iyz of the item's own inertia) for the same reason.
 
 `design.battery_wh` (optional, Wh): battery capacity for the gauge above the 3D view; the simulator integrates the ideal motor power into `energy_wh` (snapshot) and resets it with every simulation reset.
+
+`design.pixhawk_position` / `design.pixhawk_rotation` (m, and roll/pitch/yaw degrees): where the flight controller sits in the structural frame
+and how it is turned there, 0° being square with the airframe. The export writes `EKF2_IMU_POS_*` (relative to the CG, in the hover frame) and
+`SENS_BOARD_X/Y/Z_OFF` (the mount composed with the hover rotation); the simulated IMU reads in the board's own axes, so the two have to agree.
+
+`design.flow_sensor` (optional): the H-flow — an optical flow camera looking down with a rangefinder beside it.
+`{"enabled": bool, "position": [x, y, z], "rotation": [roll, pitch, yaw], "range_m": 4.0}`, position and rotation in the structural frame like the
+Pixhawk's. When enabled the simulator sends `HIL_OPTICAL_FLOW` and `DISTANCE_SENSOR` at 20 Hz and the export turns on `EKF2_OF_CTRL` /
+`EKF2_RNG_CTRL` with `EKF2_OF_POS_*`, `EKF2_RNG_POS_*`, `SENS_FLOW_ROT` (the mount's yaw, snapped to PX4's 45° steps) and `SENS_FLOW_MAXHGT`.
+PX4 assumes the lens looks along its body Z: a hover pitch tilts a square-mounted sensor away from the ground and PX4 cannot correct for it, which
+is why the Sensor positions section reports the beam angle in hover.

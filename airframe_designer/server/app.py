@@ -4,6 +4,8 @@ from __future__ import annotations
 import asyncio
 import json
 import re
+import shutil
+import subprocess
 import time
 from collections import deque
 from pathlib import Path
@@ -15,6 +17,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.concurrency import run_in_threadpool
 
 from ..geometry.airframe import Airframe, PRESETS, blank
+from ..sim.wind import WindModel
 from ..geometry.gear import generate_legs
 from ..geometry import cad as cadmod
 from ..geometry.paths import list_paths, apply_variables
@@ -22,7 +25,7 @@ from ..analysis import static as design
 from ..analysis.geometric_optimiser import optimise as geometric_optimise, default_groups
 from ..px4.link import mavlink
 from ..px4 import param_meta
-from ..sim.recorder import COLUMNS as RECORDER_COLUMNS, RunStore
+from ..sim.recorder import RunStore
 from ..px4.sitl import instance_is_free
 from ..aero import airfoils
 
@@ -203,6 +206,10 @@ def build_app(state: AppState) -> FastAPI:
     AUTOSAVE = AIRFRAME_DIR / "_autosave.json"
     _autosave_t = [0.0]
 
+    def preset_path_for(name: str) -> Path:
+        slug = re.sub(r"[^a-z0-9]+", "_", (name or "").strip().lower()).strip("_")
+        return AIRFRAME_DIR / f"{slug}.json" if slug else AUTOSAVE
+
     def preset_path(af: Airframe) -> Path:
         """Where a preset lives: airframes/<its name, slugged>.json, or the scratch file when it has no name."""
         slug = re.sub(r"[^a-z0-9]+", "_", (af.name or "").strip().lower()).strip("_")
@@ -251,7 +258,8 @@ def build_app(state: AppState) -> FastAPI:
 
     @app.get("/api/airframes")
     async def list_airframes():
-        files = sorted(p.name for p in AIRFRAME_DIR.glob("*.json"))
+        # files starting with _ are the app's own (the scratch file an unnamed design is written to)
+        files = sorted(p.name for p in AIRFRAME_DIR.glob("*.json") if not p.name.startswith("_"))
         return {"presets": list(PRESETS), "files": files}
 
     @app.post("/api/airframe/load")
@@ -317,6 +325,44 @@ def build_app(state: AppState) -> FastAPI:
         p.unlink()
         state.log(f"[preset] deleted {name}")
         return {"ok": True}
+
+    @app.post("/api/airframe/rename")
+    async def rename_airframe(body: dict):
+        """Rename the design being flown: the name and its file, not a copy of it.
+
+        The file a design lives in is its name slugged, so changing the name used to leave the old file
+        behind and start a new one. A rename moves it."""
+        name = str(body.get("name", "")).strip()
+        if not name:
+            return JSONResponse({"ok": False, "error": "a name is required"}, status_code=400)
+        old_path = preset_path(sim.airframe)
+        sim.airframe.name = name
+        new_path = preset_path(sim.airframe)
+        if new_path != old_path and new_path.exists():
+            sim.airframe.name = Airframe.load(old_path).name if old_path.is_file() else sim.airframe.name
+            return JSONResponse({"ok": False, "error": f"{new_path.name} already exists"}, status_code=409)
+        if old_path.is_file() and new_path != old_path:
+            old_path.rename(new_path)
+            state.log(f"[preset] renamed {old_path.name} -> {new_path.name}")
+        autosave(sim.airframe)
+        return {"ok": True, "file": new_path.name, "name": name}
+
+    @app.post("/api/airframe/duplicate")
+    async def duplicate_airframe(body: dict | None = None):
+        """Copy this design under a new name and open the copy. The original is left as it was."""
+        body = body or {}
+        base = str(body.get("name", "")).strip() or f"{sim.airframe.name} copy"
+        name, n = base, 2
+        while preset_path_for(name).exists():
+            name, n = f"{base} {n}", n + 1
+        af = sim.airframe.copy()
+        af.name = name
+        af.resolve_mass()
+        sim.set_airframe(af)
+        autosave(af)
+        hc = af.hover_check()
+        state.log(f"[preset] duplicated as {preset_path(af).name}")
+        return json_safe({"ok": True, "airframe": af.to_dict(), "problems": af.validate() + hc["problems"], "hover": hc})
 
     # ------------------------------------------------------------------ CAD (STEP bodies -> masses, CG)
     CAD_DIR = AIRFRAME_DIR / "cad"
@@ -524,6 +570,30 @@ def build_app(state: AppState) -> FastAPI:
             r = await run_in_threadpool(state.conn.connect_hitl, body.get("serial"), body.get("baud"))
         else:
             r = await run_in_threadpool(state.conn.connect_sitl, body.get("launch"))
+        return r
+
+    @app.post("/api/connection/flight")
+    async def connect_flight(body: dict):
+        """Listen to a real flight: attach to the board (USB or a radio), inject nothing, record everything.
+
+        The simulator stops being the aircraft's world the moment this is on - `PX4Link.listening` - and the
+        loop follows the telemetry instead of its own physics."""
+        dev = body.get("serial") or None
+        # A telemetry radio is a plain serial port at 57600 unless told otherwise; a Pixhawk on USB takes
+        # whatever the box says. Guessing wrong here looks exactly like "no link", so it is worth guessing.
+        baud = body.get("baud")
+        if dev and not baud:
+            looks_px4 = any(p["device"] == dev and p["likely_px4"] for p in state.conn.list_ports_cached())
+            baud = None if looks_px4 else 57600
+        if state.conn.mode != "hitl" or not link.ctl_connected or dev:
+            r = await run_in_threadpool(state.conn.connect_hitl, dev, baud)
+        else:
+            r = state.conn.status()
+        state.link.block_hil = True
+        sim.motor_override = None
+        sim.stop_nose_lift()
+        await run_in_threadpool(state.link.request_flight_telemetry)
+        state.log("[link] real flight: the simulator is only listening; no sensors are sent to the aircraft")
         return r
 
     @app.post("/api/connection/disconnect")
@@ -747,6 +817,26 @@ target_link_libraries(external__{name} PRIVATE px4_work_queue)
         state.log(f"[firmware] wrote {p.relative_to(FW_ROOT)} ({len(text)} bytes). Build to compile it.")
         return {"ok": True, "path": str(p.relative_to(FW_ROOT))}
 
+    @app.post("/api/firmware/open")
+    async def firmware_open(body: dict):
+        """Open a module file in VS Code, where editing C++ is actually pleasant."""
+        p = fw_resolve(str(body.get("path", "")))
+        if p is None or not p.is_file():
+            return JSONResponse({"ok": False, "error": "no such module file"}, status_code=404)
+        code = shutil.which("code") or next((c for c in (
+            "/usr/local/bin/code",
+            "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code") if Path(c).exists()), None)
+        if code is None:
+            return JSONResponse({"ok": False, "error": "VS Code's 'code' command is not on the PATH "
+                                                      "(VS Code: Shell Command: Install 'code' command in PATH)"},
+                                status_code=404)
+        try:
+            subprocess.Popen([code, str(FW_ROOT), "--goto", str(p)],
+                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except OSError as e:
+            return JSONResponse({"ok": False, "error": f"could not start VS Code: {e}"}, status_code=500)
+        return {"ok": True, "path": str(p.relative_to(FW_ROOT))}
+
     @app.post("/api/firmware/real_flight")
     async def prepare_real_flight(body: dict):
         if body.get("confirmed") is not True:
@@ -909,13 +999,16 @@ target_link_libraries(external__{name} PRIVATE px4_work_queue)
     async def push_params(body: dict | None = None):
         body = body or {}
         fw_res = {"ok": True, "rebuilt": False, "relaunched": False, "flashed": False}
-        if body.get("firmware", True) and state.conn.mode == "sitl" and getattr(state.args, "launch_px4", False):
+        # Listening to a real flight: the parameters go out over whatever link there is (USB or a radio) and
+        # nothing is built or flashed - that needs the board on a cable, and the aircraft is not on one.
+        firmware_wanted = bool(body.get("firmware", True)) and not link.listening
+        if firmware_wanted and state.conn.mode == "sitl" and getattr(state.args, "launch_px4", False):
             if link.armed:
                 return JSONResponse({"ok": False, "error": "vehicle is armed; disarm before updating PX4"}, status_code=409)
             fw_res = await run_in_threadpool(state.conn.update_firmware)
             if not fw_res.get("ok"):
                 return JSONResponse({"ok": False, "error": fw_res.get("error"), "firmware": fw_res}, status_code=500)
-        elif body.get("firmware", True) and state.conn.mode == "hitl" and (export_params().get("NLF_ENABLE") == 1):
+        elif firmware_wanted and state.conn.mode == "hitl" and (export_params().get("NLF_ENABLE") == 1):
             b = state.conn.board_firmware_status()
             if b["needs_rebuild"] or b["needs_flash"]:
                 if link.armed:
@@ -1095,12 +1188,7 @@ target_link_libraries(external__{name} PRIVATE px4_work_queue)
     async def sim_reset(body: dict | None = None):
         body = body or {}
         cancel_live("reset")
-        # A run ends when the next one begins. Keep it first: every flight is in the list without being asked for.
-        if sim.recorder.flew and sim.recorder.unsaved and sim.recorder.duration >= 2.0:
-            r = await run_in_threadpool(save_current_run)
-            if r.get("ok"):
-                state.log(f"[runs] kept {r['id']} ({r['duration']:.1f} s)")
-        sim.reset(yaw=float(body.get("yaw", 0.0)))
+        await run_in_threadpool(sim.reset, float(body.get("yaw", 0.0)))
         return {"ok": True}
 
     @app.post("/api/sim/pause")
@@ -1165,10 +1253,20 @@ target_link_libraries(external__{name} PRIVATE px4_work_queue)
         nl = sim.start_nose_lift(motors, float(body.get("target_pitch_deg", sim.airframe.hover_pitch_deg)), **kw)
         return {"ok": True, "status": nl.status()}
 
+    @app.get("/api/sim/wind")
+    async def sim_wind_get():
+        return {"ok": True, "wind": sim.wind.to_dict(), "now": sim.sim.wind_ned.tolist()}
+
     @app.post("/api/sim/wind")
     async def sim_wind(body: dict):
-        sim.set_wind(float(body.get("north", 0)), float(body.get("east", 0)), float(body.get("down", 0)))
-        return {"ok": True}
+        """Set the wind: either a plain {north, east, down} vector, or the whole model with its gusts."""
+        model = sim.set_wind_model(WindModel.from_dict(body))
+        return {"ok": True, "wind": model.to_dict(), "now": sim.sim.wind_ned.tolist()}
+
+    @app.post("/api/sim/wind/preview")
+    async def sim_wind_preview(body: dict):
+        """What that model would blow over the next minute. Drawn in the Wind section; changes nothing."""
+        return {"ok": True, **WindModel.from_dict(body).preview(float(body.get("seconds", 60.0)))}
 
     @app.post("/api/sim/noise")
     async def sim_noise(body: dict):
@@ -1236,8 +1334,6 @@ target_link_libraries(external__{name} PRIVATE px4_work_queue)
                 runner(simr)
                 if runner.done and step_live in simr.hooks:
                     simr.hooks.remove(step_live)
-                    if not runner.ok:
-                        simr.paused = True
             live.update(runner=runner, hook=step_live, animation_cg=list(sim.airframe.mass.cg), animation_name=sim.airframe.name)
             sim.hooks.append(step_live)
             sim.speed = 1.0
@@ -1251,7 +1347,8 @@ target_link_libraries(external__{name} PRIVATE px4_work_queue)
             r = live["runner"]
             if r is None:
                 return {"running": False}
-            return json_safe({"running": not r.done, "phase": r.phase, **r.result(sim.airframe.mass.mass)})
+            return json_safe({"running": not r.done, "phase": r.phase, "index": r.index,
+                              "phase_count": len(r.sc.phases), **r.result(sim.airframe.mass.mass)})
 
     @app.get("/api/sim/scenario/timeseries")
     async def live_scenario_timeseries():
@@ -1285,8 +1382,9 @@ target_link_libraries(external__{name} PRIVATE px4_work_queue)
         if state.conn.mode != "sitl":
             return JSONResponse({"error": "Visible scripted tests require SITL"}, status_code=409)
         cancel_live("stopped")
-        sim.paused = True
-        return {"ok": True, "paused": True}
+        # Stop stops the sequence, not the simulation: the aircraft keeps flying under PX4 (Pause, Land or
+        # Kill are the things that stop it), and the graph keeps recording.
+        return {"ok": True}
 
     # ------------------------------------------------------------ scenarios / batch / studies
     @app.get("/api/scenarios")
@@ -1322,8 +1420,11 @@ target_link_libraries(external__{name} PRIVATE px4_work_queue)
             params = state.conn.export_params_fn() if state.conn.export_params_fn else {}
         except Exception:
             params = {}
+        # the flight controller's own words from the span this run covers, kept with it
+        t0 = sim.recorder.started - 1.0
+        log = [[t, text] for t, text in list(state.log_buffer) if t >= t0 and str(text).startswith("[px4]")]
         return RUNS.save(sim.recorder, airframe=sim.airframe.to_dict(), params=params,
-                         name=name or sim.airframe.name, note=note)
+                         name=name or sim.airframe.name, note=note, log=log)
 
     @app.get("/api/runs")
     async def runs_list():
@@ -1336,7 +1437,7 @@ target_link_libraries(external__{name} PRIVATE px4_work_queue)
         only the part that happened while this page was open. Incremental: ask for the rows after `since`."""
         rows = sim.recorder.rows
         since = max(0, min(int(since), len(rows)))
-        return {"columns": RECORDER_COLUMNS, "rows": rows[since:], "total": len(rows), "since": since,
+        return {"columns": list(sim.recorder.columns), "rows": rows[since:], "total": len(rows), "since": since,
                 "duration": round(sim.recorder.duration, 2), "flew": sim.recorder.flew}
 
     @app.get("/api/runs/{run_id}")
@@ -1346,12 +1447,21 @@ target_link_libraries(external__{name} PRIVATE px4_work_queue)
             return JSONResponse({"ok": False, "error": "no such run"}, status_code=404)
         return doc
 
+    @app.post("/api/runs/clear")
+    async def runs_clear():
+        """Throw the recording away and start the graph again. The simulation is not touched."""
+        sim.recorder.reset()
+        return {"ok": True}
+
     @app.post("/api/runs/save")
     async def runs_save(body: dict | None = None):
         body = body or {}
         r = await run_in_threadpool(save_current_run, str(body.get("name", "")), str(body.get("note", "")))
         if r.get("ok"):
             state.log(f"[runs] saved {r['id']} ({r['samples']} samples, {r['duration']:.1f} s)")
+            if body.get("clear"):
+                # Saving a run ends it: the graph starts again from zero while the simulation keeps flying.
+                sim.recorder.reset()
         return r
 
     @app.post("/api/runs/{run_id}/rename")

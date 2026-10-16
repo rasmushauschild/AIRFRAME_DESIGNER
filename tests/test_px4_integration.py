@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import pytest
 
-from .conftest import AIRFRAMES_DIR
+from .conftest import DATA_DIR
 
 pytestmark = [pytest.mark.px4, pytest.mark.slow]
 
@@ -18,7 +18,7 @@ def test_hover_scenario_on_quad_x():
 
     if not instance_is_free(PX4_INSTANCE):
         pytest.skip(f"PX4 SITL instance {PX4_INSTANCE} is in use")
-    result = run_once(str(AIRFRAMES_DIR / "quad_x.json"), "hover", instance=PX4_INSTANCE, timeout_wall=240, quiet=True)
+    result = run_once(str(DATA_DIR / "quad_x.json"), "hover", instance=PX4_INSTANCE, timeout_wall=240, quiet=True)
     assert result["ok"], {"status": result.get("status"), "failures": result.get("failures"), "log": result.get("log")}
     assert result["status"] == "done" and result["failures"] == []
     m = result["metrics"]

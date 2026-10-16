@@ -147,7 +147,7 @@ class ScenarioRunner:
             self._started = True
             self._rest_alt = -float(s.pos[2])
             if any(abs(v) > 0 for v in self.sc.wind):
-                simr.sim.wind_ned = np.array(self.sc.wind, float)
+                simr.set_wind(*[float(v) for v in (list(self.sc.wind) + [0.0, 0.0, 0.0])[:3]])
             self._next(simr)
             if self.done:
                 return
@@ -357,8 +357,9 @@ class ScenarioRunner:
             self._next(simr)
 
     def _p_wind(self, simr) -> None:
-        simr.sim.wind_ned = np.array(self.phase.get("ned", [0, 0, 0]), float)
-        self.metrics.note(simr.t, f"wind set to {simr.sim.wind_ned.tolist()}")
+        simr.set_wind(*[float(v) for v in (list(self.phase.get("ned", [0, 0, 0])) + [0.0, 0.0, 0.0])[:3]])
+        # the vector has been through a speed and a direction, so say it without the float dust
+        self.metrics.note(simr.t, f"wind set to {[round(v, 6) + 0.0 for v in simr.sim.wind_ned.tolist()]}")
         self._next(simr)
 
     def _p_motor_failure(self, simr) -> None:

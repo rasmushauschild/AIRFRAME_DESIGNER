@@ -93,7 +93,8 @@ class NativeConnectionManager(ConnectionManager):
                     self.sim._rtf_t0 = time.perf_counter()
                     self.sim._rtf_sim0 = 0
                     self.sim.nose_lift_last = None
-                    self.sim.paused = False
+                    # whether the loop is running is the user's: the app opens stopped and Start is the
+                    # only thing that starts it, so relaunching PX4 under it must not start it instead
                 return super().connect_sitl(True)
             finally:
                 if was_running:

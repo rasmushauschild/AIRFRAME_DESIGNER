@@ -16,9 +16,11 @@ from typing import Callable
 
 import numpy as np
 
+from ..dynamics.quaternion import q_from_euler, q_normalize
 from ..geometry.airframe import Airframe
 from ..sensors import SensorSuite, Home
 from .recorder import Recorder
+from .wind import WindModel
 
 
 class Simulator:
@@ -36,6 +38,10 @@ class Simulator:
         self.substeps = max(1, int(physics_substeps))
         self.gps_every = max(1, int(round(sensor_rate / gps_rate)))
         self.state_every = max(1, int(round(sensor_rate / 50.0)))
+        self.flow_every = max(1, int(round(sensor_rate / 20.0)))   # the H-flow sensor's frame rate
+        self.wind = WindModel()
+        self._last_flow: dict = {}       # the last H-flow reading, for the recorder
+        self._tele_t: float | None = None    # wall clock of the last telemetry sample (real flight)
         self.speed = speed
         self.lockstep = (link is not None and link.mode == "sitl") if lockstep is None else bool(lockstep)
         self.time_usec = 0
@@ -96,15 +102,55 @@ class Simulator:
         self.power_avg_w += (pw - self.power_avg_w) * min(1.0, dt / 5.0)
 
     def reset(self, yaw: float = 0.0) -> None:
+        """Put the aircraft back on the ground. The recording is not touched: a reset is something that
+        happens *during* a session, and the graph is the session. Only saving a run clears it."""
         with self.lock:
             self.sim.reset(yaw=yaw)
-            self.recorder.reset()
             self.energy_wh = 0.0
             self.power_avg_w = 0.0
             self.motor_override = None
             self.nose_lift = None
             if self.link is not None:
                 self.link.clear_actuators()
+
+    def _follow_telemetry(self, link, dt: float) -> None:
+        """Put the aircraft where the vehicle says it is, and record that. No physics, no sensors."""
+        now = time.perf_counter()
+        elapsed = min(0.5, max(0.0, now - (self._tele_t or now)))
+        self._tele_t = now
+        st = dict(getattr(link, "board_state", {}) or {})
+        with self.lock:
+            s = self.sim
+            if st.get("pos"):
+                s.pos = np.asarray(st["pos"], float)
+            if st.get("vel"):
+                s.vel = np.asarray(st["vel"], float)
+            if st.get("q"):
+                s.q = q_normalize(np.asarray(st["q"], float))
+            elif st.get("euler"):
+                s.q = q_from_euler(*[float(v) for v in st["euler"]])
+            if st.get("rates"):
+                s.rates = np.asarray(st["rates"], float)
+            s.on_ground = bool(-float(s.pos[2]) < 0.4)
+            s.breakdown = {}
+            self.time_usec += int(round(elapsed * 1e6))
+            try:
+                self.recorder.sample(self.time_usec / 1e6, s, self._link_status(link),
+                                     self.battery_percent(), motors=list(getattr(link, "board_motors", []) or []))
+            except Exception as e:
+                self.log(f"[sim] recorder failed: {e}")
+        self._idle()
+
+    @staticmethod
+    def _link_status(link) -> dict:
+        """What the recorder wants to know about the flight controller: armed, and which mode it is in.
+
+        PX4 packs the mode into its heartbeat; the number kept here is the main mode, with the Auto sub-mode
+        behind the decimal point (4.03 is Auto/Hold), so one column plots as a readable staircase."""
+        custom = int(getattr(link, "custom_mode", 0) or 0)
+        main, sub = (custom >> 16) & 0xFF, (custom >> 24) & 0xFF
+        return {"armed": bool(getattr(link, "armed", False)),
+                "mode": main + (sub / 100.0 if main == 4 else 0.0)}
 
     def battery_percent(self) -> float:
         """Charge left, as the gauge shows it. 100 when no capacity is configured."""
@@ -132,8 +178,14 @@ class Simulator:
                 self.sim.reset()
 
     def set_wind(self, north: float, east: float, down: float = 0.0) -> None:
+        """A steady wind from a vector. Any gusts stop: the wind has one owner, and this is it."""
+        self.set_wind_model(WindModel.from_vector(north, east, down))
+
+    def set_wind_model(self, model: WindModel) -> WindModel:
         with self.lock:
-            self.sim.wind_ned = np.array([north, east, down], dtype=float)
+            self.wind = model
+            self.sim.wind_ned = model.at(self.time_usec / 1e6)
+            return self.wind
 
     def start_nose_lift(self, motors, target_pitch_deg: float, **kw):
         from .nose_lift import NoseLift
@@ -175,6 +227,11 @@ class Simulator:
             self._idle()
             return False
         dt = 1.0 / self.sensor_rate
+        if getattr(link, "listening", False):
+            # A real flight: there is nothing to simulate. The aircraft is the truth, so the 3D view and the
+            # recording follow its telemetry and no sensor is ever sent to it.
+            self._follow_telemetry(link, dt)
+            return True
         sub_dt = dt / self.substeps
         with self.lock:
             cmd = self.motor_override if self.motor_override is not None else link.actuators
@@ -187,6 +244,7 @@ class Simulator:
                     self.nose_lift = None
                 else:
                     cmd = np.maximum(np.asarray(cmd, float)[: self.sim.rotors.n], fl)   # the sequence holds a floor under PX4
+            self.sim.wind_ned = self.wind.at(self.time_usec / 1e6)
             self.sim.set_motor_commands(cmd)
             try:
                 for k in range(self.substeps):
@@ -214,8 +272,8 @@ class Simulator:
                 except Exception as e:
                     self.log(f"[sim] nose lift failed: {e}"); self.nose_lift = None
             try:
-                self.recorder.sample(self.time_usec / 1e6, self.sim, {"armed": bool(getattr(link, "armed", False))},
-                                     self.battery_percent())
+                self.recorder.sample(self.time_usec / 1e6, self.sim, self._link_status(link),
+                                     self.battery_percent(), extra=self._last_flow)
             except Exception as e:
                 self.log(f"[sim] recorder failed: {e}")
             for h in list(self.hooks):
@@ -227,6 +285,18 @@ class Simulator:
             gps = self.sensors.hil_gps(self.sim, t_us) if self.step_count % self.gps_every == 0 else None
             send_state = link.mode == "sitl" and self.step_count % self.state_every == 0
             state = self.sensors.hil_state_quaternion(self.sim, t_us) if send_state else None
+            flow = dist = None
+            if self.step_count % self.flow_every == 0:
+                flow = self.sensors.hil_optical_flow(self.sim, t_us, self.flow_every * dt)
+                dist = self.sensors.distance_sensor(self.sim, t_us)
+                if flow is not None:
+                    # what the sensor read, for the graph: the rate it saw and how far the ground was
+                    span = max(1e-6, flow["integration_time_us"] * 1e-6)
+                    self._last_flow = {"flow_rate": (-flow["integrated_x"] / span, -flow["integrated_y"] / span),
+                                       "flow_range": flow["distance"], "flow_quality": flow["quality"],
+                                       "alt_baro": sensor["pressure_alt"] - self.sensors.home.alt}
+                else:
+                    self._last_flow = {"alt_baro": sensor["pressure_alt"] - self.sensors.home.alt}
         self.step_count += 1
         seq_before = link.actuator_seq
         try:
@@ -234,6 +304,9 @@ class Simulator:
                 link.send_hil_gps(gps)
             if state is not None:
                 link.send_hil_state_quaternion(state)
+            if flow is not None:
+                link.send_hil_optical_flow(flow)
+                link.send_distance_sensor(dist)
             link.send_hil_sensor(sensor)
         except Exception as e:
             if time.time() - self._last_send_err > 3.0:

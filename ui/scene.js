@@ -114,8 +114,14 @@ export function createScene(canvas, handlers) {
   const cadMat = new THREE.MeshStandardMaterial({ color: 0xaab0bb, roughness: 0.55, metalness: 0.15, transparent: true, opacity: 0.85, depthWrite: true });
   const cadHeavyColor = new THREE.Color(0xff2020);
   const cadMarkerMat = new THREE.MeshStandardMaterial({ color: 0xff2d92, emissive: 0xff2d92, emissiveIntensity: 0.4, roughness: 0.4 });
-  let camMode = 'static';   // 'static' | 'track' (look at the drone) | 'follow' (move with it)
+  let camMode = 'follow';   // 'static' | 'track' (look at the drone) | 'follow' (move with it)
+  // Turning around the aircraft and zooming in on it are still following it; dragging the view away from
+  // it is not. There is no public way to ask OrbitControls which gesture is happening, but there is no
+  // need: a pan moves its target and a rotation does not, so a target that has drifted from where we put
+  // it last frame *is* the user taking the camera. That is when following stops and the button appears.
+  let viewMoved = false, onViewMoved = null, settleUntil = 0;
   const lastVehiclePos = new THREE.Vector3();
+  const lastTarget = new THREE.Vector3(NaN, NaN, NaN);
 
   // gizmo
   const gizmo = new TransformControls(camera, canvas);
@@ -487,9 +493,16 @@ export function createScene(canvas, handlers) {
     if (camMode === 'track') {
       orbit.target.lerp(vehicle.position, 0.15);
     } else if (camMode === 'follow') {
-      const delta = vehicle.position.clone().sub(lastVehiclePos);
-      camera.position.add(delta);
-      orbit.target.copy(vehicle.position);
+      // after being handed back, the controls are still easing out of the last gesture: that tail is not
+      // the user panning again, so the check waits for it to die down
+      if (isFinite(lastTarget.x) && performance.now() > settleUntil && orbit.target.distanceTo(lastTarget) > 1e-4) {
+        camMode = 'static';                       // panned away: the view is the user's now
+        if (!viewMoved) { viewMoved = true; if (onViewMoved) onViewMoved(); }
+      } else {
+        camera.position.add(vehicle.position.clone().sub(lastVehiclePos));
+        orbit.target.copy(vehicle.position);
+        lastTarget.copy(orbit.target);
+      }
     }
     lastVehiclePos.copy(vehicle.position);
   }
@@ -503,6 +516,7 @@ export function createScene(canvas, handlers) {
     }
   }
   const axesInset = makeAxesInset();
+  const windInset = makeWindInset();
   function animate() {
     resize();
     orbit.update();
@@ -510,6 +524,7 @@ export function createScene(canvas, handlers) {
     renderer.setScissorTest(false);
     renderer.render(scene, camera);
     axesInset.render(renderer, camera, canvas);
+    windInset.render(renderer, camera, canvas);
     requestAnimationFrame(animate);
   }
   animate();
@@ -525,6 +540,7 @@ export function createScene(canvas, handlers) {
     gridCoarse.material.transparent = true; gridCoarse.material.opacity = 0.5;
     scene.add(grid, gridCoarse);
     axesInset.setTheme(name);
+    windInset.setTheme(name);
     bodyMat.color.set(theme.body); armMat.color.set(theme.arm); motorMat.color.set(theme.motor); legMat.color.set(theme.arm); legMatOff.color.set(theme.arm);
     rotorNodes.forEach(n => { n.label.material.map = makeSprite(String(n.rotorIndex + 1), name === 'dark' ? '#fafafa' : '#171717', name === 'dark').material.map; });
   }
@@ -532,6 +548,7 @@ export function createScene(canvas, handlers) {
 
   return {
     setAirframe, updateState, select, updateRotorNode, setTheme, highlightMotorTest,
+    setWind: (ned) => windInset.setWind(ned),
     get selectedCadIds() { return [...selectedCadIds]; },
     setCad, selectCad, syncCad: () => airframe && syncCad(airframe),
     get selectedCad() { return selectedCad; },
@@ -547,9 +564,12 @@ export function createScene(canvas, handlers) {
         orbit.target.copy(vehicle.position);
         lastVehiclePos.copy(vehicle.position);
         orbit.update();
+        lastTarget.copy(orbit.target);
       }
     },
     setFollow: (b) => { camMode = b ? 'track' : 'static'; if (!b) orbit.target.set(0, 0.1, 0); },
+    onCameraMoved: (cb) => { onViewMoved = cb; },
+    recenterView() { viewMoved = false; settleUntil = performance.now() + 600; this.setCameraMode('follow'); },
     setMode: (m) => gizmo.setMode(m),
     get selected() { return selected; },
     focusOrigin: () => { orbit.target.set(0, 0.1, 0); camera.position.set(1.4, 1.0, 1.6); },
@@ -630,6 +650,77 @@ function makeAxesInset() {
     },
     setTheme() { },
   };
+}
+
+// The wind, beside the coordinate indicator: one arrow pointing where the air is going. How hard it blows
+// is the length and the colour - pale grey in a breath of air, deep blue at 12 m/s and above - so there is
+// no text to read in a 100-pixel box. The number is on the overlay above the view.
+function makeWindInset() {
+  const scene = new THREE.Scene();
+  const cam = new THREE.PerspectiveCamera(44, 1, 0.1, 20);
+  const arrow = new THREE.ArrowHelper(new THREE.Vector3(1, 0, 0), new THREE.Vector3(), 1.2, 0x94a3b8, 0.38, 0.22);
+  // Still air is a fact about the flight, not an absence of one: the box says so instead of going blank.
+  const calmLabel = makeWindLabel('no wind');
+  scene.add(arrow, calmLabel, new THREE.AmbientLight(0xffffff, 1));
+  const dir = new THREE.Vector3();
+  const calm = new THREE.Color(0x94a3b8), blown = new THREE.Color(0x0369a1), shade = new THREE.Color();
+  const FULL = 12;                                  // the speed at which the arrow is as long and as deep as it gets
+  return {
+    setWind(ned) {
+      const speed = ned && ned.length >= 2 ? Math.hypot(ned[0], ned[1], ned[2] || 0) : 0;
+      calmLabel.visible = speed < 0.05;
+      arrow.visible = !calmLabel.visible;
+      if (calmLabel.visible) return;
+      // NED -> three (x north, y up, z east); the arrow points where the air is going
+      arrow.setDirection(new THREE.Vector3(ned[0], -(ned[2] || 0), ned[1]).normalize());
+      const f = Math.min(1, speed / FULL);
+      arrow.setLength(0.45 + 0.85 * f, 0.3 + 0.1 * f, 0.18 + 0.06 * f);
+      arrow.setColor(shade.copy(calm).lerp(blown, f));
+    },
+    render(renderer, mainCam) {
+      if (!arrow.visible && !calmLabel.visible) return;
+      // The same camera and the same crop as the axes, in a box 58 px to their left: the two arrows are then
+      // drawn at the same scale and sit on the same line, which is what makes them read as one indicator.
+      const sz = renderer.getSize(new THREE.Vector2());
+      const size = 100, off = 1.32, gap = 58;
+      const x = Math.max(0, sz.x - size - gap), y = 0;
+      mainCam.getWorldDirection(dir);
+      cam.position.copy(dir).multiplyScalar(-6.6 * off); cam.up.copy(mainCam.up); cam.lookAt(0, 0, 0);
+      cam.setViewOffset(size * off, size * off, 0, 0, size, size);
+      cam.updateProjectionMatrix();
+      const autoClear = renderer.autoClear;
+      renderer.autoClear = false;
+      renderer.clearDepth();
+      renderer.setScissorTest(true);
+      renderer.setScissor(x, y, size, size);
+      renderer.setViewport(x, y, size, size);
+      renderer.render(scene, cam);
+      renderer.setScissorTest(false);
+      renderer.setViewport(0, 0, sz.x, sz.y);
+      renderer.autoClear = autoClear;
+    },
+    setTheme(name) { calmLabel.material.map = makeWindLabel('no wind', name === 'dark').material.map; },
+  };
+}
+
+// Plain words for the wind box, at the size the rest of the app writes in. No box around them: there is
+// nothing to press, it is just what the air is doing.
+function makeWindLabel(text, dark = document.documentElement.dataset.theme === 'dark') {
+  const FONT = '600 40px -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif';
+  const c = document.createElement('canvas');
+  const probe = c.getContext('2d');
+  probe.font = FONT;
+  const w = Math.ceil(probe.measureText(text).width) + 8, h = 56;
+  c.width = w; c.height = h;
+  const g = c.getContext('2d');
+  g.font = FONT;
+  g.fillStyle = dark ? 'rgba(235,235,240,0.80)' : 'rgba(90,95,105,0.80)';
+  g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillText(text, w / 2, h / 2);
+  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), depthTest: false }));
+  // the inset box is about 19 screen pixels per world unit: 0.62 units is a 12 pixel line of text
+  sprite.scale.set(0.62 * (w / h), 0.62, 1);
+  return sprite;
 }
 
 function makeSprite(text, color = '#171717', dark = document.documentElement.dataset.theme === 'dark') {

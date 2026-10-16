@@ -15,7 +15,7 @@ test:
 	$(PY) -m pytest -q
 
 run-hover:
-	$(PY) -m airframe_designer run --airframe airframes/atlas_08.json --scenario hover --out results/hover.json
+	$(PY) -m airframe_designer run --airframe airframes/atlas_09b.json --scenario hover --out results/hover.json
 
 study:
 	$(PY) -m airframe_designer study --spec studies/atlas08_hover_tilt.json --workers 6

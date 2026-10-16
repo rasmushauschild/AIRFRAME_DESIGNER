@@ -65,4 +65,4 @@ def schema1_dict() -> dict:
 @pytest.fixture
 def atlas08():
     from airframe_designer.geometry.airframe import Airframe
-    return Airframe.load(AIRFRAMES_DIR / "atlas_08.json")
+    return Airframe.load(DATA_DIR / "atlas_08.json")

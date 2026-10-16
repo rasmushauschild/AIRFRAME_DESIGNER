@@ -14,6 +14,7 @@ import fcntl
 import os
 import re
 import shutil
+import socket
 import struct
 import subprocess
 import threading
@@ -133,6 +134,41 @@ def autostart_id(px4_dir: str, model: str) -> int | None:
     return None
 
 
+def clear_stale_socket(instance: int, path: str | None = None, wait_s: float = 3.0) -> bool:
+    """Remove /tmp/px4-sock-<i> when nobody is listening on it.
+
+    PX4 refuses to start ("PX4 server already running for instance N", exit 2) while that socket exists, and
+    a PX4 killed outright leaves it behind: one crashed run then blocks every later one on that instance.
+    Connecting is the test - a live daemon accepts, a dead one's socket refuses - so a running PX4 is never
+    removed. The previous one is often still shutting down when the next app starts, which is why this
+    waits a few seconds for it to let go before giving up: deciding too early leaves the file behind and
+    the launch fails anyway."""
+    path = path or f"/tmp/px4-sock-{int(instance)}"
+    deadline = time.time() + max(0.0, wait_s)
+    while True:
+        if not os.path.exists(path):
+            return False
+        sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        sock.settimeout(0.3)
+        try:
+            sock.connect(path)
+            alive = True                  # somebody is home
+        except OSError:
+            alive = False
+        finally:
+            sock.close()
+        if not alive:
+            break
+        if time.time() >= deadline:
+            return False                  # a PX4 really is running on this instance
+        time.sleep(0.25)
+    try:
+        os.unlink(path)
+        return True
+    except OSError:
+        return False
+
+
 def launch_px4(px4_dir: str, model: str, log, instance: int = 0, rootfs: str | None = None,
                params: dict[str, float | int] | None = None, param_types: dict[str, str] | None = None,
                fresh: bool = False, quiet: bool = False) -> subprocess.Popen:
@@ -143,6 +179,8 @@ def launch_px4(px4_dir: str, model: str, log, instance: int = 0, rootfs: str | N
     if not binary.is_file():
         raise RuntimeError(f"PX4 SITL binary not found at {binary}. Build it with: cd {px4_dir} && make px4_sitl_default")
     inst = PX4Instance(instance, rootfs, fresh=fresh)
+    if clear_stale_socket(instance):
+        log(f"[px4] removed the socket a dead PX4 left on instance {instance}")
     if params:
         params = dict(params)
         # PX4's rcS resets every parameter when SYS_AUTOSTART in the file differs from the model's id (a fresh
@@ -159,11 +197,16 @@ def launch_px4(px4_dir: str, model: str, log, instance: int = 0, rootfs: str | N
     env.setdefault("PX4_SIMULATOR", "mavlink")
     px4_cmd = [str(binary), "-d", "-i", str(instance), "-w", str(inst.workdir), str(build / "etc")]
     log(f"[px4] launching: PX4_SIM_MODEL={model} {' '.join(px4_cmd)}")
+    # If the app goes away the PX4 it started must go too, and go for certain: one that ignores the INT
+    # keeps its /tmp/px4-sock-<i> and blocks the next launch on that instance, so it is given three seconds
+    # and then killed outright.
     watchdog = (
         'child=""; trap \'[ -n "$child" ] && kill -INT $child 2>/dev/null\' TERM INT; '
         '"$@" & child=$!; '
         'while kill -0 $AIRFRAME_SIM_PID 2>/dev/null && kill -0 $child 2>/dev/null; do sleep 0.5; done; '
-        'kill -INT $child 2>/dev/null; wait $child'
+        'kill -INT $child 2>/dev/null; '
+        'i=0; while kill -0 $child 2>/dev/null && [ $i -lt 6 ]; do sleep 0.5; i=$((i+1)); done; '
+        'kill -9 $child 2>/dev/null; wait $child'
     )
     env["AIRFRAME_SIM_PID"] = str(os.getpid())
     cmd = ["/bin/sh", "-c", watchdog, "px4-watchdog"] + px4_cmd

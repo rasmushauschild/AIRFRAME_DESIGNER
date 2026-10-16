@@ -3,7 +3,7 @@
 A study spec (JSON):
 {
   "name": "atlas08_hover_tilt",
-  "airframe": "airframes/atlas_08.json",
+  "airframe": "airframes/atlas_09b.json",
   "scenario": "scenarios/takeoff_hover_land.json",      # or "scenarios": [...] (all are run per candidate)
   "variables": [{"path": "rotors[0:8].tilt_deg", "range": [10, 50]},
                 {"path": "hover_pitch_deg", "range": [0, 40]},

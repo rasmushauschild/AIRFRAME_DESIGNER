@@ -31,6 +31,30 @@ MAX_PX4_ROTORS = 12  # CA_ROTOR0 .. CA_ROTOR11
 from ..constants import G
 
 
+def mount_rotation(angles) -> np.ndarray:
+    """Rotation taking a mounted sensor's own axes into structural axes, from (roll, pitch, yaw) degrees.
+
+    Yaw then pitch then roll, the composition PX4 uses for SENS_BOARD_*_OFF, so a board declared here and a
+    board declared to PX4 mean the same thing.
+    """
+    a = [float(x) for x in (list(angles or []) + [0.0, 0.0, 0.0])[:3]]
+    cr, sr = math.cos(math.radians(a[0])), math.sin(math.radians(a[0]))
+    cp, sp = math.cos(math.radians(a[1])), math.sin(math.radians(a[1]))
+    cy, sy = math.cos(math.radians(a[2])), math.sin(math.radians(a[2]))
+    return np.array([[cy * cp, cy * sp * sr - sy * cr, cy * sp * cr + sy * sr],
+                     [sy * cp, sy * sp * sr + cy * cr, sy * sp * cr - cy * sr],
+                     [-sp, cp * sr, cp * cr]])
+
+
+def rotation_euler_deg(R: np.ndarray) -> tuple[float, float, float]:
+    """(roll, pitch, yaw) degrees of a rotation built the way mount_rotation builds one."""
+    pitch = math.asin(max(-1.0, min(1.0, -float(R[2, 0]))))
+    if abs(math.cos(pitch)) < 1e-7:                      # straight up or down: roll and yaw are one angle
+        return 0.0, math.degrees(pitch), math.degrees(math.atan2(-float(R[0, 1]), float(R[1, 1])))
+    return (math.degrees(math.atan2(float(R[2, 1]), float(R[2, 2]))), math.degrees(pitch),
+            math.degrees(math.atan2(float(R[1, 0]), float(R[0, 0]))))
+
+
 @dataclass
 class Airframe:
     name: str = "Quad X"
@@ -278,15 +302,53 @@ class Airframe:
             # stick override is built into this PX4: a stick moved faster than MAN_OVERRIDE_SPD (normalised travel per
             # second, 1.0 = full deflection within a second) switches Offboard/auto modes to Position; keep it enabled
             p.setdefault("MAN_OVERRIDE_SPD", 1.0)
-        p["SENS_BOARD_Y_OFF"] = round(float(self.hover_pitch_deg), 2)
+        # The board as PX4 sees it: how it is bolted in, with the hover pitch on top, because PX4 calls the
+        # hover attitude level and so the hover rotation is part of the board rotation it has to undo.
+        board = self.hover_rotation() @ mount_rotation(self.design.get("pixhawk_rotation"))
+        for axis, angle in zip("XYZ", rotation_euler_deg(board)):
+            p[f"SENS_BOARD_{axis}_OFF"] = round(float(angle), 2)
         imu_pos = np.asarray(self.design.get("pixhawk_position", self.cg), float)
         imu_offset = self.hover_rotation() @ (imu_pos - self.cg)
         for axis, value in zip("XYZ", imu_offset):
             p[f"EKF2_IMU_POS_{axis}"] = round(float(value), 4)
+        p.update(self.flow_params())
         for n in range(1, 17):
             p[f"HIL_ACT_FUNC{n}"] = 101 + (n - 1) if n <= len(rotors) else 0
         if hitl:
             p["SYS_HITL"] = 1
+        return p
+
+    def flow_sensor(self) -> dict | None:
+        """The H-flow sensor as numbers, or None if this design has not got one.
+
+        ``position`` is in the structural frame; ``rotation`` (roll, pitch, yaw, degrees) turns the sensor's
+        own axes into structural axes, so 0 degrees looks along the airframe's Z and a nose-up hover tilts
+        the beam with the airframe.
+        """
+        f = self.design.get("flow_sensor") or {}
+        if not f.get("enabled"):
+            return None
+        return {"position": np.asarray(f.get("position", self.cg), float),
+                "rotation": [float(x) for x in (list(f.get("rotation") or []) + [0.0, 0.0, 0.0])[:3]],
+                "range_m": max(0.5, float(f.get("range_m", 4.0)))}
+
+    def flow_params(self) -> dict[str, float | int]:
+        """EKF2 and sensor parameters for the H-flow sensor. Written whether it is fitted or not: a parameter
+        left over from the last design would quietly keep fusing a sensor that is no longer there."""
+        f = self.flow_sensor()
+        if f is None:
+            return {"EKF2_OF_CTRL": 0, "EKF2_RNG_CTRL": 0}
+        offset = self.hover_rotation() @ (f["position"] - self.cg)
+        p: dict[str, float | int] = {"EKF2_OF_CTRL": 1, "EKF2_RNG_CTRL": 1}
+        for axis, value in zip("XYZ", offset):
+            p[f"EKF2_OF_POS_{axis}"] = round(float(value), 4)
+            p[f"EKF2_RNG_POS_{axis}"] = round(float(value), 4)
+        # PX4 knows one thing about how a flow sensor is turned: its yaw, in 45 degree steps (SENS_FLOW_ROT).
+        # A yaw between two steps, or any tilt, stays in the measurement and comes out as estimator error,
+        # which is what it does on the aircraft.
+        p["SENS_FLOW_ROT"] = int(round(f["rotation"][2] / 45.0)) % 8
+        p["SENS_FLOW_MAXHGT"] = round(min(100.0, f["range_m"]), 2)
+        p["EKF2_RNG_A_HMAX"] = round(min(100.0, f["range_m"]), 2)
         return p
 
     def px4_params_sitl(self) -> dict[str, float | int]:

@@ -6,7 +6,7 @@ The module lifts the nose to the existing 25° hover frame while ground contact 
 
 This is the native firmware source used by the main app. There is no separate demo UI or launcher.
 After building below, run `python -m airframe_designer ui` from the repository root.
-The default model is `airframes/atlas_09.json`; use `--airframe` to select another model.
+The default model is `airframes/atlas_09b.json`; use `--airframe` to select another model.
 The app refuses to silently fall back to stock firmware when this build is missing.
 
 ## Use the running simulator

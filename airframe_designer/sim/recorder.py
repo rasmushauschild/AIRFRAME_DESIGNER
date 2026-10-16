@@ -38,7 +38,24 @@ COLUMNS = [
     "wind",                                     # wind speed, m/s
     "armed",                                    # 1 or 0
     "on_ground",                                # 1 or 0
+    # what the sensors read: the accelerometer is specific force, so it reads ~-9.81 on z standing still
+    "ax", "ay", "az",                           # body accelerometer, m/s^2
+    "gx", "gy", "gz",                           # body gyro, deg/s
+    "alt_baro",                                 # pressure altitude above the start, m
+    "flow_x", "flow_y",                         # H-flow line-of-sight rate, rad/s (0 without the sensor)
+    "flow_range",                               # H-flow slant range to the ground, m (-1 = out of range)
+    "flow_q",                                   # H-flow picture quality, 0-255
+    "mode",                                     # PX4 flight mode: main mode, + sub mode / 100 when Auto
 ]
+
+#: Appended once per rotor, after the fixed columns above: the throttle PX4 asked for, what the motor has
+#: actually spooled up to (both 0-1), and the thrust that makes, in newtons.
+ROTOR_COLUMNS = ("cmd", "spool", "thrust")
+
+
+def columns_for(rotors: int) -> list[str]:
+    """The column list of a recording with this many rotors. A saved run carries its own copy."""
+    return list(COLUMNS) + [f"m{i + 1}_{k}" for i in range(max(0, int(rotors))) for k in ROTOR_COLUMNS]
 
 
 @dataclass
@@ -48,6 +65,7 @@ class Recorder:
     sample_hz: float = 20.0
     max_samples: int = 120_000                  # about 100 minutes at 20 Hz; a run longer than that is a mistake
     rows: list[list[float]] = field(default_factory=list)
+    columns: list[str] = field(default_factory=lambda: list(COLUMNS))
     started: float = field(default_factory=time.time)
     t0: float | None = None
     saved_at: int = -1                          # rows already written to disk, so a run is never kept twice
@@ -55,21 +73,45 @@ class Recorder:
 
     def reset(self) -> None:
         self.rows = []
+        self.columns = list(COLUMNS)
         self.started = time.time()
         self.t0 = None
         self.saved_at = -1
         self._next_t = 0.0
 
-    def sample(self, t: float, body, status: dict, battery_percent: float) -> None:
-        """Take one sample if enough simulated time has passed. Called from the simulation loop."""
+    def sample(self, t: float, body, status: dict, battery_percent: float, motors: list | None = None,
+               extra: dict | None = None) -> None:
+        """Take one sample if enough simulated time has passed. Called from the simulation loop.
+
+        ``motors`` is used when there is no simulated rotor to read: a real flight reports its outputs over
+        telemetry, and those go in the same per-rotor columns. ``extra`` carries what the sensors read
+        (the H-flow), which the body itself knows nothing about.
+        """
         if self.t0 is None:
             self.t0 = float(t)
         elapsed = float(t) - self.t0
-        if elapsed + 1e-9 < self._next_t or len(self.rows) >= self.max_samples:
+        if self.rows and elapsed < self.rows[-1][0] - 0.5:
+            # The simulation clock went back (a reset relaunches PX4 and restarts it at zero). The recording
+            # is the session, not the clock, so it carries on from where it was instead of stopping dead.
+            self.t0 = float(t) - self.rows[-1][0]
+            elapsed = self.rows[-1][0]
+        if elapsed + 1e-9 < self._next_t:
             return
+        if len(self.rows) >= self.max_samples:
+            # Full. Drop the oldest quarter and keep going: a graph that quietly stopped an hour ago is
+            # worse than one that has forgotten the beginning.
+            drop = self.max_samples // 4
+            self.rows = self.rows[drop:]
+            self.saved_at = max(-1, self.saved_at - drop)
         self._next_t = elapsed + 1.0 / max(1e-3, self.sample_hz)
 
         bd = body.breakdown or {}
+        ex = extra or {}
+        accel = getattr(body, "accel_body", None)
+        cmds = getattr(body, "cmd", None)
+        n_rotors = len(motors) if motors is not None else (0 if cmds is None else len(cmds))
+        if not self.rows:
+            self.columns = columns_for(n_rotors)
         roll, pitch, yaw = (float(np.degrees(v)) for v in body.euler)
         rates = [float(np.degrees(v)) for v in body.rates]
         wind = float(np.linalg.norm(body.wind_ned))
@@ -90,7 +132,30 @@ class Recorder:
             round(wind, 3),
             1.0 if status.get("armed") else 0.0,
             1.0 if body.on_ground else 0.0,
+            *[round(float(v), 4) for v in (accel if accel is not None else np.zeros(3))],
+            *[round(float(np.degrees(v)), 3) for v in body.rates],
+            round(float(ex.get("alt_baro", -body.pos[2])), 3),
+            *[round(float(v), 5) for v in (ex.get("flow_rate") or (0.0, 0.0))],
+            round(float(ex.get("flow_range", -1.0)), 4),
+            round(float(ex.get("flow_quality", 0.0)), 1),
+            round(float(status.get("mode", 0.0)), 2),
+            *self._rotor_values(body, motors, n_rotors),
         ])
+
+    @staticmethod
+    def _rotor_values(body, motors, n: int) -> list[float]:
+        """Per rotor: commanded throttle, spooled throttle, thrust - simulated, or as a real flight reports."""
+        out: list[float] = []
+        for i in range(n):
+            if motors is not None:
+                # telemetry reports an output either as 0-1 or as a PWM in microseconds
+                v = float(motors[i])
+                if v > 1.5:
+                    v = max(0.0, min(1.0, (v - 1000.0) / 1000.0))
+                out += [round(v, 4), round(v, 4), 0.0]
+            else:
+                out += [round(float(body.cmd[i]), 4), round(float(body.omega[i]), 4), round(float(body.thrust[i]), 3)]
+        return out
 
     @property
     def flew(self) -> bool:
@@ -107,7 +172,7 @@ class Recorder:
         return float(self.rows[-1][0]) if self.rows else 0.0
 
     def as_dict(self) -> dict:
-        return {"columns": COLUMNS, "rows": self.rows, "duration": round(self.duration, 3),
+        return {"columns": list(self.columns), "rows": self.rows, "duration": round(self.duration, 3),
                 "samples": len(self.rows), "sample_hz": self.sample_hz}
 
 
@@ -129,7 +194,7 @@ class RunStore:
         return p if p.parent == self._dir() else None
 
     def save(self, recorder: Recorder, *, airframe: dict, params: dict, name: str = "",
-             scenario: str = "", note: str = "") -> dict:
+             scenario: str = "", note: str = "", log: list | None = None) -> dict:
         """Write a run with the design that produced it. Returns its index entry."""
         if not recorder.rows:
             return {"ok": False, "error": "nothing recorded"}
@@ -150,6 +215,7 @@ class RunStore:
             "note": note,
             "airframe": airframe,
             "params": params,
+            "log": list(log or []),      # what the flight controller said while this run was flying
             **recorder.as_dict(),
         }
         path.write_text(json.dumps(doc, separators=(",", ":")))

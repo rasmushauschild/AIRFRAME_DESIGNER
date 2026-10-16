@@ -9,9 +9,9 @@ import pytest
 
 from airframe_designer.cli import _parse_set, main
 
-from .conftest import AIRFRAMES_DIR, PROJECT_DIR
+from .conftest import DATA_DIR, PROJECT_DIR
 
-QUAD = str(AIRFRAMES_DIR / "quad_x.json")
+QUAD = str(DATA_DIR / "quad_x.json")
 
 
 def run_cli(*args: str, timeout: float = 60.0) -> subprocess.CompletedProcess:

@@ -6,8 +6,8 @@ in parallel. The contract is JSON in, JSON out.
 ## One run
 
 ```bash
-.venv/bin/python -m airframe_designer run --airframe airframes/atlas_08.json --scenario hover --out r.json
-.venv/bin/python -m airframe_designer run --airframe airframes/atlas_08.json --scenario cruise \
+.venv/bin/python -m airframe_designer run --airframe airframes/atlas_09b.json --scenario hover --out r.json
+.venv/bin/python -m airframe_designer run --airframe airframes/atlas_09b.json --scenario cruise \
     --set "rotors[0:8].tilt_deg=30" --set "hover_pitch_deg=20" --set "px4.MC_PITCHRATE_P=0.12" --out r.json
 ```
 
@@ -91,7 +91,7 @@ the UI or run it again), `summary.json`. Interrupted studies resume from `trials
 ```jsonc
 {
   "name": "atlas08_hover_tilt",
-  "airframe": "airframes/atlas_08.json",
+  "airframe": "airframes/atlas_09b.json",
   "scenario": "hover",
   "variables": [{"path": "rotors[0:8].tilt_deg", "range": [10, 45]}, {"path": "hover_pitch_deg", "range": [0, 35]}],
   "objective": "phases.hover.pos_std_xy + 0.05 * phases.hover.pitch_rms_deg + 0.5 * phases.hover.util_max",
@@ -113,10 +113,10 @@ clip hypot`, conditional expressions. A missing value or a violated constraint a
 from airframe_designer.batch import run_once, run_many, run_study
 from airframe_designer.geometry import Airframe, apply_variables
 
-r = run_once("airframes/atlas_08.json", "hover", variables={"mass.cg[0]": 0.03})
+r = run_once("airframes/atlas_09b.json", "hover", variables={"mass.cg[0]": 0.03})
 print(r["ok"], r["metrics"]["phases"]["hover"]["pos_std_xy"])
 
-rs = run_many([{"id": f"cg{i}", "airframe": "airframes/atlas_08.json", "scenario": "hover",
+rs = run_many([{"id": f"cg{i}", "airframe": "airframes/atlas_09b.json", "scenario": "hover",
                 "variables": {"mass.cg[0]": x}} for i, x in enumerate([-0.05, 0, 0.05])], workers=3)
 ```
 
@@ -192,7 +192,7 @@ intake ram drag stay the project's own model and are injected each step. A diffe
 therefore points at integration, frames, moment arms, ground contact or gravity, not at the coefficient data.
 
 ```bash
-.venv/bin/python -m airframe_designer compare --airframe airframes/quad_x.json --scenario hover --out cmp.json
+.venv/bin/python -m airframe_designer compare --airframe airframes/atlas_09b.json --scenario hover --out cmp.json
 ```
 
 prints both runs' per-phase metrics side by side with deltas and the RMS/max differences of the state histories
