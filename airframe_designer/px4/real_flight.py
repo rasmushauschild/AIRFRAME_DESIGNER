@@ -3,6 +3,8 @@ import time
 
 MAIN_OUTPUTS = 8          # PWM_MAIN_FUNC1..8, then PWM_AUX_FUNC1..
 AUX_OUTPUTS = 8           # PWM_AUX_FUNC1..8
+AUX_TIMERS = 4            # PWM_AUX_TIM0..3 on an FMUv6X; a board with fewer simply has not got the rest
+MOTOR_PWM_HZ = 400        # what an ESC on an AUX output is driven at
 
 
 def all_output_keys() -> list[str]:
@@ -34,7 +36,8 @@ CARRIES_OVER = ("CA_", "NLF_", "MC_", "MPC_", "EKF2_IMU_POS_", "EKF2_OF_", "EKF2
 # EKF2_HGT_REF and EKF2_GPS_CTRL say which sensors this aircraft actually has to fly on - a fact about the
 # machine, like where its IMU sits, not a simulator convenience - so they cross over too.
 CARRIES_OVER_NAMES = frozenset({"THR_MDL_FAC", "COM_DISARM_LAND", "COM_DISARM_PRFLT", "MAN_OVERRIDE_SPD",
-                                "EKF2_HGT_REF", "EKF2_GPS_CTRL"})
+                                "EKF2_HGT_REF", "EKF2_GPS_CTRL"}
+                               | {f"PWM_AUX_TIM{t}" for t in range(AUX_TIMERS)})
 
 
 def carries_over(name: str) -> bool:
@@ -88,6 +91,15 @@ def flight_params(airframe):
         params["NLF_HW_OK"] = 1
     for name in off:
         params.pop(name, None)
+    # An ESC on an AUX output is driven at 400 Hz. The rate is a property of the *timer group*, not of the
+    # output - one timer drives several pins - so every AUX timer is set rather than guessing which group
+    # a given pin belongs to, which is board wiring the app cannot know offline. A board with fewer timers
+    # has not got the extra parameters and the push reports them by name instead of writing them.
+    # Nothing here touches PWM_MAIN_TIM*: MAIN carries the first eight motors on every design, and a board
+    # that drives them at the wrong rate is a board-level mistake to see, not one for this to paper over.
+    if any(k.startswith("PWM_AUX_FUNC") and 101 <= v <= 100 + n for k, v in mapping.items()):
+        for t in range(AUX_TIMERS):
+            params[f"PWM_AUX_TIM{t}"] = MOTOR_PWM_HZ
     # Safety-button availability belongs to the physical board configuration.
     # Do not overwrite it from simulator/model settings.
     return params

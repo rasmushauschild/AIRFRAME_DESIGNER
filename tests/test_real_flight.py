@@ -487,3 +487,30 @@ def test_two_motors_on_one_port_says_so():
     af.px4_overrides.update(PWM_MAIN_FUNC1=101, PWM_MAIN_FUNC2=102, PWM_MAIN_FUNC3=102)
     with pytest.raises(ValueError, match="share a port"):
         flight_params(af)
+
+
+def test_an_esc_on_an_aux_output_is_driven_at_400_hz():
+    """A motor on AUX sets every AUX timer to 400 Hz, because the rate belongs to the timer group.
+
+    One timer drives several pins, and which pin sits on which group is board wiring this cannot know
+    offline, so all of them are set rather than one guessed. A board with fewer timers has not got the
+    extra parameters; the push names them instead of writing them.
+    """
+    af = Airframe.from_dict({"rotors": [{"name": f"M{i}"} for i in range(1, 10)]})
+    af.px4_overrides.update({f"PWM_MAIN_FUNC{i}": 100 + i for i in range(1, 7)})
+    af.px4_overrides.update(PWM_AUX_FUNC4=107, PWM_AUX_FUNC1=108, PWM_AUX_FUNC3=109)
+    p = flight_params(af)
+    assert [p[f"PWM_AUX_TIM{t}"] for t in range(4)] == [400] * 4
+
+
+def test_a_design_that_uses_no_aux_output_leaves_its_timers_alone():
+    """Four motors live on MAIN 1-4; nothing about AUX is this design's business."""
+    p = flight_params(Airframe.from_dict({"rotors": [{"name": f"M{i}"} for i in range(1, 5)]}))
+    assert not any("TIM" in k for k in p)
+
+
+def test_the_main_timers_are_never_written():
+    """MAIN carries the first eight motors on every design; a wrong rate there is a board-level mistake
+    to see rather than one for the conversion to paper over."""
+    af = Airframe.from_dict({"rotors": [{"name": f"M{i}"} for i in range(1, 11)]})
+    assert not any(k.startswith("PWM_MAIN_TIM") for k in flight_params(af))

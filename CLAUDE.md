@@ -218,7 +218,12 @@ airframes/    schema-2 JSON (docs/SCHEMA.md);  scenarios/  studies/  results/ (g
   all. `output_keys(n)` is only the *default* wiring - the first eight on MAIN, the rest on AUX. What a
   design actually uses is read from `all_output_keys()`, all sixteen, because the Rotors table lets a
   motor sit on any of them: reading only the first n made a motor on AUX 3 invisible and raised "assign
-  each motor to exactly one port" at a design that had, which the push then served as a 500. The count is the design's, not ATLAS's ten.
+  each motor to exactly one port" at a design that had, which the push then served as a 500.
+  **An ESC on an AUX output is driven at 400 Hz**: a design with any motor on AUX sets every
+  `PWM_AUX_TIM*` to 400, because the rate belongs to the *timer group* and one timer drives several pins -
+  which pin sits on which group is board wiring this cannot know offline, so all of them are set rather
+  than one guessed. `PWM_MAIN_TIM*` is never written: MAIN carries the first eight motors on every
+  design, and a wrong rate there is a board-level mistake to see rather than one to paper over. The count is the design's, not ATLAS's ten.
 * Nothing the browser polls may answer with a 500. A design the real-flight set cannot be built for is a
   409 with a sentence in `error`, and every response - REST and websocket alike - goes out through
   `SafeJSON` / `json_safe`, because one NaN makes the encoder refuse the whole reply and all the user sees
