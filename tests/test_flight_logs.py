@@ -99,6 +99,7 @@ def test_a_silent_aircraft_says_how_far_it_got(tmp_path):
 
 ULOG = next((p for p in [
     Path("/Users/rasmushauschild/atlas-simulation/tests/fixtures/log_36_2026-9-9-14-11-36.ulg"),
+    *sorted(Path("results/logs").glob("*.ulg"), reverse=True),      # whatever has been pulled off a board
 ] if p.is_file()), None)
 
 
@@ -144,3 +145,18 @@ def test_the_recorder_keeps_up_with_a_cable_and_not_with_a_radio():
     assert app_for(57600).recorder.sample_hz == 20.0
     assert app_for(921600).recorder.sample_hz == 50.0
     assert app_for(57600).paused is False, "the loop is what follows the telemetry"
+
+
+@pytest.mark.skipif(ULOG is None, reason="no .ulg to read")
+def test_a_downloaded_log_carries_the_pilots_sticks():
+    """`input_rc` is in every PX4 log; the import read everything but it, so an imported flight replayed
+    with the stick columns flat at zero while a live recording of the same flight had them."""
+    from airframe_designer.sim.ulog_import import ulog_to_run
+    from airframe_designer.sim.recorder import RC_CHANNELS
+    run = ulog_to_run(ULOG, rate_hz=50.0)
+    i = {c: k for k, c in enumerate(run["columns"])}
+    cols = [[r[i[f"rc{n}"]] for r in run["rows"]] for n in range(1, RC_CHANNELS + 1)]
+    assert all(f"rc{n}" in i for n in range(1, RC_CHANNELS + 1)), "the columns are there"
+    moved = [c for c in cols if max(c) - min(c) > 50]
+    assert moved, "a flight with a receiver has at least one channel that moved"
+    assert all(0 <= v <= 2500 for c in cols for v in c), "microseconds, not normalised or scaled"

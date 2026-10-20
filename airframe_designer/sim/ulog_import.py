@@ -16,7 +16,7 @@ from pathlib import Path
 
 import numpy as np
 
-from .recorder import COLUMNS, columns_for
+from .recorder import COLUMNS, RC_CHANNELS, columns_for
 
 #: topic -> the fields taken from it. Nothing else is read, so an unusual logging profile costs nothing.
 WANTED = {
@@ -28,6 +28,8 @@ WANTED = {
     "vehicle_air_data": ("baro_alt_meter",),
     "battery_status": ("remaining", "voltage_v", "current_a"),
     "vehicle_status": ("arming_state", "nav_state"),
+    # the pilot's own hands, in microseconds, exactly as the live recorder keeps them
+    "input_rc": tuple(f"values[{i}]" for i in range(RC_CHANNELS)),
     "actuator_outputs": tuple(f"output[{i}]" for i in range(16)),
     "actuator_motors": tuple(f"control[{i}]" for i in range(12)),
     "vehicle_air_data_0": (),
@@ -161,6 +163,11 @@ def ulog_to_run(path: str | Path, rate_hz: float = 50.0, max_rows: int = 200_000
                 continue
             motors.append(np.clip((v - 1000.0) / 1000.0, 0.0, 1.0))
 
+    # RC_CHANNELS of the receiver, held between frames like everything else. A log from a flight with no
+    # receiver simply has no `input_rc`, and the columns stay 0 - the same "no such channel" the live
+    # recorder writes, rather than a number nobody measured.
+    rc = [sample("input_rc", f"values[{i}]") for i in range(RC_CHANNELS)]
+
     height = -pos[:, 2]
     speed = np.linalg.norm(vel, axis=1)
     on_ground = (height < 0.4).astype(float)
@@ -179,6 +186,7 @@ def ulog_to_run(path: str | Path, rate_hz: float = 50.0, max_rows: int = 200_000
         "gx": gyro[:, 0], "gy": gyro[:, 1], "gz": gyro[:, 2],
         "alt_baro": baro, "flow_x": zeros, "flow_y": zeros,
         "flow_range": flow_range, "flow_q": flow_q, "mode": mode,
+        **{f"rc{i + 1}": rc[i] for i in range(RC_CHANNELS)},
     }
     for i, m in enumerate(motors):
         by_name[f"m{i + 1}_cmd"] = m

@@ -325,7 +325,9 @@ airframes/    schema-2 JSON (docs/SCHEMA.md);  scenarios/  studies/  results/ (g
   and the 3D view scrubs through it exactly like a flight watched live. A .ulg from the card is opened the
   same way without the wait. Two columns are honestly empty in an imported run - a real aircraft reports
   motor *outputs*, not the thrust they made, and its log knows nothing about the wind it flew through.
-  Nothing invents a number that is not in the file.
+  Nothing invents a number that is not in the file. The sticks do come through, from the log's own
+  `input_rc`: an imported flight replays with `rc1`..`rc8` beside what the aircraft did, like a run
+  recorded live.
 * How fast the live view can be is the link's business, so it is asked of the link: on a cable the pose
   streams run at 50 Hz and the recorder keeps 50 Hz with them; over a radio both stay at 20, because
   sampling faster than the aircraft speaks writes the same number down five times. The cost of the fast
