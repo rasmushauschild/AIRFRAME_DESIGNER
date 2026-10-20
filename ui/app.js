@@ -2616,6 +2616,12 @@ async function refreshConnection(force = false) {
         : (c.mode === 'sitl' && c.px4_running ? '○ starting…' : '○ waiting')}</span>`
     : '<span class="muted">not connected</span>';
   $('#conn-error').textContent = c.error || '';
+  // Reboot board is for a board. Against SITL the MAVLink reboot is denied and the NuttX fallback is not
+  // a command a simulator has, so the only thing it ever produced was two lines of noise in the log.
+  const onBoard = c.mode === 'hitl';
+  $('#conn-reboot').disabled = !onBoard;
+  $('#conn-reboot').title = onBoard ? 'Reboot the flight controller; the link reconnects by itself'
+                                    : 'No board connected: this reboots a flight controller, and SITL is restarted with Reset';
   showTelemetry(L);
   // the box shows the speed the link is really running at, so it cannot quietly say 921600 at a radio
   if (c.mode === 'hitl' && c.baud && !$('#conn-baud').dataset.touched && document.activeElement !== $('#conn-baud')) {

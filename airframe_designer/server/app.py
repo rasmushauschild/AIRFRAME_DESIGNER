@@ -1496,6 +1496,10 @@ target_link_libraries(external__{name} PRIVATE px4_work_queue)
             link.send_command_long(mavlink.MAV_CMD_DO_SET_MODE, float(mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED),
                                    float(main), float(sub))
         elif cmd == "reboot":
+            if state.conn.mode != "hitl":
+                return JSONResponse({"ok": False, "error": "there is no board connected: Reboot board is for the "
+                                                           "flight controller, and SITL is restarted with Reset"},
+                                    status_code=409)
             link.reboot()
         elif cmd == "save_params":
             link.preflight_storage(True)

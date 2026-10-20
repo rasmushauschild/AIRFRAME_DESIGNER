@@ -128,3 +128,22 @@ def test_blocking_is_a_decision_nothing_overrides():
 
 def test_sitl_never_listens():
     assert _link(mode="sitl", hil_enabled=False, params={}).listening is False
+
+
+def test_a_simulator_is_never_sent_a_nuttx_reboot():
+    """`reboot` is a NuttX command. SITL's pxh answers "Invalid command: reboot".
+
+    The MAVLink reboot is denied by a simulated PX4, and the shell fallback then filled the log with a
+    command that was never going to work. There is no board to reboot in SITL; Reset relaunches it.
+    """
+    from airframe_designer.px4.link import PX4Link
+    calls = []
+    link = PX4Link.__new__(PX4Link)
+    link.mode = "sitl"
+    link.last_ack = {}
+    link.log = lambda m: calls.append(m)
+    link.send_command_long = lambda *a, **k: None
+    link.shell = lambda *a, **k: calls.append("SHELL " + a[0])
+    PX4Link.reboot(link)
+    assert not any(c.startswith("SHELL") for c in calls), f"a simulator was sent a board command: {calls}"
+    assert any("no board to reboot" in c for c in calls), calls

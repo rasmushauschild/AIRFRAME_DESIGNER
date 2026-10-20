@@ -1020,6 +1020,12 @@ class PX4Link:
                     return
                 break
             time.sleep(0.05)
+        if self.mode != "hitl":
+            # `reboot` is a NuttX command; SITL's pxh answers "Invalid command: reboot" and the log fills
+            # with a fallback that was never going to work. A simulated PX4 is restarted by relaunching it.
+            self.log("[px4] PX4 refused the reboot. This is SITL: there is no board to reboot - use Reset, "
+                     "which relaunches it.")
+            return
         self.log("[px4] reboot command not accepted, rebooting through the shell")
         try:
             self.shell("reboot", timeout=1.0)
