@@ -1,0 +1,4002 @@
+[
+  [
+    1790289674.084383,
+    "[px4] Disarming denied: not landed\t"
+  ],
+  [
+    1790289674.184217,
+    "[px4] INFO  [tone_alarm] battery warning (fast)"
+  ],
+  [
+    1790289674.382389,
+    "[px4] WARN  [mc_pos_control] invalid setpoints"
+  ],
+  [
+    1790289674.382401,
+    "[px4] WARN  [mc_pos_control] Failsafe: blind land"
+  ],
+  [
+    1790289674.46032,
+    "[px4] ERROR Offboard requires local velocity"
+  ],
+  [
+    1790289674.46048,
+    "[px4] ERROR Navigation error: No valid position estimate"
+  ],
+  [
+    1790289674.460591,
+    "[px4] ERROR Navigation error: No valid global position estimate"
+  ],
+  [
+    1790289674.461067,
+    "[px4] INFO No valid mission available"
+  ],
+  [
+    1790289674.4611042,
+    "[px4] WARN No manual control input"
+  ],
+  [
+    1790289674.468417,
+    "[px4] WARN  [failsafe] Failsafe activated"
+  ],
+  [
+    1790289674.468582,
+    "[px4] CRIT Failsafe activated: Autopilot disengaged, switching to Descend"
+  ],
+  [
+    1790289674.472579,
+    "[px4] Failsafe activated\t"
+  ],
+  [
+    1790289675.092352,
+    "[px4] WARN  [commander] Disarming denied: not landed"
+  ],
+  [
+    1790289675.092365,
+    "[px4] INFO  [tone_alarm] notify negative"
+  ],
+  [
+    1790289675.09654,
+    "[px4] command arm/disarm temporarily rejected"
+  ],
+  [
+    1790289675.0965939,
+    "[px4] Disarming denied: not landed\t"
+  ],
+  [
+    1790289675.1923158,
+    "[px4] INFO  [tone_alarm] battery warning (fast)"
+  ],
+  [
+    1790289676.088706,
+    "[px4] WARN  [commander] Disarming denied: not landed"
+  ],
+  [
+    1790289676.088709,
+    "[px4] INFO  [tone_alarm] notify negative"
+  ],
+  [
+    1790289676.0923882,
+    "[px4] command arm/disarm temporarily rejected"
+  ],
+  [
+    1790289676.0925372,
+    "[px4] Disarming denied: not landed\t"
+  ],
+  [
+    1790289676.092572,
+    "[px4] CRIT Disarming denied: not landed"
+  ],
+  [
+    1790289676.188097,
+    "[px4] INFO  [tone_alarm] battery warning (fast)"
+  ],
+  [
+    1790289676.7450728,
+    "[px4] ERROR No offboard signal"
+  ],
+  [
+    1790289677.0964549,
+    "[px4] WARN  [commander] Disarming denied: not landed"
+  ],
+  [
+    1790289677.096462,
+    "[px4] INFO  [tone_alarm] notify negative"
+  ],
+  [
+    1790289677.0966122,
+    "[px4] command arm/disarm temporarily rejected"
+  ],
+  [
+    1790289677.096767,
+    "[px4] Disarming denied: not landed\t"
+  ],
+  [
+    1790289677.196637,
+    "[px4] INFO  [tone_alarm] battery warning (fast)"
+  ],
+  [
+    1790289678.1047308,
+    "[px4] WARN  [commander] Disarming denied: not landed"
+  ],
+  [
+    1790289678.104743,
+    "[px4] INFO  [tone_alarm] notify negative"
+  ],
+  [
+    1790289678.1084192,
+    "[px4] command arm/disarm temporarily rejected"
+  ],
+  [
+    1790289678.108493,
+    "[px4] Disarming denied: not landed\t"
+  ],
+  [
+    1790289678.204471,
+    "[px4] INFO  [tone_alarm] battery warning (fast)"
+  ],
+  [
+    1790289679.0995789,
+    "[px4] WARN  [commander] Disarming denied: not landed"
+  ],
+  [
+    1790289679.099678,
+    "[px4] INFO  [tone_alarm] notify negative"
+  ],
+  [
+    1790289679.104822,
+    "[px4] command arm/disarm temporarily rejected"
+  ],
+  [
+    1790289679.104995,
+    "[px4] Disarming denied: not landed\t"
+  ],
+  [
+    1790289679.200393,
+    "[px4] INFO  [tone_alarm] battery warning (fast)"
+  ],
+  [
+    1790289680.108321,
+    "[px4] WARN  [commander] Disarming denied: not landed"
+  ],
+  [
+    1790289680.108421,
+    "[px4] command arm/disarm temporarily rejected"
+  ],
+  [
+    1790289680.108487,
+    "[px4] Disarming denied: not landed\t"
+  ],
+  [
+    1790289680.108505,
+    "[px4] INFO  [tone_alarm] notify negative"
+  ],
+  [
+    1790289680.208742,
+    "[px4] INFO  [tone_alarm] battery warning (fast)"
+  ],
+  [
+    1790289681.1164212,
+    "[px4] WARN  [commander] Disarming denied: not landed"
+  ],
+  [
+    1790289681.116429,
+    "[px4] INFO  [tone_alarm] notify negative"
+  ],
+  [
+    1790289681.116653,
+    "[px4] CRIT Disarming denied: not landed"
+  ],
+  [
+    1790289681.120758,
+    "[px4] command arm/disarm temporarily rejected"
+  ],
+  [
+    1790289681.120845,
+    "[px4] Disarming denied: not landed\t"
+  ],
+  [
+    1790289681.21663,
+    "[px4] INFO  [tone_alarm] battery warning (fast)"
+  ],
+  [
+    1790289682.1123211,
+    "[px4] WARN  [commander] Disarming denied: not landed"
+  ],
+  [
+    1790289682.112329,
+    "[px4] INFO  [tone_alarm] notify negative"
+  ],
+  [
+    1790289682.1164448,
+    "[px4] command arm/disarm temporarily rejected"
+  ],
+  [
+    1790289682.1165922,
+    "[px4] Disarming denied: not landed\t"
+  ],
+  [
+    1790289682.213082,
+    "[px4] INFO  [tone_alarm] battery warning (fast)"
+  ],
+  [
+    1790289683.120967,
+    "[px4] WARN  [commander] Disarming denied: not landed"
+  ],
+  [
+    1790289683.1209779,
+    "[px4] INFO  [tone_alarm] notify negative"
+  ],
+  [
+    1790289683.1247392,
+    "[px4] command arm/disarm temporarily rejected"
+  ],
+  [
+    1790289683.1248178,
+    "[px4] Disarming denied: not landed\t"
+  ],
+  [
+    1790289683.22052,
+    "[px4] INFO  [tone_alarm] battery warning (fast)"
+  ],
+  [
+    1790289684.1285372,
+    "[px4] WARN  [commander] Disarming denied: not landed"
+  ],
+  [
+    1790289684.128553,
+    "[px4] INFO  [tone_alarm] notify negative"
+  ],
+  [
+    1790289684.132927,
+    "[px4] command arm/disarm temporarily rejected"
+  ],
+  [
+    1790289684.132996,
+    "[px4] Disarming denied: not landed\t"
+  ],
+  [
+    1790289684.228488,
+    "[px4] INFO  [tone_alarm] battery warning (fast)"
+  ],
+  [
+    1790289685.1249092,
+    "[px4] Disarming denied: not landed\t"
+  ],
+  [
+    1790289685.124928,
+    "[px4] WARN  [commander] Disarming denied: not landed"
+  ],
+  [
+    1790289685.1250718,
+    "[px4] INFO  [tone_alarm] notify negative"
+  ],
+  [
+    1790289685.128339,
+    "[px4] command arm/disarm temporarily rejected"
+  ],
+  [
+    1790289685.224664,
+    "[px4] INFO  [tone_alarm] battery warning (fast)"
+  ],
+  [
+    1790289686.133617,
+    "[px4] WARN  [commander] Disarming denied: not landed"
+  ],
+  [
+    1790289686.133645,
+    "[px4] INFO  [tone_alarm] notify negative"
+  ],
+  [
+    1790289686.1374662,
+    "[px4] command arm/disarm temporarily rejected"
+  ],
+  [
+    1790289686.137544,
+    "[px4] Disarming denied: not landed\t"
+  ],
+  [
+    1790289686.140512,
+    "[px4] CRIT Disarming denied: not landed"
+  ],
+  [
+    1790289686.23272,
+    "[px4] INFO  [tone_alarm] battery warning (fast)"
+  ],
+  [
+    1790289687.140866,
+    "[px4] WARN  [commander] Disarming denied: not landed"
+  ],
+  [
+    1790289687.1408691,
+    "[px4] INFO  [tone_alarm] notify negative"
+  ],
+  [
+    1790289687.140872,
+    "[px4] INFO  [tone_alarm] battery warning (fast)"
+  ],
+  [
+    1790289687.1461911,
+    "[px4] command arm/disarm temporarily rejected"
+  ],
+  [
+    1790289687.1474931,
+    "[px4] Disarming denied: not landed\t"
+  ],
+  [
+    1790289688.136389,
+    "[px4] WARN  [commander] Disarming denied: not landed"
+  ],
+  [
+    1790289688.136427,
+    "[px4] INFO  [tone_alarm] notify negative"
+  ],
+  [
+    1790289688.136527,
+    "[px4] command arm/disarm temporarily rejected"
+  ],
+  [
+    1790289688.1366029,
+    "[px4] Disarming denied: not landed\t"
+  ],
+  [
+    1790289688.23649,
+    "[px4] INFO  [tone_alarm] battery warning (fast)"
+  ],
+  [
+    1790289689.144808,
+    "[px4] WARN  [commander] Disarming denied: not landed"
+  ],
+  [
+    1790289689.144824,
+    "[px4] INFO  [tone_alarm] notify negative"
+  ],
+  [
+    1790289689.144979,
+    "[px4] command arm/disarm temporarily rejected"
+  ],
+  [
+    1790289689.145039,
+    "[px4] Disarming denied: not landed\t"
+  ],
+  [
+    1790289689.2450712,
+    "[px4] INFO  [tone_alarm] battery warning (fast)"
+  ],
+  [
+    1790289690.152329,
+    "[px4] WARN  [commander] Disarming denied: not landed"
+  ],
+  [
+    1790289690.1523662,
+    "[px4] INFO  [tone_alarm] notify negative"
+  ],
+  [
+    1790289690.157025,
+    "[px4] command arm/disarm temporarily rejected"
+  ],
+  [
+    1790289690.157102,
+    "[px4] Disarming denied: not landed\t"
+  ],
+  [
+    1790289690.252606,
+    "[px4] INFO  [tone_alarm] battery warning (fast)"
+  ],
+  [
+    1790289691.14872,
+    "[px4] WARN  [commander] Disarming denied: not landed"
+  ],
+  [
+    1790289691.148809,
+    "[px4] command arm/disarm temporarily rejected"
+  ],
+  [
+    1790289691.1488671,
+    "[px4] Disarming denied: not landed\t"
+  ],
+  [
+    1790289691.148984,
+    "[px4] INFO  [tone_alarm] notify negative"
+  ],
+  [
+    1790289691.1491158,
+    "[px4] CRIT Disarming denied: not landed"
+  ],
+  [
+    1790289691.2492101,
+    "[px4] INFO  [tone_alarm] battery warning (fast)"
+  ],
+  [
+    1790289692.156728,
+    "[px4] WARN  [commander] Disarming denied: not landed"
+  ],
+  [
+    1790289692.1567638,
+    "[px4] INFO  [tone_alarm] notify negative"
+  ],
+  [
+    1790289692.156767,
+    "[px4] INFO  [tone_alarm] battery warning (fast)"
+  ],
+  [
+    1790289692.156818,
+    "[px4] command arm/disarm temporarily rejected"
+  ],
+  [
+    1790289692.156988,
+    "[px4] Disarming denied: not landed\t"
+  ],
+  [
+    1790289693.164907,
+    "[px4] WARN  [commander] Disarming denied: not landed"
+  ],
+  [
+    1790289693.164917,
+    "[px4] INFO  [tone_alarm] notify negative"
+  ],
+  [
+    1790289693.164979,
+    "[px4] Disarming denied: not landed\t"
+  ],
+  [
+    1790289693.1686668,
+    "[px4] command arm/disarm temporarily rejected"
+  ],
+  [
+    1790289693.264967,
+    "[px4] INFO  [tone_alarm] battery warning (fast)"
+  ],
+  [
+    1790289694.1623402,
+    "[px4] WARN  [commander] Disarming denied: not landed"
+  ],
+  [
+    1790289694.1623528,
+    "[px4] Disarming denied: not landed\t"
+  ],
+  [
+    1790289694.162457,
+    "[px4] INFO  [tone_alarm] notify negative"
+  ],
+  [
+    1790289694.165478,
+    "[px4] command arm/disarm temporarily rejected"
+  ],
+  [
+    1790289694.260581,
+    "[px4] INFO  [tone_alarm] battery warning (fast)"
+  ],
+  [
+    1790289695.170088,
+    "[px4] WARN  [commander] Disarming denied: not landed"
+  ],
+  [
+    1790289695.170113,
+    "[px4] INFO  [tone_alarm] notify negative"
+  ],
+  [
+    1790289695.173435,
+    "[px4] command arm/disarm temporarily rejected"
+  ],
+  [
+    1790289695.173496,
+    "[px4] Disarming denied: not landed\t"
+  ],
+  [
+    1790289695.268645,
+    "[px4] INFO  [tone_alarm] battery warning (fast)"
+  ],
+  [
+    1790289696.17778,
+    "[px4] WARN  [commander] Disarming denied: not landed"
+  ],
+  [
+    1790289696.1777978,
+    "[px4] CRIT Disarming denied: not landed"
+  ],
+  [
+    1790289696.17794,
+    "[px4] INFO  [tone_alarm] notify negative"
+  ],
+  [
+    1790289696.18102,
+    "[px4] command arm/disarm temporarily rejected"
+  ],
+  [
+    1790289696.181078,
+    "[px4] Disarming denied: not landed\t"
+  ],
+  [
+    1790289696.2767382,
+    "[px4] INFO  [tone_alarm] battery warning (fast)"
+  ],
+  [
+    1790289697.1730418,
+    "[px4] WARN  [commander] Disarming denied: not landed"
+  ],
+  [
+    1790289697.173049,
+    "[px4] INFO  [tone_alarm] notify negative"
+  ],
+  [
+    1790289697.173101,
+    "[px4] Disarming denied: not landed\t"
+  ],
+  [
+    1790289697.176401,
+    "[px4] command arm/disarm temporarily rejected"
+  ],
+  [
+    1790289697.272782,
+    "[px4] INFO  [tone_alarm] battery warning (fast)"
+  ],
+  [
+    1790289698.180993,
+    "[px4] WARN  [commander] Disarming denied: not landed"
+  ],
+  [
+    1790289698.181001,
+    "[px4] INFO  [tone_alarm] notify negative"
+  ],
+  [
+    1790289698.184705,
+    "[px4] command arm/disarm temporarily rejected"
+  ],
+  [
+    1790289698.1847959,
+    "[px4] Disarming denied: not landed\t"
+  ],
+  [
+    1790289698.280735,
+    "[px4] INFO  [tone_alarm] battery warning (fast)"
+  ],
+  [
+    1790289699.1897159,
+    "[px4] WARN  [commander] Disarming denied: not landed"
+  ],
+  [
+    1790289699.189752,
+    "[px4] INFO  [tone_alarm] notify negative"
+  ],
+  [
+    1790289699.1930182,
+    "[px4] command arm/disarm temporarily rejected"
+  ],
+  [
+    1790289699.193119,
+    "[px4] Disarming denied: not landed\t"
+  ],
+  [
+    1790289699.288736,
+    "[px4] INFO  [tone_alarm] battery warning (fast)"
+  ],
+  [
+    1790289700.18468,
+    "[px4] WARN  [commander] Disarming denied: not landed"
+  ],
+  [
+    1790289700.18469,
+    "[px4] INFO  [tone_alarm] notify negative"
+  ],
+  [
+    1790289700.184692,
+    "[px4] INFO  [tone_alarm] battery warning (fast)"
+  ],
+  [
+    1790289700.184771,
+    "[px4] Disarming denied: not landed\t"
+  ],
+  [
+    1790289700.1888158,
+    "[px4] command arm/disarm temporarily rejected"
+  ],
+  [
+    1790289701.192734,
+    "[px4] WARN  [commander] Disarming denied: not landed"
+  ],
+  [
+    1790289701.192757,
+    "[px4] INFO  [tone_alarm] notify negative"
+  ],
+  [
+    1790289701.192815,
+    "[px4] command arm/disarm temporarily rejected"
+  ],
+  [
+    1790289701.1929758,
+    "[px4] Disarming denied: not landed\t"
+  ],
+  [
+    1790289701.196668,
+    "[px4] CRIT Disarming denied: not landed"
+  ],
+  [
+    1790289701.29272,
+    "[px4] INFO  [tone_alarm] battery warning (fast)"
+  ],
+  [
+    1790289702.2005792,
+    "[px4] WARN  [commander] Disarming denied: not landed"
+  ],
+  [
+    1790289702.200586,
+    "[px4] INFO  [tone_alarm] notify negative"
+  ],
+  [
+    1790289702.2049432,
+    "[px4] command arm/disarm temporarily rejected"
+  ],
+  [
+    1790289702.205,
+    "[px4] Disarming denied: not landed\t"
+  ],
+  [
+    1790289702.3006048,
+    "[px4] INFO  [tone_alarm] battery warning (fast)"
+  ],
+  [
+    1790289703.196812,
+    "[px4] Disarming denied: not landed\t"
+  ],
+  [
+    1790289703.1969512,
+    "[px4] WARN  [commander] Disarming denied: not landed"
+  ],
+  [
+    1790289703.196973,
+    "[px4] INFO  [tone_alarm] notify negative"
+  ],
+  [
+    1790289703.200777,
+    "[px4] command arm/disarm temporarily rejected"
+  ],
+  [
+    1790289703.296903,
+    "[px4] INFO  [tone_alarm] battery warning (fast)"
+  ],
+  [
+    1790289704.20506,
+    "[px4] WARN  [commander] Disarming denied: not landed"
+  ],
+  [
+    1790289704.2050712,
+    "[px4] INFO  [tone_alarm] notify negative"
+  ],
+  [
+    1790289704.2050729,
+    "[px4] INFO  [tone_alarm] battery warning (fast)"
+  ],
+  [
+    1790289704.20515,
+    "[px4] command arm/disarm temporarily rejected"
+  ],
+  [
+    1790289704.205318,
+    "[px4] Disarming denied: not landed\t"
+  ],
+  [
+    1790289705.212776,
+    "[px4] WARN  [commander] Disarming denied: not landed"
+  ],
+  [
+    1790289705.212784,
+    "[px4] INFO  [tone_alarm] notify negative"
+  ],
+  [
+    1790289705.212866,
+    "[px4] Disarming denied: not landed\t"
+  ],
+  [
+    1790289705.216643,
+    "[px4] command arm/disarm temporarily rejected"
+  ],
+  [
+    1790289705.313036,
+    "[px4] INFO  [tone_alarm] battery warning (fast)"
+  ],
+  [
+    1790289706.208755,
+    "[px4] CRIT Disarming denied: not landed"
+  ],
+  [
+    1790289706.2087831,
+    "[px4] WARN  [commander] Disarming denied: not landed"
+  ],
+  [
+    1790289706.208816,
+    "[px4] INFO  [tone_alarm] notify negative"
+  ],
+  [
+    1790289706.212827,
+    "[px4] command arm/disarm temporarily rejected"
+  ],
+  [
+    1790289706.212893,
+    "[px4] Disarming denied: not landed\t"
+  ],
+  [
+    1790289706.308547,
+    "[px4] INFO  [tone_alarm] battery warning (fast)"
+  ],
+  [
+    1790289707.216976,
+    "[px4] WARN  [commander] Disarming denied: not landed"
+  ],
+  [
+    1790289707.2172139,
+    "[px4] INFO  [tone_alarm] notify negative"
+  ],
+  [
+    1790289707.217223,
+    "[px4] command arm/disarm temporarily rejected"
+  ],
+  [
+    1790289707.217302,
+    "[px4] Disarming denied: not landed\t"
+  ],
+  [
+    1790289707.316758,
+    "[px4] INFO  [tone_alarm] battery warning (fast)"
+  ],
+  [
+    1790289708.224811,
+    "[px4] WARN  [commander] Disarming denied: not landed"
+  ],
+  [
+    1790289708.2248352,
+    "[px4] INFO  [tone_alarm] notify negative"
+  ],
+  [
+    1790289708.229613,
+    "[px4] command arm/disarm temporarily rejected"
+  ],
+  [
+    1790289708.2296891,
+    "[px4] Disarming denied: not landed\t"
+  ],
+  [
+    1790289708.324667,
+    "[px4] INFO  [tone_alarm] battery warning (fast)"
+  ],
+  [
+    1790289709.220922,
+    "[px4] WARN  [commander] Disarming denied: not landed"
+  ],
+  [
+    1790289709.220945,
+    "[px4] INFO  [tone_alarm] notify negative"
+  ],
+  [
+    1790289709.220994,
+    "[px4] command arm/disarm temporarily rejected"
+  ],
+  [
+    1790289709.221046,
+    "[px4] Disarming denied: not landed\t"
+  ],
+  [
+    1790289709.321386,
+    "[px4] INFO  [tone_alarm] battery warning (fast)"
+  ],
+  [
+    1790289710.228938,
+    "[px4] WARN  [commander] Disarming denied: not landed"
+  ],
+  [
+    1790289710.2289422,
+    "[px4] INFO  [tone_alarm] notify negative"
+  ],
+  [
+    1790289710.232789,
+    "[px4] command arm/disarm temporarily rejected"
+  ],
+  [
+    1790289710.2329102,
+    "[px4] Disarming denied: not landed\t"
+  ],
+  [
+    1790289710.3289568,
+    "[px4] INFO  [tone_alarm] battery warning (fast)"
+  ],
+  [
+    1790289711.236673,
+    "[px4] WARN  [commander] Disarming denied: not landed"
+  ],
+  [
+    1790289711.2367182,
+    "[px4] INFO  [tone_alarm] notify negative"
+  ],
+  [
+    1790289711.236782,
+    "[px4] command arm/disarm temporarily rejected"
+  ],
+  [
+    1790289711.236854,
+    "[px4] Disarming denied: not landed\t"
+  ],
+  [
+    1790289711.236956,
+    "[px4] CRIT Disarming denied: not landed"
+  ],
+  [
+    1790289711.354744,
+    "[px4] INFO  [tone_alarm] battery warning (fast)"
+  ],
+  [
+    1790289712.233015,
+    "[px4] WARN  [commander] Disarming denied: not landed"
+  ],
+  [
+    1790289712.2330298,
+    "[px4] INFO  [tone_alarm] notify negative"
+  ],
+  [
+    1790289712.233119,
+    "[px4] command arm/disarm temporarily rejected"
+  ],
+  [
+    1790289712.23323,
+    "[px4] Disarming denied: not landed\t"
+  ],
+  [
+    1790289712.3327239,
+    "[px4] INFO  [tone_alarm] battery warning (fast)"
+  ],
+  [
+    1790289713.241108,
+    "[px4] WARN  [commander] Disarming denied: not landed"
+  ],
+  [
+    1790289713.241112,
+    "[px4] INFO  [tone_alarm] notify negative"
+  ],
+  [
+    1790289713.241118,
+    "[px4] INFO  [tone_alarm] battery warning (fast)"
+  ],
+  [
+    1790289713.241211,
+    "[px4] command arm/disarm temporarily rejected"
+  ],
+  [
+    1790289713.241289,
+    "[px4] Disarming denied: not landed\t"
+  ],
+  [
+    1790289714.2498372,
+    "[px4] WARN  [commander] Disarming denied: not landed"
+  ],
+  [
+    1790289714.249849,
+    "[px4] INFO  [tone_alarm] notify negative"
+  ],
+  [
+    1790289714.253973,
+    "[px4] command arm/disarm temporarily rejected"
+  ],
+  [
+    1790289714.254035,
+    "[px4] Disarming denied: not landed\t"
+  ],
+  [
+    1790289714.3491771,
+    "[px4] INFO  [tone_alarm] battery warning (fast)"
+  ],
+  [
+    1790289715.2447019,
+    "[px4] WARN  [commander] Disarming denied: not landed"
+  ],
+  [
+    1790289715.244771,
+    "[px4] Disarming denied: not landed\t"
+  ],
+  [
+    1790289715.2451499,
+    "[px4] INFO  [tone_alarm] notify negative"
+  ],
+  [
+    1790289715.249204,
+    "[px4] command arm/disarm temporarily rejected"
+  ],
+  [
+    1790289715.344586,
+    "[px4] INFO  [tone_alarm] battery warning (fast)"
+  ],
+  [
+    1790289716.253809,
+    "[px4] WARN  [commander] Disarming denied: not landed"
+  ],
+  [
+    1790289716.2538729,
+    "[px4] command arm/disarm temporarily rejected"
+  ],
+  [
+    1790289716.2538922,
+    "[px4] INFO  [tone_alarm] notify negative"
+  ],
+  [
+    1790289716.2539468,
+    "[px4] Disarming denied: not landed\t"
+  ],
+  [
+    1790289716.2544498,
+    "[px4] CRIT Disarming denied: not landed"
+  ],
+  [
+    1790289716.352851,
+    "[px4] INFO  [tone_alarm] battery warning (fast)"
+  ],
+  [
+    1790289717.260777,
+    "[px4] WARN  [commander] Disarming denied: not landed"
+  ],
+  [
+    1790289717.260848,
+    "[px4] INFO  [tone_alarm] notify negative"
+  ],
+  [
+    1790289717.260867,
+    "[px4] command arm/disarm temporarily rejected"
+  ],
+  [
+    1790289717.260947,
+    "[px4] INFO  [tone_alarm] battery warning (fast)"
+  ],
+  [
+    1790289717.26103,
+    "[px4] Disarming denied: not landed\t"
+  ],
+  [
+    1790289718.257657,
+    "[px4] WARN  [commander] Disarming denied: not landed"
+  ],
+  [
+    1790289718.257668,
+    "[px4] INFO  [tone_alarm] notify negative"
+  ],
+  [
+    1790289718.260813,
+    "[px4] command arm/disarm temporarily rejected"
+  ],
+  [
+    1790289718.26096,
+    "[px4] Disarming denied: not landed\t"
+  ],
+  [
+    1790289718.357004,
+    "[px4] INFO  [tone_alarm] battery warning (fast)"
+  ],
+  [
+    1790289719.265249,
+    "[px4] WARN  [commander] Disarming denied: not landed"
+  ],
+  [
+    1790289719.2652931,
+    "[px4] INFO  [tone_alarm] notify negative"
+  ],
+  [
+    1790289719.2653692,
+    "[px4] command arm/disarm temporarily rejected"
+  ],
+  [
+    1790289719.265423,
+    "[px4] Disarming denied: not landed\t"
+  ],
+  [
+    1790289719.365262,
+    "[px4] INFO  [tone_alarm] battery warning (fast)"
+  ],
+  [
+    1790289720.2728908,
+    "[px4] WARN  [commander] Disarming denied: not landed"
+  ],
+  [
+    1790289720.272927,
+    "[px4] INFO  [tone_alarm] notify negative"
+  ],
+  [
+    1790289720.2729862,
+    "[px4] Disarming denied: not landed\t"
+  ],
+  [
+    1790289720.2769432,
+    "[px4] command arm/disarm temporarily rejected"
+  ],
+  [
+    1790289720.372993,
+    "[px4] INFO  [tone_alarm] battery warning (fast)"
+  ],
+  [
+    1790289720.400532,
+    "[scenario] t=279.1s FAIL nose landing timed out"
+  ],
+  [
+    1790289720.400539,
+    "[scenario] t=279.1s finished: aborted (failed)"
+  ],
+  [
+    1790289722.242052,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289723.257271,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289724.2599611,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289725.278046,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289725.4073129,
+    "[link] simulator link lost (the simulation is paused: PX4 receives no sensor data while paused)"
+  ],
+  [
+    1790289725.4556139,
+    "[link] control link lost"
+  ],
+  [
+    1790289726.284375,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289727.301304,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289728.3235772,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289729.342221,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289730.355108,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289731.375468,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289732.396047,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289733.416841,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289734.433818,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289735.446768,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289736.463346,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289737.484732,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289738.499286,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289739.521802,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289740.538315,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289741.5555708,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289742.5596821,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289743.562612,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289744.573248,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289745.591836,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289746.609992,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289748.619295,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289749.6420338,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289750.6449568,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289751.646132,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289752.6662369,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289753.69194,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289754.704628,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289755.726913,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289756.747478,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289757.7501838,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289758.763446,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289759.7659168,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289760.7805738,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289761.792966,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289762.802878,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289763.812554,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289764.8301,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289765.837217,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289766.8385322,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289767.860895,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289768.875394,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289770.8758872,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289771.878798,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289772.8964102,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289773.916874,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289774.9325922,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289775.9334242,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289776.953749,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289777.966057,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289778.968066,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289779.9796531,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289780.980465,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289782.002032,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289783.022051,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289784.026853,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289785.0420868,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289786.0453918,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289787.064023,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289788.067155,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289789.0679219,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289790.0857768,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289791.09377,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289792.099328,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289793.108428,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289794.118411,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289795.141644,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289796.160251,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289797.168522,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289798.1729448,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289799.176655,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289800.196667,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289801.205039,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289802.228936,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289803.23456,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289804.242707,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289805.2449942,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289806.2502909,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289807.26371,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289808.2749949,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289809.275903,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289810.283555,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289811.287879,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289812.306119,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289813.3285818,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289814.341728,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289815.3454778,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289816.352584,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289817.3706381,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289818.384994,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289819.400665,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289820.410957,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289821.4192939,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289822.422645,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289823.423429,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289824.425932,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289825.4362571,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289826.456634,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289827.466773,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289828.4743302,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289829.4765599,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289830.489255,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289831.510216,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289832.5243819,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289833.524745,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289834.538302,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289836.5518541,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289837.554615,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289838.567677,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289839.58393,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289840.5906482,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289841.6091478,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289842.622776,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289843.6405199,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289844.648404,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289845.659533,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289846.675039,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289847.695612,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289848.708996,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289849.710478,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289850.73047,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289851.7488,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289852.759016,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289853.769255,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289854.784138,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289855.806012,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289856.825383,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289857.834485,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289858.8532648,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289859.875544,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289860.893404,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289861.91807,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289862.9262578,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289863.931169,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289864.9488451,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289865.9589188,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289866.975956,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289867.998206,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289869.017364,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289870.0239182,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289871.041708,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289872.050303,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289873.062477,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289874.0696409,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289876.0899231,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289877.095427,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289878.116249,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289879.135079,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289880.145466,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289881.169687,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289882.182545,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289883.20085,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289884.2020009,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289885.225014,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289886.2461052,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289887.258323,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289888.2602298,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289889.268165,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289890.271948,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289891.28614,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289892.309866,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289893.324973,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289894.342525,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289895.3639581,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289896.381481,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289897.3981671,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289898.419582,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289899.431742,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289900.433303,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289901.446594,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289902.451146,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289903.468628,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289904.470471,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289905.480604,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289906.49282,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289907.511938,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289908.5228522,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289909.5467288,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289910.559461,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289911.566899,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289912.588604,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289913.592337,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289914.6109529,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289915.631372,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289916.645222,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289917.6493282,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289918.669343,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289919.670675,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289920.6788611,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289921.6924632,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289922.708371,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289923.725333,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289924.729353,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289925.7512178,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289926.7749372,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289927.7881851,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289928.809016,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289929.819359,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289930.8275452,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289932.8357859,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289933.840183,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289934.842746,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289935.852159,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289936.871488,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289937.880142,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289938.8906891,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289939.897954,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289940.904866,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289941.908261,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289942.932603,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289943.951079,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289944.954786,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289945.9559429,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289946.969341,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289947.992146,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289949.000499,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289950.019737,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289951.021214,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289952.034088,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289953.041539,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289954.0575,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289955.0695271,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289956.0770009,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289957.101294,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289958.103725,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289960.1276941,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289961.1508858,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289962.174149,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289963.184432,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289964.200187,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289965.22156,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289966.222351,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289967.241805,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289968.2553768,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289969.260291,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289970.283,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289971.302269,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289972.30647,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289973.308825,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289974.3099608,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289975.333857,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289976.3588128,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289977.379499,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289978.391854,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289979.400775,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289980.417579,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289981.4227939,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289983.430767,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289984.4398,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289985.444252,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289986.460181,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289987.467704,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289988.49163,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289989.509397,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289990.534088,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289991.542767,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289992.560899,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289993.577906,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289994.579127,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289995.595674,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289996.601194,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289997.614096,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289998.616521,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790289999.619424,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790290000.642514,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790290001.646515,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790290002.653454,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790290003.676181,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790290004.692682,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790290005.694429,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790290006.7008169,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790290007.715627,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790290008.721586,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790290009.726728,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790290010.727916,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790290011.739945,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790290012.761195,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790290013.7816498,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790290014.7820318,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790290015.7864928,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790290016.792067,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790290017.8064451,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790290019.8157,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790290020.831017,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790290021.8506272,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790290022.8542578,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790290023.866747,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790290024.873919,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790290025.894707,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790290026.90147,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790290027.90408,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790290028.9192698,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790290029.9303901,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790290030.9516,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790290031.9656372,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790290032.967329,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790290033.976007,
+    "[px4] ERROR [simulator_mavlink] poll timeout 0, 25"
+  ],
+  [
+    1790290034.762136,
+    "[px4] reset: reset already in progress"
+  ],
+  [
+    1790290034.778723,
+    "[link] PX4 control link up (sysid 2 compid 1)"
+  ],
+  [
+    1790290034.778917,
+    "[link] PX4 simulator link up (sysid 2 compid 1)"
+  ],
+  [
+    1790290036.2802482,
+    "[link] firmware PX4 v1.18.0 beta (00000023)"
+  ],
+  [
+    1790290036.528411,
+    "[px4] reset: reset already in progress"
+  ],
+  [
+    1790290037.028049,
+    "[link] parameters: 1010/1009"
+  ],
+  [
+    1790290037.028333,
+    "[px4] atlas_nose_lift status"
+  ],
+  [
+    1790290037.028336,
+    "[px4] INFO  [atlas_nose_lift] phase=0 pitch=-0.43 front9=0.000"
+  ],
+  [
+    1790290037.509279,
+    "[params] SITL reference saved (1010 parameters) for board syncing"
+  ],
+  [
+    1790290037.8382459,
+    "[px4] pxh> WARN  [health_and_arming_checks] Preflight Fail: Attitude failure (roll)"
+  ],
+  [
+    1790290037.838318,
+    "[px4] Preflight Fail: Attitude failure (roll)"
+  ],
+  [
+    1790290037.8385699,
+    "[px4] CRIT Attitude failure detected"
+  ],
+  [
+    1790290037.838592,
+    "[px4] ERROR No offboard signal"
+  ],
+  [
+    1790290037.838615,
+    "[px4] INFO No valid mission available"
+  ],
+  [
+    1790290037.838656,
+    "[px4] WARN No manual control input"
+  ],
+  [
+    1790290037.850315,
+    "[px4] WARN Failsafe warning:"
+  ],
+  [
+    1790290039.1818829,
+    "[px4] INFO  [commander] Disarmed by external command"
+  ],
+  [
+    1790290039.181897,
+    "[px4] INFO  [tone_alarm] notify neutral"
+  ],
+  [
+    1790290039.186218,
+    "[px4] Disarmed by external command\t"
+  ],
+  [
+    1790290039.1862578,
+    "[px4] INFO Disarmed by external command"
+  ],
+  [
+    1790290039.842437,
+    "[px4] ERROR Horizontal velocity unstable"
+  ],
+  [
+    1790290039.8425002,
+    "[px4] ERROR Offboard requires local velocity"
+  ],
+  [
+    1790290039.8426728,
+    "[px4] WARN  [health_and_arming_checks] Preflight Fail: horizontal velocity unstable"
+  ],
+  [
+    1790290039.84272,
+    "[px4] WARN  [health_and_arming_checks] Preflight Fail: Attitude failure (roll)"
+  ],
+  [
+    1790290039.846278,
+    "[px4] Preflight Fail: horizontal velocity unstable"
+  ],
+  [
+    1790290039.8979342,
+    "[px4] Preflight Fail: Attitude failure (roll)"
+  ],
+  [
+    1790290040.392896,
+    "[PX4] Applying model changes automatically and resetting the simulator"
+  ],
+  [
+    1790290040.3934321,
+    "[sim] loop stopped"
+  ],
+  [
+    1790290040.4492779,
+    "[px4] stopping PX4 SITL"
+  ],
+  [
+    1790290040.449465,
+    "[px4] "
+  ],
+  [
+    1790290040.449513,
+    "[px4] PX4 Exiting..."
+  ],
+  [
+    1790290040.4495978,
+    "[px4] Exiting NOW."
+  ],
+  [
+    1790290040.770425,
+    "[px4] reset: reset already in progress (49 s left)"
+  ],
+  [
+    1790290040.956118,
+    "[px4] exited with code 0"
+  ],
+  [
+    1790290041.0054588,
+    "[link] SITL: listening for PX4 simulator link on tcp://0.0.0.0:4561"
+  ],
+  [
+    1790290041.005776,
+    "[link] SITL: parameters/commands via PX4 onboard link udpin:127.0.0.1:14541"
+  ],
+  [
+    1790290041.009186,
+    "[px4] launching: PX4_SIM_MODEL=none_iris /Users/rasmushauschild/AIRFRAME_DESIGNER/firmware/atlas/build/px4_sitl_default/bin/px4 -d -i 1 -w /Users/rasmushauschild/.airframe_designer/px4_instance_1 /Users/rasmushauschild/AIRFRAME_DESIGNER/firmware/atlas/build/px4_sitl_default/etc"
+  ],
+  [
+    1790290041.017384,
+    "[sim] loop started: 250 Hz sensors, physics 1000 Hz"
+  ],
+  [
+    1790290041.017619,
+    "[PX4] Current model parameters loaded; waiting for preflight checks"
+  ],
+  [
+    1790290041.024151,
+    "[px4] INFO  [px4] instance: 1"
+  ],
+  [
+    1790290041.027502,
+    "[px4] "
+  ],
+  [
+    1790290041.027519,
+    "[px4] ______  __   __    ___"
+  ],
+  [
+    1790290041.027524,
+    "[px4] | ___ \\ \\ \\ / /   /   |"
+  ],
+  [
+    1790290041.027532,
+    "[px4] | |_/ /  \\ V /   / /| |"
+  ],
+  [
+    1790290041.027539,
+    "[px4] |  __/   /   \\  / /_| |"
+  ],
+  [
+    1790290041.027544,
+    "[px4] | |     / /^\\ \\ \\___  |"
+  ],
+  [
+    1790290041.0275462,
+    "[px4] \\_|     \\/   \\/     |_/"
+  ],
+  [
+    1790290041.027555,
+    "[px4] "
+  ],
+  [
+    1790290041.02756,
+    "[px4] px4 starting."
+  ],
+  [
+    1790290041.027578,
+    "[px4] "
+  ],
+  [
+    1790290041.027582,
+    "[px4] INFO  [px4] startup script: /bin/sh etc/init.d-posix/rcS 1"
+  ],
+  [
+    1790290041.041593,
+    "[px4] INFO  [init] found model autostart file as SYS_AUTOSTART=10016"
+  ],
+  [
+    1790290041.045187,
+    "[px4] INFO  [param] selected parameter default file fs/parameters.bson"
+  ],
+  [
+    1790290041.049987,
+    "[px4] INFO  [param] importing from 'fs/parameters.bson'"
+  ],
+  [
+    1790290041.0499918,
+    "[px4] WARN  [parameters] ignoring unrecognised parameter 'PWM_AUX_FUNC1'"
+  ],
+  [
+    1790290041.049994,
+    "[px4] WARN  [parameters] ignoring unrecognised parameter 'PWM_AUX_FUNC2'"
+  ],
+  [
+    1790290041.0499961,
+    "[px4] INFO  [parameters] BSON document size 2853 bytes, decoded 2853 bytes (INT32:37, FLOAT:96)"
+  ],
+  [
+    1790290041.053827,
+    "[px4] INFO  [param] selected parameter backup file fs/parameters_backup.bson"
+  ],
+  [
+    1790290041.291033,
+    "[px4] INFO  [dataman] data manager file './fs/dataman' size is 1208528 bytes"
+  ],
+  [
+    1790290041.333054,
+    "[px4] INFO  [init] PX4_SIM_HOSTNAME: localhost"
+  ],
+  [
+    1790290041.336471,
+    "[px4] INFO  [simulator_mavlink] Waiting for simulator to accept connection on TCP port 4561"
+  ],
+  [
+    1790290041.336753,
+    "[px4] INFO  [simulator_mavlink] Simulator connected on TCP port 4561."
+  ],
+  [
+    1790290041.3370318,
+    "[link] PX4 simulator link up (sysid 2 compid 1)"
+  ],
+  [
+    1790290041.354281,
+    "[px4] INFO  [lockstep_scheduler] setting initial absolute time to 4000 us"
+  ],
+  [
+    1790290041.988425,
+    "[px4] INFO  [commander] LED: open /dev/led0 failed (22)"
+  ],
+  [
+    1790290042.1936798,
+    "[px4] INFO  [vision_target_estimator] VTE for static target init"
+  ],
+  [
+    1790290042.210356,
+    "[px4] INFO  [tone_alarm] home set"
+  ],
+  [
+    1790290042.231661,
+    "[px4] INFO  [uxrce_dds_client] init UDP agent IP:127.0.0.1, port:8888"
+  ],
+  [
+    1790290042.26996,
+    "[px4] INFO  [mavlink] mode: Normal, data rate: 4000000 B/s on udp port 18571 remote port 14550"
+  ],
+  [
+    1790290042.370537,
+    "[px4] INFO  [mavlink] mode: Onboard, data rate: 4000000 B/s on udp port 14581 remote port 14541"
+  ],
+  [
+    1790290042.372581,
+    "[link] PX4 control link up (sysid 2 compid 1)"
+  ],
+  [
+    1790290042.3764448,
+    "[px4] INFO  [mavlink] mode: Onboard, data rate: 4000 B/s on udp port 14281 remote port 14031"
+  ],
+  [
+    1790290042.380385,
+    "[px4] INFO  [mavlink] mode: Gimbal, data rate: 400000 B/s on udp port 13031 remote port 13281"
+  ],
+  [
+    1790290042.4184902,
+    "[px4] INFO  [logger] logger started (mode=all)"
+  ],
+  [
+    1790290042.418516,
+    "[px4] WARN  [logger] No logging topics added. Using default set"
+  ],
+  [
+    1790290042.422605,
+    "[px4] INFO  [mavlink] MAVLink only on localhost (set param MAV_{i}_BROADCAST = 1 to enable network)"
+  ],
+  [
+    1790290042.422608,
+    "[px4] INFO  [mavlink] MAVLink only on localhost (set param MAV_{i}_BROADCAST = 1 to enable network)"
+  ],
+  [
+    1790290042.426949,
+    "[px4] INFO  [px4] Startup script returned successfully"
+  ],
+  [
+    1790290043.088872,
+    "[px4] INFO  [mavlink] partner IP: 127.0.0.1"
+  ],
+  [
+    1790290043.439214,
+    "[export] pushed 7/7 params to PX4"
+  ],
+  [
+    1790290043.552499,
+    "[link] firmware PX4 v1.18.0 beta (00000023)"
+  ],
+  [
+    1790290043.93248,
+    "[px4] WARN  [health_and_arming_checks] Preflight Fail: no heading reference"
+  ],
+  [
+    1790290044.258749,
+    "[link] parameters: 980/980"
+  ],
+  [
+    1790290044.2589152,
+    "[px4] INFO  [mavlink] Starting mavlink shell"
+  ],
+  [
+    1790290044.259072,
+    "[px4] atlas_nose_lift status"
+  ],
+  [
+    1790290044.2590752,
+    "[px4] INFO  [px4] not running"
+  ],
+  [
+    1790290044.2590778,
+    "[px4] Command 'atlas_nose_lift' failed, returned -1."
+  ],
+  [
+    1790290044.3603961,
+    "[px4] Preflight Fail: no heading reference"
+  ],
+  [
+    1790290044.744541,
+    "[px4] pxh> atlas_nose_lift start"
+  ],
+  [
+    1790290045.2211788,
+    "[px4] ATLAS firmware on the board: nose-lift module started (idle; takeoff needs NLF_HW_OK = 1)"
+  ],
+  [
+    1790290045.660646,
+    "[px4] pxh> INFO  [commander] Ready for takeoff!"
+  ],
+  [
+    1790290045.984661,
+    "[px4] ERROR No offboard signal"
+  ],
+  [
+    1790290045.984737,
+    "[px4] INFO No valid mission available"
+  ],
+  [
+    1790290045.984876,
+    "[px4] WARN No manual control input"
+  ],
+  [
+    1790290046.453414,
+    "[link] parameters: 1010/1009"
+  ],
+  [
+    1790290046.4541981,
+    "[params] SITL reference saved (1010 parameters) for board syncing"
+  ],
+  [
+    1790290053.111647,
+    "[px4] takeoff requested from the nose-lift module (MAV_CMD_USER_1)"
+  ],
+  [
+    1790290053.112871,
+    "[px4] WARN  [commander] command 31010 unsupported"
+  ],
+  [
+    1790290053.112879,
+    "[px4] ERROR [atlas_nose_lift] unsupported ground geometry; Update PX4 with a ten-motor tripod model"
+  ],
+  [
+    1790290053.112895,
+    "[px4] WARN  [atlas_nose_lift] manual start rejected: require disarmed/landed, valid attitude/height and fresh RC at low throttle, ki"
+  ],
+  [
+    1790290053.112905,
+    "[px4] INFO  [tone_alarm] notify negative"
+  ],
+  [
+    1790290053.1166809,
+    "[px4] command 31010 unsupported"
+  ],
+  [
+    1790290058.7453911,
+    "[px4] takeoff requested from the nose-lift module (MAV_CMD_USER_1)"
+  ],
+  [
+    1790290058.74863,
+    "[px4] ERROR [atlas_nose_lift] unsupported ground geometry; Update PX4 with a ten-motor tripod model"
+  ],
+  [
+    1790290058.7486348,
+    "[px4] WARN  [atlas_nose_lift] manual start rejected: require disarmed/landed, valid attitude/height and fresh RC at low throttle, ki"
+  ],
+  [
+    1790290058.752713,
+    "[px4] WARN  [commander] command 31010 unsupported"
+  ],
+  [
+    1790290058.752734,
+    "[px4] INFO  [tone_alarm] notify negative"
+  ],
+  [
+    1790290058.7566888,
+    "[px4] command 31010 unsupported"
+  ],
+  [
+    1790290059.819445,
+    "[px4] takeoff requested from the nose-lift module (MAV_CMD_USER_1)"
+  ],
+  [
+    1790290059.8209321,
+    "[px4] ERROR [atlas_nose_lift] unsupported ground geometry; Update PX4 with a ten-motor tripod model"
+  ],
+  [
+    1790290059.8209422,
+    "[px4] WARN  [atlas_nose_lift] manual start rejected: require disarmed/landed, valid attitude/height and fresh RC at low throttle, ki"
+  ],
+  [
+    1790290059.8209438,
+    "[px4] WARN  [commander] command 31010 unsupported"
+  ],
+  [
+    1790290059.8209548,
+    "[px4] INFO  [tone_alarm] notify negative"
+  ],
+  [
+    1790290059.824641,
+    "[px4] command 31010 unsupported"
+  ],
+  [
+    1790290061.459284,
+    "[export] pushed 121/121 params to PX4"
+  ],
+  [
+    1790290063.87798,
+    "[px4] takeoff requested from the nose-lift module (MAV_CMD_USER_1)"
+  ],
+  [
+    1790290063.8807878,
+    "[px4] ERROR [atlas_nose_lift] unsupported ground geometry; Update PX4 with a ten-motor tripod model"
+  ],
+  [
+    1790290063.8808,
+    "[px4] WARN  [atlas_nose_lift] manual start rejected: require disarmed/landed, valid attitude/height and fresh RC at low throttle, ki"
+  ],
+  [
+    1790290063.8886988,
+    "[px4] WARN  [commander] command 31010 unsupported"
+  ],
+  [
+    1790290063.888709,
+    "[px4] INFO  [tone_alarm] notify negative"
+  ],
+  [
+    1790290063.8927,
+    "[px4] command 31010 unsupported"
+  ],
+  [
+    1790290072.251059,
+    "[export] pushed 121/121 params to PX4"
+  ],
+  [
+    1790290073.945606,
+    "[px4] takeoff requested from the nose-lift module (MAV_CMD_USER_1)"
+  ],
+  [
+    1790290073.948367,
+    "[px4] ERROR [atlas_nose_lift] unsupported ground geometry; Update PX4 with a ten-motor tripod model"
+  ],
+  [
+    1790290073.94837,
+    "[px4] WARN  [atlas_nose_lift] manual start rejected: require disarmed/landed, valid attitude/height and fresh RC at low throttle, ki"
+  ],
+  [
+    1790290073.956933,
+    "[px4] WARN  [commander] command 31010 unsupported"
+  ],
+  [
+    1790290073.956942,
+    "[px4] INFO  [tone_alarm] notify negative"
+  ],
+  [
+    1790290073.960793,
+    "[px4] command 31010 unsupported"
+  ],
+  [
+    1790290095.519273,
+    "[px4] takeoff requested from the nose-lift module (MAV_CMD_USER_1)"
+  ],
+  [
+    1790290095.520768,
+    "[px4] ERROR [atlas_nose_lift] unsupported ground geometry; Update PX4 with a ten-motor tripod model"
+  ],
+  [
+    1790290095.5207858,
+    "[px4] WARN  [commander] command 31010 unsupported"
+  ],
+  [
+    1790290095.52079,
+    "[px4] WARN  [atlas_nose_lift] manual start rejected: require disarmed/landed, valid attitude/height and fresh RC at low throttle, ki"
+  ],
+  [
+    1790290095.520792,
+    "[px4] INFO  [tone_alarm] notify negative"
+  ],
+  [
+    1790290095.525169,
+    "[px4] command 31010 unsupported"
+  ],
+  [
+    1790290151.70241,
+    "[px4] takeoff requested from the nose-lift module (MAV_CMD_USER_1)"
+  ],
+  [
+    1790290151.705643,
+    "[px4] WARN  [commander] command 31010 unsupported"
+  ],
+  [
+    1790290151.705765,
+    "[px4] ERROR [atlas_nose_lift] unsupported ground geometry; Update PX4 with a ten-motor tripod model"
+  ],
+  [
+    1790290151.705777,
+    "[px4] WARN  [atlas_nose_lift] manual start rejected: require disarmed/landed, valid attitude/height and fresh RC at low throttle, ki"
+  ],
+  [
+    1790290151.705788,
+    "[px4] INFO  [tone_alarm] notify negative"
+  ],
+  [
+    1790290151.709619,
+    "[px4] command 31010 unsupported"
+  ],
+  [
+    1790290173.9448068,
+    "[PX4] Applying model changes automatically and resetting the simulator"
+  ],
+  [
+    1790290173.9451032,
+    "[sim] loop stopped"
+  ],
+  [
+    1790290173.999638,
+    "[px4] stopping PX4 SITL"
+  ],
+  [
+    1790290173.999818,
+    "[px4] "
+  ],
+  [
+    1790290173.999827,
+    "[px4] PX4 Exiting..."
+  ],
+  [
+    1790290174.0000231,
+    "[px4] Exiting NOW."
+  ],
+  [
+    1790290174.508393,
+    "[px4] exited with code 0"
+  ],
+  [
+    1790290174.5506,
+    "[link] SITL: listening for PX4 simulator link on tcp://0.0.0.0:4561"
+  ],
+  [
+    1790290174.550838,
+    "[link] SITL: parameters/commands via PX4 onboard link udpin:127.0.0.1:14541"
+  ],
+  [
+    1790290174.554786,
+    "[px4] launching: PX4_SIM_MODEL=none_iris /Users/rasmushauschild/AIRFRAME_DESIGNER/firmware/atlas/build/px4_sitl_default/bin/px4 -d -i 1 -w /Users/rasmushauschild/.airframe_designer/px4_instance_1 /Users/rasmushauschild/AIRFRAME_DESIGNER/firmware/atlas/build/px4_sitl_default/etc"
+  ],
+  [
+    1790290174.562933,
+    "[sim] loop started: 250 Hz sensors, physics 1000 Hz"
+  ],
+  [
+    1790290174.563147,
+    "[PX4] Current model parameters loaded; waiting for preflight checks"
+  ],
+  [
+    1790290174.5699809,
+    "[px4] INFO  [px4] instance: 1"
+  ],
+  [
+    1790290174.576153,
+    "[px4] "
+  ],
+  [
+    1790290174.57616,
+    "[px4] ______  __   __    ___"
+  ],
+  [
+    1790290174.5761669,
+    "[px4] | ___ \\ \\ \\ / /   /   |"
+  ],
+  [
+    1790290174.576172,
+    "[px4] | |_/ /  \\ V /   / /| |"
+  ],
+  [
+    1790290174.576179,
+    "[px4] |  __/   /   \\  / /_| |"
+  ],
+  [
+    1790290174.576181,
+    "[px4] | |     / /^\\ \\ \\___  |"
+  ],
+  [
+    1790290174.5761878,
+    "[px4] \\_|     \\/   \\/     |_/"
+  ],
+  [
+    1790290174.576192,
+    "[px4] "
+  ],
+  [
+    1790290174.576194,
+    "[px4] px4 starting."
+  ],
+  [
+    1790290174.5761962,
+    "[px4] "
+  ],
+  [
+    1790290174.576201,
+    "[px4] INFO  [px4] startup script: /bin/sh etc/init.d-posix/rcS 1"
+  ],
+  [
+    1790290174.586279,
+    "[px4] INFO  [init] found model autostart file as SYS_AUTOSTART=10016"
+  ],
+  [
+    1790290174.590344,
+    "[px4] INFO  [param] selected parameter default file fs/parameters.bson"
+  ],
+  [
+    1790290174.5955572,
+    "[px4] INFO  [param] importing from 'fs/parameters.bson'"
+  ],
+  [
+    1790290174.5955598,
+    "[px4] WARN  [parameters] ignoring unrecognised parameter 'PWM_AUX_FUNC1'"
+  ],
+  [
+    1790290174.595562,
+    "[px4] WARN  [parameters] ignoring unrecognised parameter 'PWM_AUX_FUNC2'"
+  ],
+  [
+    1790290174.5955641,
+    "[px4] INFO  [parameters] BSON document size 3388 bytes, decoded 3388 bytes (INT32:37, FLOAT:124)"
+  ],
+  [
+    1790290174.599948,
+    "[px4] INFO  [param] selected parameter backup file fs/parameters_backup.bson"
+  ],
+  [
+    1790290174.845621,
+    "[px4] INFO  [dataman] data manager file './fs/dataman' size is 1208528 bytes"
+  ],
+  [
+    1790290174.886604,
+    "[px4] INFO  [init] PX4_SIM_HOSTNAME: localhost"
+  ],
+  [
+    1790290174.8903449,
+    "[px4] INFO  [simulator_mavlink] Waiting for simulator to accept connection on TCP port 4561"
+  ],
+  [
+    1790290174.890626,
+    "[px4] INFO  [simulator_mavlink] Simulator connected on TCP port 4561."
+  ],
+  [
+    1790290174.890839,
+    "[link] PX4 simulator link up (sysid 2 compid 1)"
+  ],
+  [
+    1790290174.904052,
+    "[px4] INFO  [lockstep_scheduler] setting initial absolute time to 4000 us"
+  ],
+  [
+    1790290175.538773,
+    "[px4] INFO  [commander] LED: open /dev/led0 failed (22)"
+  ],
+  [
+    1790290175.566122,
+    "[PX4] Applying model changes automatically and resetting the simulator"
+  ],
+  [
+    1790290175.638203,
+    "[sim] loop stopped"
+  ],
+  [
+    1790290175.690551,
+    "[px4] stopping PX4 SITL"
+  ],
+  [
+    1790290175.691723,
+    "[px4] ERROR [px4] Startup script returned with return value: 2"
+  ],
+  [
+    1790290176.199596,
+    "[px4] exited with code 255"
+  ],
+  [
+    1790290176.241536,
+    "[link] SITL: listening for PX4 simulator link on tcp://0.0.0.0:4561"
+  ],
+  [
+    1790290176.241785,
+    "[link] SITL: parameters/commands via PX4 onboard link udpin:127.0.0.1:14541"
+  ],
+  [
+    1790290176.245434,
+    "[px4] launching: PX4_SIM_MODEL=none_iris /Users/rasmushauschild/AIRFRAME_DESIGNER/firmware/atlas/build/px4_sitl_default/bin/px4 -d -i 1 -w /Users/rasmushauschild/.airframe_designer/px4_instance_1 /Users/rasmushauschild/AIRFRAME_DESIGNER/firmware/atlas/build/px4_sitl_default/etc"
+  ],
+  [
+    1790290176.2528372,
+    "[sim] loop started: 250 Hz sensors, physics 1000 Hz"
+  ],
+  [
+    1790290176.2529962,
+    "[PX4] Current model parameters loaded; waiting for preflight checks"
+  ],
+  [
+    1790290176.2611651,
+    "[px4] INFO  [px4] instance: 1"
+  ],
+  [
+    1790290176.263476,
+    "[px4] "
+  ],
+  [
+    1790290176.26348,
+    "[px4] ______  __   __    ___"
+  ],
+  [
+    1790290176.263482,
+    "[px4] | ___ \\ \\ \\ / /   /   |"
+  ],
+  [
+    1790290176.263484,
+    "[px4] | |_/ /  \\ V /   / /| |"
+  ],
+  [
+    1790290176.263486,
+    "[px4] |  __/   /   \\  / /_| |"
+  ],
+  [
+    1790290176.263489,
+    "[px4] | |     / /^\\ \\ \\___  |"
+  ],
+  [
+    1790290176.26349,
+    "[px4] \\_|     \\/   \\/     |_/"
+  ],
+  [
+    1790290176.263492,
+    "[px4] "
+  ],
+  [
+    1790290176.2634969,
+    "[px4] px4 starting."
+  ],
+  [
+    1790290176.263498,
+    "[px4] "
+  ],
+  [
+    1790290176.2635012,
+    "[px4] INFO  [px4] startup script: /bin/sh etc/init.d-posix/rcS 1"
+  ],
+  [
+    1790290176.27731,
+    "[px4] INFO  [init] found model autostart file as SYS_AUTOSTART=10016"
+  ],
+  [
+    1790290176.281445,
+    "[px4] INFO  [param] selected parameter default file fs/parameters.bson"
+  ],
+  [
+    1790290176.286745,
+    "[px4] INFO  [param] importing from 'fs/parameters.bson'"
+  ],
+  [
+    1790290176.286748,
+    "[px4] WARN  [parameters] ignoring unrecognised parameter 'PWM_AUX_FUNC1'"
+  ],
+  [
+    1790290176.2867498,
+    "[px4] WARN  [parameters] ignoring unrecognised parameter 'PWM_AUX_FUNC2'"
+  ],
+  [
+    1790290176.286752,
+    "[px4] INFO  [parameters] BSON document size 3388 bytes, decoded 3388 bytes (INT32:37, FLOAT:124)"
+  ],
+  [
+    1790290176.2910259,
+    "[px4] INFO  [param] selected parameter backup file fs/parameters_backup.bson"
+  ],
+  [
+    1790290176.5223281,
+    "[px4] INFO  [dataman] data manager file './fs/dataman' size is 1208528 bytes"
+  ],
+  [
+    1790290176.5615401,
+    "[px4] INFO  [init] PX4_SIM_HOSTNAME: localhost"
+  ],
+  [
+    1790290176.565422,
+    "[px4] INFO  [simulator_mavlink] Waiting for simulator to accept connection on TCP port 4561"
+  ],
+  [
+    1790290176.5657961,
+    "[px4] INFO  [simulator_mavlink] Simulator connected on TCP port 4561."
+  ],
+  [
+    1790290176.566012,
+    "[link] PX4 simulator link up (sysid 2 compid 1)"
+  ],
+  [
+    1790290176.591439,
+    "[px4] INFO  [lockstep_scheduler] setting initial absolute time to 4000 us"
+  ],
+  [
+    1790290177.240314,
+    "[px4] INFO  [commander] LED: open /dev/led0 failed (22)"
+  ],
+  [
+    1790290177.4469,
+    "[px4] INFO  [vision_target_estimator] VTE for static target init"
+  ],
+  [
+    1790290177.48441,
+    "[px4] INFO  [uxrce_dds_client] init UDP agent IP:127.0.0.1, port:8888"
+  ],
+  [
+    1790290177.522222,
+    "[px4] INFO  [mavlink] mode: Normal, data rate: 4000000 B/s on udp port 18571 remote port 14550"
+  ],
+  [
+    1790290177.619363,
+    "[px4] INFO  [mavlink] mode: Onboard, data rate: 4000000 B/s on udp port 14581 remote port 14541"
+  ],
+  [
+    1790290177.62258,
+    "[link] PX4 control link up (sysid 2 compid 1)"
+  ],
+  [
+    1790290177.626351,
+    "[px4] INFO  [mavlink] mode: Onboard, data rate: 4000 B/s on udp port 14281 remote port 14031"
+  ],
+  [
+    1790290177.63434,
+    "[px4] INFO  [mavlink] mode: Gimbal, data rate: 400000 B/s on udp port 13031 remote port 13281"
+  ],
+  [
+    1790290177.6788118,
+    "[px4] INFO  [logger] logger started (mode=all)"
+  ],
+  [
+    1790290177.6788428,
+    "[px4] WARN  [logger] No logging topics added. Using default set"
+  ],
+  [
+    1790290177.683043,
+    "[px4] INFO  [mavlink] MAVLink only on localhost (set param MAV_{i}_BROADCAST = 1 to enable network)"
+  ],
+  [
+    1790290177.683048,
+    "[px4] INFO  [mavlink] MAVLink only on localhost (set param MAV_{i}_BROADCAST = 1 to enable network)"
+  ],
+  [
+    1790290177.688043,
+    "[px4] INFO  [px4] Startup script returned successfully"
+  ],
+  [
+    1790290177.69637,
+    "[PX4] Applying model changes automatically and resetting the simulator"
+  ],
+  [
+    1790290177.697564,
+    "[sim] loop stopped"
+  ],
+  [
+    1790290177.753432,
+    "[px4] stopping PX4 SITL"
+  ],
+  [
+    1790290177.753498,
+    "[px4] "
+  ],
+  [
+    1790290177.753501,
+    "[px4] PX4 Exiting..."
+  ],
+  [
+    1790290177.753731,
+    "[px4] Exiting NOW."
+  ],
+  [
+    1790290178.262479,
+    "[px4] exited with code 0"
+  ],
+  [
+    1790290178.311873,
+    "[link] SITL: listening for PX4 simulator link on tcp://0.0.0.0:4561"
+  ],
+  [
+    1790290178.312149,
+    "[link] SITL: parameters/commands via PX4 onboard link udpin:127.0.0.1:14541"
+  ],
+  [
+    1790290178.315553,
+    "[px4] launching: PX4_SIM_MODEL=none_iris /Users/rasmushauschild/AIRFRAME_DESIGNER/firmware/atlas/build/px4_sitl_default/bin/px4 -d -i 1 -w /Users/rasmushauschild/.airframe_designer/px4_instance_1 /Users/rasmushauschild/AIRFRAME_DESIGNER/firmware/atlas/build/px4_sitl_default/etc"
+  ],
+  [
+    1790290178.3222551,
+    "[sim] loop started: 250 Hz sensors, physics 1000 Hz"
+  ],
+  [
+    1790290178.322422,
+    "[PX4] Current model parameters loaded; waiting for preflight checks"
+  ],
+  [
+    1790290178.328395,
+    "[px4] INFO  [px4] instance: 1"
+  ],
+  [
+    1790290178.331659,
+    "[px4] "
+  ],
+  [
+    1790290178.3316648,
+    "[px4] ______  __   __    ___"
+  ],
+  [
+    1790290178.331688,
+    "[px4] | ___ \\ \\ \\ / /   /   |"
+  ],
+  [
+    1790290178.331691,
+    "[px4] | |_/ /  \\ V /   / /| |"
+  ],
+  [
+    1790290178.331696,
+    "[px4] |  __/   /   \\  / /_| |"
+  ],
+  [
+    1790290178.3317,
+    "[px4] | |     / /^\\ \\ \\___  |"
+  ],
+  [
+    1790290178.331702,
+    "[px4] \\_|     \\/   \\/     |_/"
+  ],
+  [
+    1790290178.331706,
+    "[px4] "
+  ],
+  [
+    1790290178.3317099,
+    "[px4] px4 starting."
+  ],
+  [
+    1790290178.331716,
+    "[px4] "
+  ],
+  [
+    1790290178.331721,
+    "[px4] INFO  [px4] startup script: /bin/sh etc/init.d-posix/rcS 1"
+  ],
+  [
+    1790290178.3448372,
+    "[px4] INFO  [init] found model autostart file as SYS_AUTOSTART=10016"
+  ],
+  [
+    1790290178.34863,
+    "[px4] INFO  [param] selected parameter default file fs/parameters.bson"
+  ],
+  [
+    1790290178.3532102,
+    "[px4] INFO  [param] importing from 'fs/parameters.bson'"
+  ],
+  [
+    1790290178.353214,
+    "[px4] WARN  [parameters] ignoring unrecognised parameter 'PWM_AUX_FUNC1'"
+  ],
+  [
+    1790290178.353216,
+    "[px4] WARN  [parameters] ignoring unrecognised parameter 'PWM_AUX_FUNC2'"
+  ],
+  [
+    1790290178.353218,
+    "[px4] INFO  [parameters] BSON document size 3244 bytes, decoded 3244 bytes (INT32:37, FLOAT:115)"
+  ],
+  [
+    1790290178.356863,
+    "[px4] INFO  [param] selected parameter backup file fs/parameters_backup.bson"
+  ],
+  [
+    1790290178.605483,
+    "[px4] INFO  [dataman] data manager file './fs/dataman' size is 1208528 bytes"
+  ],
+  [
+    1790290178.645699,
+    "[px4] INFO  [init] PX4_SIM_HOSTNAME: localhost"
+  ],
+  [
+    1790290178.648969,
+    "[px4] INFO  [simulator_mavlink] Waiting for simulator to accept connection on TCP port 4561"
+  ],
+  [
+    1790290178.649225,
+    "[px4] INFO  [simulator_mavlink] Simulator connected on TCP port 4561."
+  ],
+  [
+    1790290178.6495192,
+    "[link] PX4 simulator link up (sysid 2 compid 1)"
+  ],
+  [
+    1790290178.650708,
+    "[px4] INFO  [lockstep_scheduler] setting initial absolute time to 4000 us"
+  ],
+  [
+    1790290179.280979,
+    "[px4] INFO  [commander] LED: open /dev/led0 failed (22)"
+  ],
+  [
+    1790290179.484193,
+    "[px4] INFO  [vision_target_estimator] VTE for static target init"
+  ],
+  [
+    1790290179.521269,
+    "[px4] INFO  [uxrce_dds_client] init UDP agent IP:127.0.0.1, port:8888"
+  ],
+  [
+    1790290179.5602078,
+    "[px4] INFO  [mavlink] mode: Normal, data rate: 4000000 B/s on udp port 18571 remote port 14550"
+  ],
+  [
+    1790290179.6594539,
+    "[px4] INFO  [mavlink] mode: Onboard, data rate: 4000000 B/s on udp port 14581 remote port 14541"
+  ],
+  [
+    1790290179.6632168,
+    "[link] PX4 control link up (sysid 2 compid 1)"
+  ],
+  [
+    1790290179.667767,
+    "[px4] INFO  [mavlink] mode: Onboard, data rate: 4000 B/s on udp port 14281 remote port 14031"
+  ],
+  [
+    1790290179.675235,
+    "[px4] INFO  [mavlink] mode: Gimbal, data rate: 400000 B/s on udp port 13031 remote port 13281"
+  ],
+  [
+    1790290179.7166889,
+    "[px4] INFO  [logger] logger started (mode=all)"
+  ],
+  [
+    1790290179.716733,
+    "[px4] WARN  [logger] No logging topics added. Using default set"
+  ],
+  [
+    1790290179.720356,
+    "[px4] INFO  [mavlink] MAVLink only on localhost (set param MAV_{i}_BROADCAST = 1 to enable network)"
+  ],
+  [
+    1790290179.7203588,
+    "[px4] INFO  [mavlink] MAVLink only on localhost (set param MAV_{i}_BROADCAST = 1 to enable network)"
+  ],
+  [
+    1790290179.724899,
+    "[px4] INFO  [px4] Startup script returned successfully"
+  ],
+  [
+    1790290179.979487,
+    "[px4] INFO  [tone_alarm] home set"
+  ],
+  [
+    1790290180.383268,
+    "[px4] INFO  [mavlink] partner IP: 127.0.0.1"
+  ],
+  [
+    1790290180.943677,
+    "[link] firmware PX4 v1.18.0 beta (00000023)"
+  ],
+  [
+    1790290181.227386,
+    "[px4] WARN  [health_and_arming_checks] Preflight Fail: no heading reference"
+  ],
+  [
+    1790290181.659159,
+    "[px4] Preflight Fail: no heading reference"
+  ],
+  [
+    1790290181.668471,
+    "[link] parameters: 980/980"
+  ],
+  [
+    1790290181.66861,
+    "[px4] INFO  [mavlink] Starting mavlink shell"
+  ],
+  [
+    1790290181.66877,
+    "[px4] atlas_nose_lift status"
+  ],
+  [
+    1790290181.6687732,
+    "[px4] INFO  [px4] not running"
+  ],
+  [
+    1790290181.6687748,
+    "[px4] Command 'atlas_nose_lift' failed, returned -1."
+  ],
+  [
+    1790290181.991861,
+    "[export] this firmware has no atlas_nose_lift module (NLF_* parameters unknown): the native ground sequence is unavailable on it; the simulator's own nose-lift hook is used instead"
+  ],
+  [
+    1790290182.1710432,
+    "[px4] pxh> atlas_nose_lift start"
+  ],
+  [
+    1790290182.649426,
+    "[px4] ATLAS firmware on the board: nose-lift module started (idle; takeoff needs NLF_HW_OK = 1)"
+  ],
+  [
+    1790290182.772383,
+    "[export] pushed 128/128 params to PX4"
+  ],
+  [
+    1790290182.9668941,
+    "[px4] pxh> INFO  [commander] Ready for takeoff!"
+  ],
+  [
+    1790290183.2956831,
+    "[px4] ERROR No offboard signal"
+  ],
+  [
+    1790290183.2957098,
+    "[px4] INFO No valid mission available"
+  ],
+  [
+    1790290183.295742,
+    "[px4] WARN No manual control input"
+  ],
+  [
+    1790290183.860943,
+    "[link] parameters: 1010/1009"
+  ],
+  [
+    1790290183.86186,
+    "[params] SITL reference saved (1010 parameters) for board syncing"
+  ],
+  [
+    1790290187.768988,
+    "[px4] takeoff requested from the nose-lift module (MAV_CMD_USER_1)"
+  ],
+  [
+    1790290187.771449,
+    "[px4] WARN  [atlas_nose_lift] manual start rejected: require disarmed/landed, valid attitude/height and fresh RC at low throttle, ki"
+  ],
+  [
+    1790290187.779382,
+    "[px4] WARN  [commander] command 31010 unsupported"
+  ],
+  [
+    1790290187.7794912,
+    "[px4] command 31010 unsupported"
+  ],
+  [
+    1790290187.779549,
+    "[px4] INFO  [tone_alarm] notify negative"
+  ],
+  [
+    1790290199.5433018,
+    "[export] pushed 140/140 params to PX4"
+  ],
+  [
+    1790290200.761759,
+    "[px4] takeoff requested from the nose-lift module (MAV_CMD_USER_1)"
+  ],
+  [
+    1790290200.763655,
+    "[px4] WARN  [atlas_nose_lift] manual start rejected: require disarmed/landed, valid attitude/height and fresh RC at low throttle, ki"
+  ],
+  [
+    1790290200.7636569,
+    "[px4] WARN  [commander] command 31010 unsupported"
+  ],
+  [
+    1790290200.763686,
+    "[px4] INFO  [tone_alarm] notify negative"
+  ],
+  [
+    1790290200.7637959,
+    "[px4] command 31010 unsupported"
+  ],
+  [
+    1790290208.1377249,
+    "[px4] takeoff requested from the nose-lift module (MAV_CMD_USER_1)"
+  ],
+  [
+    1790290208.139619,
+    "[px4] WARN  [atlas_nose_lift] manual start rejected: require disarmed/landed, valid attitude/height and fresh RC at low throttle, ki"
+  ],
+  [
+    1790290208.143593,
+    "[px4] WARN  [commander] command 31010 unsupported"
+  ],
+  [
+    1790290208.143599,
+    "[px4] INFO  [tone_alarm] notify negative"
+  ],
+  [
+    1790290208.1437051,
+    "[px4] command 31010 unsupported"
+  ],
+  [
+    1790290214.6743538,
+    "[PX4] Applying model changes automatically and resetting the simulator"
+  ],
+  [
+    1790290214.675127,
+    "[sim] loop stopped"
+  ],
+  [
+    1790290214.727628,
+    "[px4] stopping PX4 SITL"
+  ],
+  [
+    1790290214.727744,
+    "[px4] "
+  ],
+  [
+    1790290214.727746,
+    "[px4] PX4 Exiting..."
+  ],
+  [
+    1790290214.727849,
+    "[px4] Exiting NOW."
+  ],
+  [
+    1790290215.236168,
+    "[px4] exited with code 0"
+  ],
+  [
+    1790290215.2830799,
+    "[link] SITL: listening for PX4 simulator link on tcp://0.0.0.0:4561"
+  ],
+  [
+    1790290215.283272,
+    "[link] SITL: parameters/commands via PX4 onboard link udpin:127.0.0.1:14541"
+  ],
+  [
+    1790290215.28575,
+    "[px4] launching: PX4_SIM_MODEL=none_iris /Users/rasmushauschild/AIRFRAME_DESIGNER/firmware/atlas/build/px4_sitl_default/bin/px4 -d -i 1 -w /Users/rasmushauschild/.airframe_designer/px4_instance_1 /Users/rasmushauschild/AIRFRAME_DESIGNER/firmware/atlas/build/px4_sitl_default/etc"
+  ],
+  [
+    1790290215.292429,
+    "[sim] loop started: 250 Hz sensors, physics 1000 Hz"
+  ],
+  [
+    1790290215.2925959,
+    "[PX4] Current model parameters loaded; waiting for preflight checks"
+  ],
+  [
+    1790290215.2979379,
+    "[px4] INFO  [px4] instance: 1"
+  ],
+  [
+    1790290215.3011231,
+    "[px4] "
+  ],
+  [
+    1790290215.301134,
+    "[px4] ______  __   __    ___"
+  ],
+  [
+    1790290215.301143,
+    "[px4] | ___ \\ \\ \\ / /   /   |"
+  ],
+  [
+    1790290215.301147,
+    "[px4] | |_/ /  \\ V /   / /| |"
+  ],
+  [
+    1790290215.301152,
+    "[px4] |  __/   /   \\  / /_| |"
+  ],
+  [
+    1790290215.301158,
+    "[px4] | |     / /^\\ \\ \\___  |"
+  ],
+  [
+    1790290215.3011642,
+    "[px4] \\_|     \\/   \\/     |_/"
+  ],
+  [
+    1790290215.301167,
+    "[px4] "
+  ],
+  [
+    1790290215.3011708,
+    "[px4] px4 starting."
+  ],
+  [
+    1790290215.301177,
+    "[px4] "
+  ],
+  [
+    1790290215.301182,
+    "[px4] INFO  [px4] startup script: /bin/sh etc/init.d-posix/rcS 1"
+  ],
+  [
+    1790290215.313288,
+    "[px4] INFO  [init] found model autostart file as SYS_AUTOSTART=10016"
+  ],
+  [
+    1790290215.316813,
+    "[px4] INFO  [param] selected parameter default file fs/parameters.bson"
+  ],
+  [
+    1790290215.321453,
+    "[px4] INFO  [param] importing from 'fs/parameters.bson'"
+  ],
+  [
+    1790290215.3214562,
+    "[px4] WARN  [parameters] ignoring unrecognised parameter 'PWM_AUX_FUNC1'"
+  ],
+  [
+    1790290215.3214579,
+    "[px4] WARN  [parameters] ignoring unrecognised parameter 'PWM_AUX_FUNC2'"
+  ],
+  [
+    1790290215.32146,
+    "[px4] INFO  [parameters] BSON document size 3007 bytes, decoded 3007 bytes (INT32:37, FLOAT:103)"
+  ],
+  [
+    1790290215.3249679,
+    "[px4] INFO  [param] selected parameter backup file fs/parameters_backup.bson"
+  ],
+  [
+    1790290215.566006,
+    "[px4] INFO  [dataman] data manager file './fs/dataman' size is 1208528 bytes"
+  ],
+  [
+    1790290215.60796,
+    "[px4] INFO  [init] PX4_SIM_HOSTNAME: localhost"
+  ],
+  [
+    1790290215.611551,
+    "[px4] INFO  [simulator_mavlink] Waiting for simulator to accept connection on TCP port 4561"
+  ],
+  [
+    1790290215.611849,
+    "[px4] INFO  [simulator_mavlink] Simulator connected on TCP port 4561."
+  ],
+  [
+    1790290215.612083,
+    "[link] PX4 simulator link up (sysid 2 compid 1)"
+  ],
+  [
+    1790290215.62542,
+    "[px4] INFO  [lockstep_scheduler] setting initial absolute time to 4000 us"
+  ],
+  [
+    1790290216.2561128,
+    "[px4] INFO  [commander] LED: open /dev/led0 failed (22)"
+  ],
+  [
+    1790290216.461828,
+    "[px4] INFO  [vision_target_estimator] VTE for static target init"
+  ],
+  [
+    1790290216.499159,
+    "[px4] INFO  [uxrce_dds_client] init UDP agent IP:127.0.0.1, port:8888"
+  ],
+  [
+    1790290216.537067,
+    "[px4] INFO  [mavlink] mode: Normal, data rate: 4000000 B/s on udp port 18571 remote port 14550"
+  ],
+  [
+    1790290216.634847,
+    "[px4] INFO  [mavlink] mode: Onboard, data rate: 4000000 B/s on udp port 14581 remote port 14541"
+  ],
+  [
+    1790290216.6351402,
+    "[link] PX4 control link up (sysid 2 compid 1)"
+  ],
+  [
+    1790290216.639454,
+    "[px4] INFO  [mavlink] mode: Onboard, data rate: 4000 B/s on udp port 14281 remote port 14031"
+  ],
+  [
+    1790290216.6475542,
+    "[px4] INFO  [mavlink] mode: Gimbal, data rate: 400000 B/s on udp port 13031 remote port 13281"
+  ],
+  [
+    1790290216.690737,
+    "[px4] INFO  [logger] logger started (mode=all)"
+  ],
+  [
+    1790290216.690746,
+    "[px4] WARN  [logger] No logging topics added. Using default set"
+  ],
+  [
+    1790290216.6937878,
+    "[px4] INFO  [mavlink] MAVLink only on localhost (set param MAV_{i}_BROADCAST = 1 to enable network)"
+  ],
+  [
+    1790290216.693791,
+    "[px4] INFO  [mavlink] MAVLink only on localhost (set param MAV_{i}_BROADCAST = 1 to enable network)"
+  ],
+  [
+    1790290216.698992,
+    "[px4] INFO  [px4] Startup script returned successfully"
+  ],
+  [
+    1790290217.0232298,
+    "[PX4] Applying model changes automatically and resetting the simulator"
+  ],
+  [
+    1790290217.026842,
+    "[sim] loop stopped"
+  ],
+  [
+    1790290217.080178,
+    "[px4] stopping PX4 SITL"
+  ],
+  [
+    1790290217.08026,
+    "[px4] "
+  ],
+  [
+    1790290217.080263,
+    "[px4] PX4 Exiting..."
+  ],
+  [
+    1790290217.080447,
+    "[px4] Exiting NOW."
+  ],
+  [
+    1790290217.589281,
+    "[px4] exited with code 0"
+  ],
+  [
+    1790290217.6320698,
+    "[link] SITL: listening for PX4 simulator link on tcp://0.0.0.0:4561"
+  ],
+  [
+    1790290217.6322932,
+    "[link] SITL: parameters/commands via PX4 onboard link udpin:127.0.0.1:14541"
+  ],
+  [
+    1790290217.635597,
+    "[px4] launching: PX4_SIM_MODEL=none_iris /Users/rasmushauschild/AIRFRAME_DESIGNER/firmware/atlas/build/px4_sitl_default/bin/px4 -d -i 1 -w /Users/rasmushauschild/.airframe_designer/px4_instance_1 /Users/rasmushauschild/AIRFRAME_DESIGNER/firmware/atlas/build/px4_sitl_default/etc"
+  ],
+  [
+    1790290217.641527,
+    "[sim] loop started: 250 Hz sensors, physics 1000 Hz"
+  ],
+  [
+    1790290217.641765,
+    "[PX4] Current model parameters loaded; waiting for preflight checks"
+  ],
+  [
+    1790290217.6489222,
+    "[px4] INFO  [px4] instance: 1"
+  ],
+  [
+    1790290217.652159,
+    "[px4] "
+  ],
+  [
+    1790290217.6521652,
+    "[px4] ______  __   __    ___"
+  ],
+  [
+    1790290217.652168,
+    "[px4] | ___ \\ \\ \\ / /   /   |"
+  ],
+  [
+    1790290217.65217,
+    "[px4] | |_/ /  \\ V /   / /| |"
+  ],
+  [
+    1790290217.652172,
+    "[px4] |  __/   /   \\  / /_| |"
+  ],
+  [
+    1790290217.652173,
+    "[px4] | |     / /^\\ \\ \\___  |"
+  ],
+  [
+    1790290217.652176,
+    "[px4] \\_|     \\/   \\/     |_/"
+  ],
+  [
+    1790290217.6521778,
+    "[px4] "
+  ],
+  [
+    1790290217.65218,
+    "[px4] px4 starting."
+  ],
+  [
+    1790290217.652181,
+    "[px4] "
+  ],
+  [
+    1790290217.652183,
+    "[px4] INFO  [px4] startup script: /bin/sh etc/init.d-posix/rcS 1"
+  ],
+  [
+    1790290217.664742,
+    "[px4] INFO  [init] found model autostart file as SYS_AUTOSTART=10016"
+  ],
+  [
+    1790290217.668746,
+    "[px4] INFO  [param] selected parameter default file fs/parameters.bson"
+  ],
+  [
+    1790290217.674386,
+    "[px4] INFO  [param] importing from 'fs/parameters.bson'"
+  ],
+  [
+    1790290217.6743948,
+    "[px4] WARN  [parameters] ignoring unrecognised parameter 'PWM_AUX_FUNC1'"
+  ],
+  [
+    1790290217.674397,
+    "[px4] WARN  [parameters] ignoring unrecognised parameter 'PWM_AUX_FUNC2'"
+  ],
+  [
+    1790290217.674399,
+    "[px4] INFO  [parameters] BSON document size 2853 bytes, decoded 2853 bytes (INT32:37, FLOAT:96)"
+  ],
+  [
+    1790290217.6783528,
+    "[px4] INFO  [param] selected parameter backup file fs/parameters_backup.bson"
+  ],
+  [
+    1790290217.916498,
+    "[px4] INFO  [dataman] data manager file './fs/dataman' size is 1208528 bytes"
+  ],
+  [
+    1790290217.955147,
+    "[px4] INFO  [init] PX4_SIM_HOSTNAME: localhost"
+  ],
+  [
+    1790290217.958497,
+    "[px4] INFO  [simulator_mavlink] Waiting for simulator to accept connection on TCP port 4561"
+  ],
+  [
+    1790290217.958762,
+    "[px4] INFO  [simulator_mavlink] Simulator connected on TCP port 4561."
+  ],
+  [
+    1790290217.9589639,
+    "[link] PX4 simulator link up (sysid 2 compid 1)"
+  ],
+  [
+    1790290217.975338,
+    "[px4] INFO  [lockstep_scheduler] setting initial absolute time to 4000 us"
+  ],
+  [
+    1790290218.6130078,
+    "[px4] INFO  [commander] LED: open /dev/led0 failed (22)"
+  ],
+  [
+    1790290218.820498,
+    "[px4] INFO  [vision_target_estimator] VTE for static target init"
+  ],
+  [
+    1790290218.8344362,
+    "[px4] INFO  [tone_alarm] home set"
+  ],
+  [
+    1790290218.856391,
+    "[px4] INFO  [uxrce_dds_client] init UDP agent IP:127.0.0.1, port:8888"
+  ],
+  [
+    1790290218.8939672,
+    "[px4] INFO  [mavlink] mode: Normal, data rate: 4000000 B/s on udp port 18571 remote port 14550"
+  ],
+  [
+    1790290218.988218,
+    "[px4] INFO  [mavlink] mode: Onboard, data rate: 4000000 B/s on udp port 14581 remote port 14541"
+  ],
+  [
+    1790290218.9901571,
+    "[link] PX4 control link up (sysid 2 compid 1)"
+  ],
+  [
+    1790290218.9942908,
+    "[px4] INFO  [mavlink] mode: Onboard, data rate: 4000 B/s on udp port 14281 remote port 14031"
+  ],
+  [
+    1790290219.001781,
+    "[px4] INFO  [mavlink] mode: Gimbal, data rate: 400000 B/s on udp port 13031 remote port 13281"
+  ],
+  [
+    1790290219.044862,
+    "[px4] INFO  [logger] logger started (mode=all)"
+  ],
+  [
+    1790290219.0449102,
+    "[px4] WARN  [logger] No logging topics added. Using default set"
+  ],
+  [
+    1790290219.048609,
+    "[px4] INFO  [mavlink] MAVLink only on localhost (set param MAV_{i}_BROADCAST = 1 to enable network)"
+  ],
+  [
+    1790290219.048612,
+    "[px4] INFO  [mavlink] MAVLink only on localhost (set param MAV_{i}_BROADCAST = 1 to enable network)"
+  ],
+  [
+    1790290219.05297,
+    "[px4] INFO  [px4] Startup script returned successfully"
+  ],
+  [
+    1790290219.7141309,
+    "[px4] INFO  [mavlink] partner IP: 127.0.0.1"
+  ],
+  [
+    1790290220.127148,
+    "[link] firmware PX4 v1.18.0 beta (00000023)"
+  ],
+  [
+    1790290220.5582101,
+    "[px4] WARN  [health_and_arming_checks] Preflight Fail: no heading reference"
+  ],
+  [
+    1790290220.848168,
+    "[link] parameters: 980/980"
+  ],
+  [
+    1790290220.848314,
+    "[px4] INFO  [mavlink] Starting mavlink shell"
+  ],
+  [
+    1790290220.848475,
+    "[px4] atlas_nose_lift status"
+  ],
+  [
+    1790290220.8484778,
+    "[px4] INFO  [px4] not running"
+  ],
+  [
+    1790290220.84848,
+    "[px4] Command 'atlas_nose_lift' failed, returned -1."
+  ],
+  [
+    1790290220.994213,
+    "[px4] Preflight Fail: no heading reference"
+  ],
+  [
+    1790290221.32616,
+    "[px4] pxh> atlas_nose_lift start"
+  ],
+  [
+    1790290221.806175,
+    "[px4] ATLAS firmware on the board: nose-lift module started (idle; takeoff needs NLF_HW_OK = 1)"
+  ],
+  [
+    1790290222.297911,
+    "[px4] pxh> INFO  [commander] Ready for takeoff!"
+  ],
+  [
+    1790290222.622391,
+    "[px4] ERROR No offboard signal"
+  ],
+  [
+    1790290222.622528,
+    "[px4] INFO No valid mission available"
+  ],
+  [
+    1790290222.622596,
+    "[px4] WARN No manual control input"
+  ],
+  [
+    1790290223.056927,
+    "[link] parameters: 1010/1009"
+  ],
+  [
+    1790290223.058351,
+    "[params] SITL reference saved (1010 parameters) for board syncing"
+  ],
+  [
+    1790290227.3509371,
+    "[export] pushed 121/121 params to PX4"
+  ],
+  [
+    1790290233.037895,
+    "[px4] takeoff requested from the nose-lift module (MAV_CMD_USER_1)"
+  ],
+  [
+    1790290233.042569,
+    "[px4] ERROR [atlas_nose_lift] unsupported ground geometry; Update PX4 with a ten-motor tripod model"
+  ],
+  [
+    1790290233.0425768,
+    "[px4] WARN  [atlas_nose_lift] manual start rejected: require disarmed/landed, valid attitude/height and fresh RC at low throttle, ki"
+  ],
+  [
+    1790290233.0502882,
+    "[px4] WARN  [commander] command 31010 unsupported"
+  ],
+  [
+    1790290233.050393,
+    "[px4] INFO  [tone_alarm] notify negative"
+  ],
+  [
+    1790290233.0537012,
+    "[px4] command 31010 unsupported"
+  ],
+  [
+    1790290419.0113862,
+    "[scenario] t=200.5s phase 1/5: wait_ready"
+  ],
+  [
+    1790290419.011421,
+    "[scenario] PX4 ready after 200.5s sim time (can arm: precland, course, takeoff, loiter, orbit, land, rtl, vtol_takeoff, follow_target)"
+  ],
+  [
+    1790290419.011428,
+    "[scenario] t=200.5s phase 2/5: nose_lift"
+  ],
+  [
+    1790290419.0162282,
+    "[sim] nose lift: motors [7, 8] to 23 deg at 4 deg/s"
+  ],
+  [
+    1790290444.024354,
+    "[scenario] t=225.5s FAIL nose lift failed: nose did not reach 23 deg in 25 s (at -11.5)"
+  ],
+  [
+    1790290444.0243578,
+    "[scenario] t=225.5s finished: aborted (failed)"
+  ]
+]

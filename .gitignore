@@ -3,13 +3,10 @@ __pycache__/
 *.pyc
 .param_cache/
 *.log
-# results/ is generated and stays out of git - except the flights, which are not: a .ulg off the card
-# and the recording of a session are measurements of a real aircraft on a real afternoon, and nothing
-# regenerates them. The run JSON is big (a 40-minute recording is ~15 MB); prune old ones rather than
-# letting them accumulate forever.
-results/*
-!results/runs/
-!results/logs/
+# results/ is kept, all of it: the flights because nothing regenerates a measurement of a real aircraft
+# on a real afternoon, and the batch studies because they are the evidence behind decisions already made.
+# It is big - a 40-minute recording is ~15 MB of JSON - so prune old runs rather than letting them pile
+# up forever, and move to Git LFS if this starts to hurt.
 .pytest_cache/
 .DS_Store
 /px4_work/

@@ -1695,9 +1695,14 @@ const SERIES_BASE = {
   vn:        { label: 'speed north', unit: 'm/s', c: '#34d399', cat: 'Flight' },
   ve:        { label: 'speed east', unit: 'm/s', c: '#5eead4', cat: 'Flight' },
   vd:        { label: 'climb rate', unit: 'm/s', c: '#60a5fa', cat: 'Flight' },
-  roll:      { label: 'roll', unit: '°', c: '#f472b6', cat: 'Attitude' },
+  // `wrap` is where the angle folds: PX4 reports roll and yaw in +-180, so the plot unwraps them and
+  // keeps going. Pitch lives in +-90 and never folds, so it is left alone.
+  roll:      { label: 'roll', unit: '°', c: '#f472b6', cat: 'Attitude', wrap: 180 },
   pitch:     { label: 'pitch', unit: '°', c: '#fb923c', cat: 'Attitude' },
-  yaw:       { label: 'yaw', unit: '°', c: '#c084fc', cat: 'Attitude' },
+  yaw:       { label: 'yaw', unit: '°', c: '#c084fc', cat: 'Attitude', wrap: 180,
+               desc: "heading. The line is drawn unwrapped - it keeps counting past 180 - so a turn reads as "
+                   + "one slope and an estimator yaw reset reads as a step. The number beside it is PX4's own, "
+                   + "wrapped into +-180." },
   p:         { label: 'roll rate', unit: '°/s', c: '#fda4af', cat: 'Attitude' },
   q:         { label: 'pitch rate', unit: '°/s', c: '#fcd34d', cat: 'Attitude' },
   r:         { label: 'yaw rate', unit: '°/s', c: '#d8b4fe', cat: 'Attitude' },
@@ -1756,6 +1761,25 @@ function describeSeries(key) {
 }
 let SERIES = [];
 let seriesSignature = null;
+// Undo the +-wrap of an angle for drawing only: every step larger than half a turn is the wrap, not the
+// aircraft, so the same step is taken the short way round and added to a running offset. The cache is the
+// rows array itself plus the window, because this runs on every frame of a 20 Hz redraw.
+let unwrapCache = { rows: null, key: '', map: null };
+function unwrapped(rows, ci, wrap, i0, i1, stride) {
+  const key = `${ci}:${i0}:${i1}:${stride}:${rows.length}`;
+  if (unwrapCache.rows === rows && unwrapCache.key === key) return unwrapCache.map;
+  const span = 2 * wrap, map = new Map();
+  let off = 0, prev = rows[i0][ci];
+  for (let i = i0; i <= i1; i += stride) {
+    const v = rows[i][ci], d = v - prev;
+    if (d > wrap) off -= span; else if (d < -wrap) off += span;
+    prev = v;
+    map.set(i, v + off);
+  }
+  if (!map.has(i1)) { const v = rows[i1][ci]; map.set(i1, v + off); }
+  unwrapCache = { rows, key, map };
+  return map;
+}
 function rebuildSeries(cols) {
   // Compare against the columns, not against the catalogue: some columns (the quaternion) have no entry,
   // so the two lengths never match and this used to rebuild on every poll - four times a second, which
@@ -1929,21 +1953,28 @@ function drawGraph() {
   for (const s of SERIES) {
     const ci = cols.indexOf(s.key);
     if (ci < 0 || !picked.has(s.key)) continue;
+    // An angle is stored the way PX4 reports it, wrapped into +-180, because that is what the readout
+    // has to say. A *plot* of it must not leap the width of the window every time the aircraft passes
+    // through south: the shape is the point of the line, and a 43 degree estimator reset is invisible
+    // among half-degree wraps. So the line is drawn unwrapped - it keeps going - while the number beside
+    // it stays the aircraft's own.
+    const val = s.wrap ? unwrapped(rows, ci, s.wrap, i0, i1, stride) : null;
+    const at = (i) => val ? val.get(i) : rows[i][ci];
     // Each trace gets its own scale, since they share no unit. The scale includes zero unless the trace
     // actually moves through a good part of its own range: without that, a quantity sitting still at 0.35 m
     // with a millimetre of noise would be drawn as a full-height sawtooth and read as violent motion.
     let lo = Infinity, hi = -Infinity;
     // the same stride the line is drawn with: at twenty frames a second, scanning every row of a long
     // recording for its extremes costs more than drawing it, and the pixels are identical
-    for (let i = i0; i <= i1; i += stride) { const v = rows[i][ci]; if (v < lo) lo = v; if (v > hi) hi = v; }
+    for (let i = i0; i <= i1; i += stride) { const v = at(i); if (v < lo) lo = v; if (v > hi) hi = v; }
     const z0 = Math.min(lo, 0), z1 = Math.max(hi, 0);
     if ((hi - lo) <= 0.25 * (z1 - z0)) { lo = z0; hi = z1; }
     const pad2 = (hi - lo) < 1e-9 ? 1 : (hi - lo) * 0.08;
     lo -= pad2; hi += pad2;
     const y = (v) => T + ph * (1 - (v - lo) / (hi - lo));
     let d = '';
-    for (let i = i0; i <= i1; i += stride) d += (d ? 'L' : 'M') + x(rows[i][0]).toFixed(1) + ' ' + y(rows[i][ci]).toFixed(1);
-    d += 'L' + x(rows[i1][0]).toFixed(1) + ' ' + y(rows[i1][ci]).toFixed(1);
+    for (let i = i0; i <= i1; i += stride) d += (d ? 'L' : 'M') + x(rows[i][0]).toFixed(1) + ' ' + y(at(i)).toFixed(1);
+    d += 'L' + x(rows[i1][0]).toFixed(1) + ' ' + y(at(i1)).toFixed(1);
     lines += `<path class="ln" d="${d}" stroke="${s.c}"/>`;
   }
   const ct = rows[cursor][0], cx = x(ct).toFixed(1);

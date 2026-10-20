@@ -1,0 +1,374 @@
+[
+  [
+    1790217743.567832,
+    "[sim] airframe: ATLAS_MVP_08B (9 rotors, 16 wings, 3 legs, 120.00 kg)"
+  ],
+  [
+    1790217743.937469,
+    "[sim] loop started: 250 Hz sensors, physics 1000 Hz"
+  ],
+  [
+    1790217743.938586,
+    "[events] metadata: 406 event definitions from /Users/rasmushauschild/AIRFRAME_DESIGNER/firmware/atlas/build/px4_sitl_default/events/all_events.json"
+  ],
+  [
+    1790217743.943435,
+    "[params] metadata: 1960 entries from /Users/rasmushauschild/AIRFRAME_DESIGNER/firmware/atlas/build/px4_sitl_default/parameters.json"
+  ],
+  [
+    1790217743.959668,
+    "[sim] loop stopped"
+  ],
+  [
+    1790217743.959997,
+    "[link] SITL: listening for PX4 simulator link on tcp://0.0.0.0:4561"
+  ],
+  [
+    1790217743.960216,
+    "[link] SITL: parameters/commands via PX4 onboard link udpin:127.0.0.1:14541"
+  ],
+  [
+    1790217743.968704,
+    "[px4] launching: PX4_SIM_MODEL=none_iris /Users/rasmushauschild/AIRFRAME_DESIGNER/firmware/atlas/build/px4_sitl_default/bin/px4 -d -i 1 -w /Users/rasmushauschild/.airframe_designer/px4_instance_1 /Users/rasmushauschild/AIRFRAME_DESIGNER/firmware/atlas/build/px4_sitl_default/etc"
+  ],
+  [
+    1790217743.9768069,
+    "[sim] loop started: 250 Hz sensors, physics 1000 Hz"
+  ],
+  [
+    1790217743.978477,
+    "[px4] INFO  [px4] instance: 1"
+  ],
+  [
+    1790217743.981589,
+    "[px4] "
+  ],
+  [
+    1790217743.9815931,
+    "[px4] ______  __   __    ___"
+  ],
+  [
+    1790217743.981594,
+    "[px4] | ___ \\ \\ \\ / /   /   |"
+  ],
+  [
+    1790217743.981596,
+    "[px4] | |_/ /  \\ V /   / /| |"
+  ],
+  [
+    1790217743.981597,
+    "[px4] |  __/   /   \\  / /_| |"
+  ],
+  [
+    1790217743.981602,
+    "[px4] | |     / /^\\ \\ \\___  |"
+  ],
+  [
+    1790217743.981607,
+    "[px4] \\_|     \\/   \\/     |_/"
+  ],
+  [
+    1790217743.9816089,
+    "[px4] "
+  ],
+  [
+    1790217743.98161,
+    "[px4] px4 starting."
+  ],
+  [
+    1790217743.981611,
+    "[px4] "
+  ],
+  [
+    1790217743.9816132,
+    "[px4] INFO  [px4] startup script: /bin/sh etc/init.d-posix/rcS 1"
+  ],
+  [
+    1790217743.9961832,
+    "[px4] INFO  [init] found model autostart file as SYS_AUTOSTART=10016"
+  ],
+  [
+    1790217743.996213,
+    "[px4] INFO  [param] selected parameter default file fs/parameters.bson"
+  ],
+  [
+    1790217743.999348,
+    "[px4] INFO  [param] importing from 'fs/parameters.bson'"
+  ],
+  [
+    1790217743.999351,
+    "[px4] INFO  [parameters] BSON document size 2876 bytes, decoded 2876 bytes (INT32:32, FLOAT:101)"
+  ],
+  [
+    1790217743.9994109,
+    "[ui] http://127.0.0.1:8081/"
+  ],
+  [
+    1790217744.003545,
+    "[px4] INFO  [param] selected parameter backup file fs/parameters_backup.bson"
+  ],
+  [
+    1790217744.2155142,
+    "[px4] INFO  [dataman] data manager file './fs/dataman' size is 1208528 bytes"
+  ],
+  [
+    1790217744.250391,
+    "[px4] INFO  [init] PX4_SIM_HOSTNAME: localhost"
+  ],
+  [
+    1790217744.253763,
+    "[px4] INFO  [simulator_mavlink] Waiting for simulator to accept connection on TCP port 4561"
+  ],
+  [
+    1790217744.254271,
+    "[px4] INFO  [simulator_mavlink] Simulator connected on TCP port 4561."
+  ],
+  [
+    1790217744.254279,
+    "[link] PX4 simulator link up (sysid 2 compid 1)"
+  ],
+  [
+    1790217744.270129,
+    "[px4] INFO  [lockstep_scheduler] setting initial absolute time to 4000 us"
+  ],
+  [
+    1790217744.9311821,
+    "[px4] INFO  [commander] LED: open /dev/led0 failed (22)"
+  ],
+  [
+    1790217745.133559,
+    "[px4] INFO  [vision_target_estimator] VTE for static target init"
+  ],
+  [
+    1790217745.171227,
+    "[px4] INFO  [uxrce_dds_client] init UDP agent IP:127.0.0.1, port:8888"
+  ],
+  [
+    1790217745.20545,
+    "[px4] INFO  [mavlink] mode: Normal, data rate: 4000000 B/s on udp port 18571 remote port 14550"
+  ],
+  [
+    1790217745.297817,
+    "[px4] INFO  [mavlink] mode: Onboard, data rate: 4000000 B/s on udp port 14581 remote port 14541"
+  ],
+  [
+    1790217745.29893,
+    "[link] PX4 control link up (sysid 2 compid 1)"
+  ],
+  [
+    1790217745.302618,
+    "[px4] INFO  [mavlink] mode: Onboard, data rate: 4000 B/s on udp port 14281 remote port 14031"
+  ],
+  [
+    1790217745.309494,
+    "[px4] INFO  [mavlink] mode: Gimbal, data rate: 400000 B/s on udp port 13031 remote port 13281"
+  ],
+  [
+    1790217745.3460732,
+    "[px4] INFO  [logger] logger started (mode=all)"
+  ],
+  [
+    1790217745.346088,
+    "[px4] WARN  [logger] No logging topics added. Using default set"
+  ],
+  [
+    1790217745.350594,
+    "[px4] INFO  [mavlink] MAVLink only on localhost (set param MAV_{i}_BROADCAST = 1 to enable network)"
+  ],
+  [
+    1790217745.3505971,
+    "[px4] INFO  [mavlink] MAVLink only on localhost (set param MAV_{i}_BROADCAST = 1 to enable network)"
+  ],
+  [
+    1790217745.354142,
+    "[px4] INFO  [px4] Startup script returned successfully"
+  ],
+  [
+    1790217745.445292,
+    "[px4] INFO  [mavlink] partner IP: 127.0.0.1"
+  ],
+  [
+    1790217745.445302,
+    "[px4] INFO  [mavlink] Starting mavlink shell"
+  ],
+  [
+    1790217745.445322,
+    "[px4] commander check"
+  ],
+  [
+    1790217745.445324,
+    "[px4] INFO  [commander] Preflight check: FAILED"
+  ],
+  [
+    1790217745.4486458,
+    "[px4] pxh> WARN  [health_and_arming_checks] Preflight Fail: ekf2 missing data"
+  ],
+  [
+    1790217745.6400561,
+    "[px4] INFO  [tone_alarm] home set"
+  ],
+  [
+    1790217746.4574049,
+    "[link] firmware PX4 v1.18.0 beta (00000023)"
+  ],
+  [
+    1790217747.1980019,
+    "[link] parameters: 980/980"
+  ],
+  [
+    1790217747.198194,
+    "[px4] atlas_nose_lift status"
+  ],
+  [
+    1790217747.198197,
+    "[px4] INFO  [px4] not running"
+  ],
+  [
+    1790217747.198199,
+    "[px4] Command 'atlas_nose_lift' failed, returned -1."
+  ],
+  [
+    1790217747.300881,
+    "[px4] Preflight Fail: ekf2 missing data"
+  ],
+  [
+    1790217747.4169831,
+    "[px4] pxh> WARN  [health_and_arming_checks] Preflight Fail: no heading reference"
+  ],
+  [
+    1790217747.417037,
+    "[px4] Preflight Fail: no heading reference"
+  ],
+  [
+    1790217747.421244,
+    "[px4] ERROR No heading reference"
+  ],
+  [
+    1790217747.4212658,
+    "[px4] ERROR No offboard signal"
+  ],
+  [
+    1790217747.4212968,
+    "[px4] ERROR Navigation error: No valid position estimate"
+  ],
+  [
+    1790217747.421327,
+    "[px4] ERROR Navigation error: No valid global position estimate"
+  ],
+  [
+    1790217747.421354,
+    "[px4] INFO No valid mission available"
+  ],
+  [
+    1790217747.4213781,
+    "[px4] WARN No manual control input"
+  ],
+  [
+    1790217747.889014,
+    "[px4] atlas_nose_lift start"
+  ],
+  [
+    1790217748.3675468,
+    "[px4] ATLAS firmware on the board: nose-lift module started (idle; takeoff needs NLF_HW_OK = 1)"
+  ],
+  [
+    1790217748.604784,
+    "[px4] pxh> INFO  [commander] Ready for takeoff!"
+  ],
+  [
+    1790217749.634018,
+    "[link] parameters: 1010/1009"
+  ],
+  [
+    1790217749.637859,
+    "[params] SITL reference saved (1010 parameters) for board syncing"
+  ],
+  [
+    1790219471.1650891,
+    "[scenario] t=1724.1s phase 1/9: wait_ready"
+  ],
+  [
+    1790219471.165123,
+    "[scenario] PX4 ready after 1724.1s sim time (can arm: precland, course, takeoff, loiter, orbit, land, rtl, vtol_takeoff, follow_target)"
+  ],
+  [
+    1790219471.165129,
+    "[scenario] t=1724.1s phase 2/9: nose_lift"
+  ],
+  [
+    1790219471.1702569,
+    "[sim] nose lift: motors [5, 6, 7] to 10 deg at 4 deg/s"
+  ],
+  [
+    1790219479.5234208,
+    "[scenario] t=1732.5s phase 3/9: takeoff"
+  ],
+  [
+    1790219479.531606,
+    "[px4] INFO  [commander] Armed by external command"
+  ],
+  [
+    1790219479.531612,
+    "[px4] INFO  [tone_alarm] arming warning"
+  ],
+  [
+    1790219479.5317519,
+    "[px4] Armed by external command\t"
+  ],
+  [
+    1790219479.531879,
+    "[px4] INFO Armed by external command"
+  ],
+  [
+    1790219480.336082,
+    "[px4] INFO  [navigator] Using default takeoff altitude: 10.0 m"
+  ],
+  [
+    1790219480.336282,
+    "[px4] INFO Using default takeoff altitude: 10.00 m"
+  ],
+  [
+    1790219480.341305,
+    "[px4] Using default takeoff altitude: 10.0 m\t"
+  ],
+  [
+    1790219480.756764,
+    "[px4] INFO  [commander] Takeoff detected"
+  ],
+  [
+    1790219480.761184,
+    "[px4] Takeoff detected\t"
+  ],
+  [
+    1790219480.761268,
+    "[px4] INFO Takeoff detected"
+  ],
+  [
+    1790219482.902217,
+    "[sim] nose lift done: PX4 took over"
+  ],
+  [
+    1790219490.953324,
+    "[scenario] t=1743.9s phase 4/9: hold"
+  ],
+  [
+    1790219500.9532201,
+    "[scenario] t=1753.9s phase 5/9: accelerate_50"
+  ],
+  [
+    1790219500.993248,
+    "[px4] INFO No valid mission available"
+  ],
+  [
+    1790219500.993353,
+    "[px4] WARN No manual control input"
+  ],
+  [
+    1790219518.181058,
+    "[scenario] t=1771.2s FAIL crashed: tilt 65 deg"
+  ],
+  [
+    1790219518.181063,
+    "[scenario] t=1771.2s finished: aborted (failed)"
+  ]
+]

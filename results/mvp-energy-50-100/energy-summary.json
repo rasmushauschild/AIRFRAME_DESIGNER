@@ -1,0 +1,56 @@
+[
+  {
+    "phase": "takeoff",
+    "duration_s": 12.58,
+    "speed_kmh": 1.35,
+    "power_kw": 7.62515,
+    "energy_wh": 26.624730511416672,
+    "distance_km": 0.004715067146837517,
+    "wh_per_km": null
+  },
+  {
+    "phase": "hover_initial",
+    "duration_s": 15.0,
+    "speed_kmh": 0.1404,
+    "power_kw": 7.60496,
+    "energy_wh": 31.64531040008334,
+    "distance_km": 0.0005824319153818864,
+    "wh_per_km": null
+  },
+  {
+    "phase": "accelerate_50",
+    "duration_s": 20.004,
+    "speed_kmh": 32.5476,
+    "power_kw": 8.3216,
+    "energy_wh": 46.19011247630557,
+    "distance_km": 0.18068253064667766,
+    "wh_per_km": 255.6423817564839
+  },
+  {
+    "phase": "cruise_50",
+    "duration_s": 25.0,
+    "speed_kmh": 50.119200000000006,
+    "power_kw": 6.82595,
+    "energy_wh": 47.36356293480556,
+    "distance_km": 0.34776721753562423,
+    "wh_per_km": 136.19329409608247
+  },
+  {
+    "phase": "accelerate_100",
+    "duration_s": 20.0,
+    "speed_kmh": 77.8644,
+    "power_kw": 9.62144,
+    "energy_wh": 53.40101622075001,
+    "distance_km": 0.4321771325361151,
+    "wh_per_km": 123.56279914066837
+  },
+  {
+    "phase": "cruise_100",
+    "duration_s": 5.272,
+    "speed_kmh": 95.7564,
+    "power_kw": 11.69315,
+    "energy_wh": 17.084989065250014,
+    "distance_km": 0.13991014707558183,
+    "wh_per_km": 122.11400975813723
+  }
+]

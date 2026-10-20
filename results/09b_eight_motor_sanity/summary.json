@@ -1,0 +1,72 @@
+{
+  "running": false,
+  "phase": {
+    "type": "nose_lift",
+    "motors": [
+      6,
+      7
+    ],
+    "target_pitch_deg": 23.0,
+    "rate_deg_s": 4,
+    "timeout": 40
+  },
+  "ok": false,
+  "status": "aborted",
+  "failures": [
+    "nose_lift: nose lift failed: nose did not reach 23 deg in 25 s (at -11.5)"
+  ],
+  "sim_time": 225.54,
+  "metrics": {
+    "crashed": false,
+    "crash_reason": "",
+    "max_tilt_deg": 12.04,
+    "max_alt_m": 0.36,
+    "energy_wh": 16.462,
+    "saturation_fraction": 0.9547,
+    "touchdown_speed": null,
+    "events": [],
+    "phases": {
+      "nose_lift": {
+        "t0": 200.532,
+        "t1": 225.544,
+        "samples": 1251,
+        "duration": 25.012,
+        "alt_mean": 0.361,
+        "alt_min": 0.355,
+        "alt_max": 0.361,
+        "alt_std": 0.001,
+        "pos_drift": 0.003,
+        "pos_std_xy": 0.0005,
+        "speed_mean": 0.0,
+        "speed_max": 0.006,
+        "vz_std": 0.001,
+        "roll_mean_deg": 0.056,
+        "roll_rms_deg": 0.057,
+        "roll_std_deg": 0.008,
+        "roll_max_deg": 0.084,
+        "pitch_mean_deg": -34.538,
+        "pitch_rms_deg": 34.538,
+        "pitch_std_deg": 0.082,
+        "pitch_max_deg": 35.044,
+        "yaw_drift_deg": -0.033,
+        "yaw_std_deg": 0.005,
+        "rates_rms_deg_s": 0.088,
+        "tilt_max_deg": 12.044,
+        "tilt_mean_deg": 11.538,
+        "thrust_mean": 64.58,
+        "thrust_to_weight_mean": 0.5431,
+        "power_mean": 2369.46,
+        "power_max": 2462.17,
+        "lift_share_mean": 0.0,
+        "airspeed_mean": 0.0,
+        "util_max": 1.0,
+        "util_mean": 0.9694,
+        "cmd_mean": 0.2361,
+        "airborne_fraction": 0.0
+      }
+    },
+    "flight_time": 0.0,
+    "final_alt": 0.361,
+    "final_speed": 0.0
+  }
+}

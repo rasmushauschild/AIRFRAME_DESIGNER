@@ -1,0 +1,87 @@
+{
+  "name": "atlas_mvp_01_gains2",
+  "description": "Refinement of atlas_mvp_01_gains with wider ranges, started from its best design.",
+  "airframe": "results/atlas_mvp_01_gains/best_airframe.json",
+  "scenario": "hover",
+  "variables": [
+    {
+      "path": "px4.MC_PITCH_P",
+      "range": [
+        1.0,
+        8.0
+      ]
+    },
+    {
+      "path": "px4.MC_PITCHRATE_P",
+      "range": [
+        0.1,
+        1.2
+      ]
+    },
+    {
+      "path": "px4.MC_PITCHRATE_D",
+      "range": [
+        0.0,
+        0.04
+      ]
+    },
+    {
+      "path": "px4.MC_PITCHRATE_I",
+      "range": [
+        0.0,
+        0.6
+      ]
+    },
+    {
+      "path": "px4.MC_ROLL_P",
+      "range": [
+        1.0,
+        8.0
+      ]
+    },
+    {
+      "path": "px4.MC_ROLLRATE_P",
+      "range": [
+        0.1,
+        1.2
+      ]
+    },
+    {
+      "path": "px4.MC_ROLLRATE_D",
+      "range": [
+        0.0,
+        0.04
+      ]
+    },
+    {
+      "path": "px4.MPC_THR_HOVER",
+      "range": [
+        0.15,
+        0.6
+      ]
+    }
+  ],
+  "objective": "phases.hover.pitch_rms_deg + phases.hover.roll_rms_deg + 0.02 * phases.hover.rates_rms_deg_s + 2 * phases.hover.pos_std_xy + 5 * phases.hover.alt_std",
+  "constraints": [
+    "not metrics.crashed",
+    "ok"
+  ],
+  "penalty": 200,
+  "algorithm": {
+    "name": "cmaes",
+    "budget": 48,
+    "population": 8,
+    "sigma": 0.25,
+    "seed": 2
+  },
+  "workers": 4,
+  "sim": {
+    "instances": [
+      2,
+      3,
+      4,
+      5
+    ],
+    "substeps": 2
+  }
+}

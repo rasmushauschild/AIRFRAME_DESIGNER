@@ -1,0 +1,1055 @@
+{
+  "first_100": {
+    "pitch_deg": 24.25,
+    "lift_pct": 100.07881866900019,
+    "drag_N": 427.72851148811196,
+    "pitch_moment_Nm": -238.97100854272975,
+    "geometric_stall_flag": true
+  },
+  "max_lift": {
+    "pitch_deg": 27.5,
+    "lift_pct": 104.01598882504403,
+    "drag_N": 464.7996588336429,
+    "pitch_moment_Nm": -223.9739748859908,
+    "geometric_stall_flag": true
+  },
+  "cruise": {
+    "ok": true,
+    "converged": true,
+    "problems": [],
+    "airspeed": 13.88888888888889,
+    "pitch_deg": -21.315461220777784,
+    "px4_pitch_deg": -21.315461220777784,
+    "collective": 1553.122812649368,
+    "pitch_torque": 106.25387280948225,
+    "thrust": [
+      130.91574447552983,
+      130.91574447552975,
+      139.16981268088134,
+      139.16981268088125,
+      246.549732853137,
+      246.54973285313727,
+      267.5578298509519,
+      267.5578298509519,
+      44.67126541758576,
+      44.67126541758574,
+      64.46732282494843,
+      64.46732282494831
+    ],
+    "util": [
+      0.41613749119630117,
+      0.4161374911963009,
+      0.4423744212836533,
+      0.442374421283653,
+      0.6983632219325576,
+      0.6983632219325584,
+      0.757869602800571,
+      0.757869602800571,
+      0.12653337111264568,
+      0.1265333711126456,
+      0.18260659525522768,
+      0.18260659525522735
+    ],
+    "max_util": 0.757869602800571,
+    "total_thrust": 1786.6634162060689,
+    "power": 49766.61493638179,
+    "lift": -275.1560220847456,
+    "lift_share": -0.23381754734860663,
+    "wing_drag": 66.31495685505999,
+    "ram_drag": 476.88688964997004,
+    "body_drag": 21.495552747335847,
+    "alpha_deg": -15.847360343597327,
+    "saturated": [],
+    "negative": [],
+    "residual": 0.00048481950134350165
+  },
+  "sweep": [
+    {
+      "pitch_deg": 0.0,
+      "lift_pct": 41.36537647794491,
+      "drag_N": 89.9221295713446,
+      "pitch_moment_Nm": -209.62181473888214,
+      "geometric_stall_flag": false
+    },
+    {
+      "pitch_deg": 0.25,
+      "lift_pct": 42.07278918892406,
+      "drag_N": 92.22867049380059,
+      "pitch_moment_Nm": -210.36438947808463,
+      "geometric_stall_flag": false
+    },
+    {
+      "pitch_deg": 0.5,
+      "lift_pct": 42.77703434921435,
+      "drag_N": 94.57469745866355,
+      "pitch_moment_Nm": -211.1222235011134,
+      "geometric_stall_flag": false
+    },
+    {
+      "pitch_deg": 0.75,
+      "lift_pct": 43.48030570033246,
+      "drag_N": 96.95824613128538,
+      "pitch_moment_Nm": -211.87805555032895,
+      "geometric_stall_flag": false
+    },
+    {
+      "pitch_deg": 1.0,
+      "lift_pct": 44.180200946582254,
+      "drag_N": 99.37704971150893,
+      "pitch_moment_Nm": -212.6392498872131,
+      "geometric_stall_flag": false
+    },
+    {
+      "pitch_deg": 1.25,
+      "lift_pct": 44.874673211292546,
+      "drag_N": 101.83201410572462,
+      "pitch_moment_Nm": -213.42385064154476,
+      "geometric_stall_flag": false
+    },
+    {
+      "pitch_deg": 1.5,
+      "lift_pct": 45.56308288615907,
+      "drag_N": 104.32093144625466,
+      "pitch_moment_Nm": -214.232246476976,
+      "geometric_stall_flag": false
+    },
+    {
+      "pitch_deg": 1.75,
+      "lift_pct": 46.25053857288108,
+      "drag_N": 106.84604023511274,
+      "pitch_moment_Nm": -215.03905362930016,
+      "geometric_stall_flag": false
+    },
+    {
+      "pitch_deg": 2.0,
+      "lift_pct": 46.935852345859686,
+      "drag_N": 109.40619258303357,
+      "pitch_moment_Nm": -215.8468317812847,
+      "geometric_stall_flag": false
+    },
+    {
+      "pitch_deg": 2.25,
+      "lift_pct": 47.61756189980648,
+      "drag_N": 112.00066559988802,
+      "pitch_moment_Nm": -216.66591794774143,
+      "geometric_stall_flag": false
+    },
+    {
+      "pitch_deg": 2.5,
+      "lift_pct": 48.29409541865015,
+      "drag_N": 114.62550476791985,
+      "pitch_moment_Nm": -217.50323329693214,
+      "geometric_stall_flag": false
+    },
+    {
+      "pitch_deg": 2.75,
+      "lift_pct": 48.96958436727726,
+      "drag_N": 117.2840953051852,
+      "pitch_moment_Nm": -218.33680505912827,
+      "geometric_stall_flag": false
+    },
+    {
+      "pitch_deg": 3.0,
+      "lift_pct": 49.64214584668771,
+      "drag_N": 119.97532935464912,
+      "pitch_moment_Nm": -219.1721899492841,
+      "geometric_stall_flag": false
+    },
+    {
+      "pitch_deg": 3.25,
+      "lift_pct": 50.30976351783295,
+      "drag_N": 122.697102385759,
+      "pitch_moment_Nm": -220.02329427310838,
+      "geometric_stall_flag": false
+    },
+    {
+      "pitch_deg": 3.5,
+      "lift_pct": 50.97240382295213,
+      "drag_N": 125.44825516275873,
+      "pitch_moment_Nm": -220.89259951020978,
+      "geometric_stall_flag": false
+    },
+    {
+      "pitch_deg": 3.75,
+      "lift_pct": 51.63421448504607,
+      "drag_N": 128.23140022872394,
+      "pitch_moment_Nm": -221.75634200627638,
+      "geometric_stall_flag": false
+    },
+    {
+      "pitch_deg": 4.0,
+      "lift_pct": 52.29660838545755,
+      "drag_N": 131.04619201166747,
+      "pitch_moment_Nm": -222.6066080694028,
+      "geometric_stall_flag": false
+    },
+    {
+      "pitch_deg": 4.25,
+      "lift_pct": 52.96099894222645,
+      "drag_N": 133.89131359608535,
+      "pitch_moment_Nm": -223.43300979609802,
+      "geometric_stall_flag": false
+    },
+    {
+      "pitch_deg": 4.5,
+      "lift_pct": 53.6260516513293,
+      "drag_N": 136.76727224423982,
+      "pitch_moment_Nm": -224.24104400543612,
+      "geometric_stall_flag": false
+    },
+    {
+      "pitch_deg": 4.75,
+      "lift_pct": 54.291797977809075,
+      "drag_N": 139.67628358367904,
+      "pitch_moment_Nm": -225.03546086460523,
+      "geometric_stall_flag": false
+    },
+    {
+      "pitch_deg": 5.0,
+      "lift_pct": 54.96000161375627,
+      "drag_N": 142.61944254609492,
+      "pitch_moment_Nm": -225.80526249086358,
+      "geometric_stall_flag": false
+    },
+    {
+      "pitch_deg": 5.25,
+      "lift_pct": 55.634361342415396,
+      "drag_N": 145.59930608054094,
+      "pitch_moment_Nm": -226.5247834846405,
+      "geometric_stall_flag": false
+    },
+    {
+      "pitch_deg": 5.5,
+      "lift_pct": 56.31034119592232,
+      "drag_N": 148.61332906940828,
+      "pitch_moment_Nm": -227.21886831970627,
+      "geometric_stall_flag": false
+    },
+    {
+      "pitch_deg": 5.75,
+      "lift_pct": 56.98601343406086,
+      "drag_N": 151.66025541393745,
+      "pitch_moment_Nm": -227.90026682530072,
+      "geometric_stall_flag": false
+    },
+    {
+      "pitch_deg": 6.0,
+      "lift_pct": 57.661023611986714,
+      "drag_N": 154.73927680245185,
+      "pitch_moment_Nm": -228.57183765114283,
+      "geometric_stall_flag": false
+    },
+    {
+      "pitch_deg": 6.25,
+      "lift_pct": 58.33588377984741,
+      "drag_N": 157.84998244265643,
+      "pitch_moment_Nm": -229.23054795255032,
+      "geometric_stall_flag": false
+    },
+    {
+      "pitch_deg": 6.5,
+      "lift_pct": 59.00999203358302,
+      "drag_N": 160.9922879582973,
+      "pitch_moment_Nm": -229.8781784048973,
+      "geometric_stall_flag": false
+    },
+    {
+      "pitch_deg": 6.75,
+      "lift_pct": 59.683124434425224,
+      "drag_N": 164.1666350278138,
+      "pitch_moment_Nm": -230.5165108805166,
+      "geometric_stall_flag": false
+    },
+    {
+      "pitch_deg": 7.0,
+      "lift_pct": 60.354766091047985,
+      "drag_N": 167.3721259778693,
+      "pitch_moment_Nm": -231.14875482513793,
+      "geometric_stall_flag": false
+    },
+    {
+      "pitch_deg": 7.25,
+      "lift_pct": 61.024291684410336,
+      "drag_N": 170.60724268544476,
+      "pitch_moment_Nm": -231.7784735059138,
+      "geometric_stall_flag": true
+    },
+    {
+      "pitch_deg": 7.5,
+      "lift_pct": 61.692339087521454,
+      "drag_N": 173.8727872549251,
+      "pitch_moment_Nm": -232.40201209389602,
+      "geometric_stall_flag": true
+    },
+    {
+      "pitch_deg": 7.75,
+      "lift_pct": 62.358957252910784,
+      "drag_N": 177.16841696713706,
+      "pitch_moment_Nm": -233.01681672543998,
+      "geometric_stall_flag": true
+    },
+    {
+      "pitch_deg": 8.0,
+      "lift_pct": 63.02401570651994,
+      "drag_N": 180.49408186526173,
+      "pitch_moment_Nm": -233.62573639470924,
+      "geometric_stall_flag": true
+    },
+    {
+      "pitch_deg": 8.25,
+      "lift_pct": 63.686808719237675,
+      "drag_N": 183.8484802478188,
+      "pitch_moment_Nm": -234.2330440722902,
+      "geometric_stall_flag": true
+    },
+    {
+      "pitch_deg": 8.5,
+      "lift_pct": 64.34814038874163,
+      "drag_N": 187.23266600180915,
+      "pitch_moment_Nm": -234.83414150585565,
+      "geometric_stall_flag": true
+    },
+    {
+      "pitch_deg": 8.75,
+      "lift_pct": 65.00777195841498,
+      "drag_N": 190.64515237494925,
+      "pitch_moment_Nm": -235.4267782343925,
+      "geometric_stall_flag": true
+    },
+    {
+      "pitch_deg": 9.0,
+      "lift_pct": 65.66559065761751,
+      "drag_N": 194.08556755046732,
+      "pitch_moment_Nm": -236.01344023052292,
+      "geometric_stall_flag": true
+    },
+    {
+      "pitch_deg": 9.25,
+      "lift_pct": 66.32114449576027,
+      "drag_N": 197.5539073781478,
+      "pitch_moment_Nm": -236.6001066248686,
+      "geometric_stall_flag": true
+    },
+    {
+      "pitch_deg": 9.5,
+      "lift_pct": 66.97548678761257,
+      "drag_N": 201.05225622498386,
+      "pitch_moment_Nm": -237.18181941506873,
+      "geometric_stall_flag": true
+    },
+    {
+      "pitch_deg": 9.75,
+      "lift_pct": 67.62900366038266,
+      "drag_N": 204.58146238517128,
+      "pitch_moment_Nm": -237.75588301142128,
+      "geometric_stall_flag": true
+    },
+    {
+      "pitch_deg": 10.0,
+      "lift_pct": 68.2814971386978,
+      "drag_N": 208.14072995489744,
+      "pitch_moment_Nm": -238.32348613970322,
+      "geometric_stall_flag": true
+    },
+    {
+      "pitch_deg": 10.25,
+      "lift_pct": 68.93231987618772,
+      "drag_N": 211.72925548278494,
+      "pitch_moment_Nm": -238.89089357546175,
+      "geometric_stall_flag": true
+    },
+    {
+      "pitch_deg": 10.5,
+      "lift_pct": 69.58232932564518,
+      "drag_N": 215.34986886028483,
+      "pitch_moment_Nm": -239.45656677724045,
+      "geometric_stall_flag": true
+    },
+    {
+      "pitch_deg": 10.75,
+      "lift_pct": 70.23174958752523,
+      "drag_N": 219.0018008290898,
+      "pitch_moment_Nm": -240.01486092351385,
+      "geometric_stall_flag": true
+    },
+    {
+      "pitch_deg": 11.0,
+      "lift_pct": 70.88085723465582,
+      "drag_N": 222.68757559047128,
+      "pitch_moment_Nm": -240.5686225273931,
+      "geometric_stall_flag": true
+    },
+    {
+      "pitch_deg": 11.25,
+      "lift_pct": 71.52808192273771,
+      "drag_N": 226.4015093406807,
+      "pitch_moment_Nm": -241.12326687501067,
+      "geometric_stall_flag": true
+    },
+    {
+      "pitch_deg": 11.5,
+      "lift_pct": 72.17440985442313,
+      "drag_N": 230.14760888996148,
+      "pitch_moment_Nm": -241.6777267658977,
+      "geometric_stall_flag": true
+    },
+    {
+      "pitch_deg": 11.75,
+      "lift_pct": 72.81991361490336,
+      "drag_N": 233.9251399493364,
+      "pitch_moment_Nm": -242.2273735981155,
+      "geometric_stall_flag": true
+    },
+    {
+      "pitch_deg": 12.0,
+      "lift_pct": 73.46406633012688,
+      "drag_N": 237.73113746511527,
+      "pitch_moment_Nm": -242.77107872302608,
+      "geometric_stall_flag": true
+    },
+    {
+      "pitch_deg": 12.25,
+      "lift_pct": 74.10589249409136,
+      "drag_N": 241.5630984038326,
+      "pitch_moment_Nm": -243.31585572851384,
+      "geometric_stall_flag": true
+    },
+    {
+      "pitch_deg": 12.5,
+      "lift_pct": 74.74638015749684,
+      "drag_N": 245.4227006235638,
+      "pitch_moment_Nm": -243.85447153313828,
+      "geometric_stall_flag": true
+    },
+    {
+      "pitch_deg": 12.75,
+      "lift_pct": 75.38552233443284,
+      "drag_N": 249.30962237596793,
+      "pitch_moment_Nm": -244.38310336155587,
+      "geometric_stall_flag": true
+    },
+    {
+      "pitch_deg": 13.0,
+      "lift_pct": 76.02248821543157,
+      "drag_N": 253.22029502631267,
+      "pitch_moment_Nm": -244.90192104258736,
+      "geometric_stall_flag": true
+    },
+    {
+      "pitch_deg": 13.25,
+      "lift_pct": 76.65639969763488,
+      "drag_N": 257.1506172095212,
+      "pitch_moment_Nm": -245.41497584652444,
+      "geometric_stall_flag": true
+    },
+    {
+      "pitch_deg": 13.5,
+      "lift_pct": 77.28860205138845,
+      "drag_N": 261.1042239581342,
+      "pitch_moment_Nm": -245.91583273129103,
+      "geometric_stall_flag": true
+    },
+    {
+      "pitch_deg": 13.75,
+      "lift_pct": 77.91873887291997,
+      "drag_N": 265.0775201443455,
+      "pitch_moment_Nm": -246.39703372445302,
+      "geometric_stall_flag": true
+    },
+    {
+      "pitch_deg": 14.0,
+      "lift_pct": 78.54500208019148,
+      "drag_N": 269.0615056884688,
+      "pitch_moment_Nm": -246.85440879654047,
+      "geometric_stall_flag": true
+    },
+    {
+      "pitch_deg": 14.25,
+      "lift_pct": 79.16753591954416,
+      "drag_N": 273.0582436795197,
+      "pitch_moment_Nm": -247.29631021964187,
+      "geometric_stall_flag": true
+    },
+    {
+      "pitch_deg": 14.5,
+      "lift_pct": 79.78755639776239,
+      "drag_N": 277.07143861817445,
+      "pitch_moment_Nm": -247.71947516582134,
+      "geometric_stall_flag": true
+    },
+    {
+      "pitch_deg": 14.75,
+      "lift_pct": 80.40546013548735,
+      "drag_N": 281.1020752291533,
+      "pitch_moment_Nm": -248.1224310858477,
+      "geometric_stall_flag": true
+    },
+    {
+      "pitch_deg": 15.0,
+      "lift_pct": 81.01770615707277,
+      "drag_N": 285.12860770906127,
+      "pitch_moment_Nm": -248.48929329747997,
+      "geometric_stall_flag": true
+    },
+    {
+      "pitch_deg": 15.25,
+      "lift_pct": 81.62433123078513,
+      "drag_N": 289.150098692496,
+      "pitch_moment_Nm": -248.8178709170666,
+      "geometric_stall_flag": true
+    },
+    {
+      "pitch_deg": 15.5,
+      "lift_pct": 82.22796335294461,
+      "drag_N": 293.18276144837324,
+      "pitch_moment_Nm": -249.1245466901175,
+      "geometric_stall_flag": true
+    },
+    {
+      "pitch_deg": 15.75,
+      "lift_pct": 82.82834242140757,
+      "drag_N": 297.2228247704493,
+      "pitch_moment_Nm": -249.40350311261489,
+      "geometric_stall_flag": true
+    },
+    {
+      "pitch_deg": 16.0,
+      "lift_pct": 83.42223799851627,
+      "drag_N": 301.25137272256325,
+      "pitch_moment_Nm": -249.64368746803194,
+      "geometric_stall_flag": true
+    },
+    {
+      "pitch_deg": 16.25,
+      "lift_pct": 84.00920968544317,
+      "drag_N": 305.2615484630274,
+      "pitch_moment_Nm": -249.83435056841398,
+      "geometric_stall_flag": true
+    },
+    {
+      "pitch_deg": 16.5,
+      "lift_pct": 84.59214400258445,
+      "drag_N": 309.2724097694231,
+      "pitch_moment_Nm": -249.99126941293048,
+      "geometric_stall_flag": true
+    },
+    {
+      "pitch_deg": 16.75,
+      "lift_pct": 85.17044348230489,
+      "drag_N": 313.2806254656486,
+      "pitch_moment_Nm": -250.1166016221132,
+      "geometric_stall_flag": true
+    },
+    {
+      "pitch_deg": 17.0,
+      "lift_pct": 85.7430243007217,
+      "drag_N": 317.2815482087266,
+      "pitch_moment_Nm": -250.21370811724177,
+      "geometric_stall_flag": true
+    },
+    {
+      "pitch_deg": 17.25,
+      "lift_pct": 86.30857991125096,
+      "drag_N": 321.2616310344895,
+      "pitch_moment_Nm": -250.2646430845301,
+      "geometric_stall_flag": true
+    },
+    {
+      "pitch_deg": 17.5,
+      "lift_pct": 86.87016786187692,
+      "drag_N": 325.24218890228207,
+      "pitch_moment_Nm": -250.28521706295425,
+      "geometric_stall_flag": true
+    },
+    {
+      "pitch_deg": 17.75,
+      "lift_pct": 87.42610524812908,
+      "drag_N": 329.2132440528575,
+      "pitch_moment_Nm": -250.27595387662862,
+      "geometric_stall_flag": true
+    },
+    {
+      "pitch_deg": 18.0,
+      "lift_pct": 87.97761213989604,
+      "drag_N": 333.18313054127196,
+      "pitch_moment_Nm": -250.24459807289784,
+      "geometric_stall_flag": true
+    },
+    {
+      "pitch_deg": 18.25,
+      "lift_pct": 88.52258846526294,
+      "drag_N": 337.132980130934,
+      "pitch_moment_Nm": -250.17063616257929,
+      "geometric_stall_flag": true
+    },
+    {
+      "pitch_deg": 18.5,
+      "lift_pct": 89.06400010890904,
+      "drag_N": 341.0846438606196,
+      "pitch_moment_Nm": -250.07056875743595,
+      "geometric_stall_flag": true
+    },
+    {
+      "pitch_deg": 18.75,
+      "lift_pct": 89.60040643270985,
+      "drag_N": 345.03028320248774,
+      "pitch_moment_Nm": -249.9482005451935,
+      "geometric_stall_flag": true
+    },
+    {
+      "pitch_deg": 19.0,
+      "lift_pct": 90.13295219358551,
+      "drag_N": 348.9748089212059,
+      "pitch_moment_Nm": -249.80507572872025,
+      "geometric_stall_flag": true
+    },
+    {
+      "pitch_deg": 19.25,
+      "lift_pct": 90.66073253843945,
+      "drag_N": 352.9082708336534,
+      "pitch_moment_Nm": -249.62926952984014,
+      "geometric_stall_flag": true
+    },
+    {
+      "pitch_deg": 19.5,
+      "lift_pct": 91.18383400262002,
+      "drag_N": 356.833213878954,
+      "pitch_moment_Nm": -249.42301103711773,
+      "geometric_stall_flag": true
+    },
+    {
+      "pitch_deg": 19.75,
+      "lift_pct": 91.70202443807962,
+      "drag_N": 360.74725909318454,
+      "pitch_moment_Nm": -249.1878100742414,
+      "geometric_stall_flag": true
+    },
+    {
+      "pitch_deg": 20.0,
+      "lift_pct": 92.21588532355679,
+      "drag_N": 364.6522534174055,
+      "pitch_moment_Nm": -248.9248091802319,
+      "geometric_stall_flag": true
+    },
+    {
+      "pitch_deg": 20.25,
+      "lift_pct": 92.72534231084906,
+      "drag_N": 368.5460662290384,
+      "pitch_moment_Nm": -248.62844256747618,
+      "geometric_stall_flag": true
+    },
+    {
+      "pitch_deg": 20.5,
+      "lift_pct": 93.22896357957381,
+      "drag_N": 372.4200600825352,
+      "pitch_moment_Nm": -248.29422455447224,
+      "geometric_stall_flag": true
+    },
+    {
+      "pitch_deg": 20.75,
+      "lift_pct": 93.72740704872803,
+      "drag_N": 376.27753602677853,
+      "pitch_moment_Nm": -247.9235738284473,
+      "geometric_stall_flag": true
+    },
+    {
+      "pitch_deg": 21.0,
+      "lift_pct": 94.22102633782866,
+      "drag_N": 380.11853598515404,
+      "pitch_moment_Nm": -247.51686944470254,
+      "geometric_stall_flag": true
+    },
+    {
+      "pitch_deg": 21.25,
+      "lift_pct": 94.70889906391258,
+      "drag_N": 383.9382373026965,
+      "pitch_moment_Nm": -247.07488552778756,
+      "geometric_stall_flag": true
+    },
+    {
+      "pitch_deg": 21.5,
+      "lift_pct": 95.19045868351618,
+      "drag_N": 387.73248051427487,
+      "pitch_moment_Nm": -246.5902661886947,
+      "geometric_stall_flag": true
+    },
+    {
+      "pitch_deg": 21.75,
+      "lift_pct": 95.66656087434107,
+      "drag_N": 391.50452074515965,
+      "pitch_moment_Nm": -246.06530040614058,
+      "geometric_stall_flag": true
+    },
+    {
+      "pitch_deg": 22.0,
+      "lift_pct": 96.1371214865716,
+      "drag_N": 395.25417455342915,
+      "pitch_moment_Nm": -245.50531177266726,
+      "geometric_stall_flag": true
+    },
+    {
+      "pitch_deg": 22.25,
+      "lift_pct": 96.6007424544166,
+      "drag_N": 398.9737405465336,
+      "pitch_moment_Nm": -244.90727329999618,
+      "geometric_stall_flag": true
+    },
+    {
+      "pitch_deg": 22.5,
+      "lift_pct": 97.0588826343252,
+      "drag_N": 402.67212827502084,
+      "pitch_moment_Nm": -244.2731710390818,
+      "geometric_stall_flag": true
+    },
+    {
+      "pitch_deg": 22.75,
+      "lift_pct": 97.51064717958971,
+      "drag_N": 406.3401799099895,
+      "pitch_moment_Nm": -243.6028066284273,
+      "geometric_stall_flag": true
+    },
+    {
+      "pitch_deg": 23.0,
+      "lift_pct": 97.95511969976522,
+      "drag_N": 409.9761133418307,
+      "pitch_moment_Nm": -242.90218710034338,
+      "geometric_stall_flag": true
+    },
+    {
+      "pitch_deg": 23.25,
+      "lift_pct": 98.3939909021557,
+      "drag_N": 413.5910032009625,
+      "pitch_moment_Nm": -242.17302465763123,
+      "geometric_stall_flag": true
+    },
+    {
+      "pitch_deg": 23.5,
+      "lift_pct": 98.826407805547,
+      "drag_N": 417.1760576865663,
+      "pitch_moment_Nm": -241.41265215419642,
+      "geometric_stall_flag": true
+    },
+    {
+      "pitch_deg": 23.75,
+      "lift_pct": 99.24998567994685,
+      "drag_N": 420.717473616711,
+      "pitch_moment_Nm": -240.6208700379386,
+      "geometric_stall_flag": true
+    },
+    {
+      "pitch_deg": 24.0,
+      "lift_pct": 99.66788405825362,
+      "drag_N": 424.238991034541,
+      "pitch_moment_Nm": -239.80953486891462,
+      "geometric_stall_flag": true
+    },
+    {
+      "pitch_deg": 24.25,
+      "lift_pct": 100.07881866900019,
+      "drag_N": 427.72851148811196,
+      "pitch_moment_Nm": -238.97100854272975,
+      "geometric_stall_flag": true
+    },
+    {
+      "pitch_deg": 24.5,
+      "lift_pct": 100.47844421543337,
+      "drag_N": 431.1567466260442,
+      "pitch_moment_Nm": -238.09631008737134,
+      "geometric_stall_flag": true
+    },
+    {
+      "pitch_deg": 24.75,
+      "lift_pct": 100.87169037369206,
+      "drag_N": 434.56110064132486,
+      "pitch_moment_Nm": -237.2057568914115,
+      "geometric_stall_flag": true
+    },
+    {
+      "pitch_deg": 25.0,
+      "lift_pct": 101.25655236919877,
+      "drag_N": 437.92439978616477,
+      "pitch_moment_Nm": -236.28612268922214,
+      "geometric_stall_flag": true
+    },
+    {
+      "pitch_deg": 25.25,
+      "lift_pct": 101.6263199695925,
+      "drag_N": 441.1996120763345,
+      "pitch_moment_Nm": -235.31694007527244,
+      "geometric_stall_flag": true
+    },
+    {
+      "pitch_deg": 25.5,
+      "lift_pct": 101.98882605667899,
+      "drag_N": 444.4440891834854,
+      "pitch_moment_Nm": -234.3291758988575,
+      "geometric_stall_flag": true
+    },
+    {
+      "pitch_deg": 25.75,
+      "lift_pct": 102.33774562537288,
+      "drag_N": 447.61068467611636,
+      "pitch_moment_Nm": -233.28899441902252,
+      "geometric_stall_flag": true
+    },
+    {
+      "pitch_deg": 26.0,
+      "lift_pct": 102.66860687259856,
+      "drag_N": 450.6675953326318,
+      "pitch_moment_Nm": -232.1828987351907,
+      "geometric_stall_flag": true
+    },
+    {
+      "pitch_deg": 26.25,
+      "lift_pct": 102.98292141047025,
+      "drag_N": 453.6222417362967,
+      "pitch_moment_Nm": -231.04559218407675,
+      "geometric_stall_flag": true
+    },
+    {
+      "pitch_deg": 26.5,
+      "lift_pct": 103.25825850365095,
+      "drag_N": 456.30935676347326,
+      "pitch_moment_Nm": -229.8129092687647,
+      "geometric_stall_flag": true
+    },
+    {
+      "pitch_deg": 26.75,
+      "lift_pct": 103.49767119116733,
+      "drag_N": 458.7478900302282,
+      "pitch_moment_Nm": -228.54082665821696,
+      "geometric_stall_flag": true
+    },
+    {
+      "pitch_deg": 27.0,
+      "lift_pct": 103.70206959194049,
+      "drag_N": 460.9600105436248,
+      "pitch_moment_Nm": -227.15251305527988,
+      "geometric_stall_flag": true
+    },
+    {
+      "pitch_deg": 27.25,
+      "lift_pct": 103.87727070462756,
+      "drag_N": 462.99015156797066,
+      "pitch_moment_Nm": -225.64882088837788,
+      "geometric_stall_flag": true
+    },
+    {
+      "pitch_deg": 27.5,
+      "lift_pct": 104.01598882504403,
+      "drag_N": 464.7996588336429,
+      "pitch_moment_Nm": -223.9739748859908,
+      "geometric_stall_flag": true
+    },
+    {
+      "pitch_deg": 27.75,
+      "lift_pct": 103.98792583977642,
+      "drag_N": 465.26854879272287,
+      "pitch_moment_Nm": -221.32928213224764,
+      "geometric_stall_flag": true
+    },
+    {
+      "pitch_deg": 28.0,
+      "lift_pct": 95.90542488254933,
+      "drag_N": 431.9810491718823,
+      "pitch_moment_Nm": -181.99682614169154,
+      "geometric_stall_flag": true
+    },
+    {
+      "pitch_deg": 28.25,
+      "lift_pct": 95.11330106780822,
+      "drag_N": 436.26692138812626,
+      "pitch_moment_Nm": -177.8732105271548,
+      "geometric_stall_flag": true
+    },
+    {
+      "pitch_deg": 28.5,
+      "lift_pct": 95.14109921291679,
+      "drag_N": 437.52227080096543,
+      "pitch_moment_Nm": -175.82366368778221,
+      "geometric_stall_flag": true
+    },
+    {
+      "pitch_deg": 28.75,
+      "lift_pct": 95.09260320277316,
+      "drag_N": 438.27047134469115,
+      "pitch_moment_Nm": -173.4352016587561,
+      "geometric_stall_flag": true
+    },
+    {
+      "pitch_deg": 29.0,
+      "lift_pct": 93.59094624267188,
+      "drag_N": 426.69703963254017,
+      "pitch_moment_Nm": -160.5597678211289,
+      "geometric_stall_flag": true
+    },
+    {
+      "pitch_deg": 29.25,
+      "lift_pct": 75.04635523992894,
+      "drag_N": 363.3449766604437,
+      "pitch_moment_Nm": -85.06532372445531,
+      "geometric_stall_flag": true
+    },
+    {
+      "pitch_deg": 29.5,
+      "lift_pct": 67.36179572728189,
+      "drag_N": 325.9284899495794,
+      "pitch_moment_Nm": -19.870756969214725,
+      "geometric_stall_flag": true
+    },
+    {
+      "pitch_deg": 29.75,
+      "lift_pct": 63.69745540378455,
+      "drag_N": 325.8918658792495,
+      "pitch_moment_Nm": -0.16257990811182665,
+      "geometric_stall_flag": true
+    },
+    {
+      "pitch_deg": 30.0,
+      "lift_pct": 62.663961891343526,
+      "drag_N": 321.26780643474626,
+      "pitch_moment_Nm": 14.114516405932363,
+      "geometric_stall_flag": true
+    },
+    {
+      "pitch_deg": 30.25,
+      "lift_pct": 59.13481822944217,
+      "drag_N": 304.96469933394576,
+      "pitch_moment_Nm": 47.73995508288455,
+      "geometric_stall_flag": true
+    },
+    {
+      "pitch_deg": 30.5,
+      "lift_pct": 56.0869615578821,
+      "drag_N": 298.1113675263353,
+      "pitch_moment_Nm": 66.2040436602402,
+      "geometric_stall_flag": true
+    },
+    {
+      "pitch_deg": 30.75,
+      "lift_pct": 53.907903285746364,
+      "drag_N": 296.02917458951055,
+      "pitch_moment_Nm": 75.24987865009597,
+      "geometric_stall_flag": true
+    },
+    {
+      "pitch_deg": 31.0,
+      "lift_pct": 53.514803906266195,
+      "drag_N": 297.8330443989156,
+      "pitch_moment_Nm": 74.03367716274883,
+      "geometric_stall_flag": true
+    },
+    {
+      "pitch_deg": 31.25,
+      "lift_pct": 53.153386734833695,
+      "drag_N": 300.0040279010693,
+      "pitch_moment_Nm": 72.75164253393339,
+      "geometric_stall_flag": true
+    },
+    {
+      "pitch_deg": 31.5,
+      "lift_pct": 52.73450809708618,
+      "drag_N": 301.1432574303551,
+      "pitch_moment_Nm": 70.68165499736892,
+      "geometric_stall_flag": true
+    },
+    {
+      "pitch_deg": 31.75,
+      "lift_pct": 52.38918948273107,
+      "drag_N": 301.8887979033788,
+      "pitch_moment_Nm": 68.39430578599892,
+      "geometric_stall_flag": true
+    },
+    {
+      "pitch_deg": 32.0,
+      "lift_pct": 52.04025911300776,
+      "drag_N": 302.7626687027288,
+      "pitch_moment_Nm": 66.02850461208786,
+      "geometric_stall_flag": true
+    },
+    {
+      "pitch_deg": 32.25,
+      "lift_pct": 51.34693619399585,
+      "drag_N": 301.8559226414095,
+      "pitch_moment_Nm": 61.42025993991776,
+      "geometric_stall_flag": true
+    },
+    {
+      "pitch_deg": 32.5,
+      "lift_pct": 50.65276475289288,
+      "drag_N": 301.3484999145661,
+      "pitch_moment_Nm": 56.84970158809715,
+      "geometric_stall_flag": true
+    },
+    {
+      "pitch_deg": 32.75,
+      "lift_pct": 49.45733785824916,
+      "drag_N": 298.1952286485214,
+      "pitch_moment_Nm": 48.303151625970905,
+      "geometric_stall_flag": true
+    },
+    {
+      "pitch_deg": 33.0,
+      "lift_pct": 47.97582560818201,
+      "drag_N": 294.01943259201636,
+      "pitch_moment_Nm": 37.7335119009829,
+      "geometric_stall_flag": true
+    },
+    {
+      "pitch_deg": 33.25,
+      "lift_pct": 46.606167442769866,
+      "drag_N": 291.2427451347429,
+      "pitch_moment_Nm": 28.244612876702508,
+      "geometric_stall_flag": true
+    },
+    {
+      "pitch_deg": 33.5,
+      "lift_pct": 45.33318832406237,
+      "drag_N": 289.6555969955115,
+      "pitch_moment_Nm": 19.68813557208707,
+      "geometric_stall_flag": true
+    },
+    {
+      "pitch_deg": 33.75,
+      "lift_pct": 44.13717247216392,
+      "drag_N": 289.06299748007837,
+      "pitch_moment_Nm": 11.895171210674864,
+      "geometric_stall_flag": true
+    },
+    {
+      "pitch_deg": 34.0,
+      "lift_pct": 43.00218135469922,
+      "drag_N": 289.3243659513422,
+      "pitch_moment_Nm": 4.756738204053117,
+      "geometric_stall_flag": true
+    },
+    {
+      "pitch_deg": 34.25,
+      "lift_pct": 41.92054860785046,
+      "drag_N": 290.34155446017667,
+      "pitch_moment_Nm": -1.8424969693677573,
+      "geometric_stall_flag": true
+    },
+    {
+      "pitch_deg": 34.5,
+      "lift_pct": 40.883544489858316,
+      "drag_N": 292.03514819654714,
+      "pitch_moment_Nm": -7.9655383176307035,
+      "geometric_stall_flag": true
+    },
+    {
+      "pitch_deg": 34.75,
+      "lift_pct": 39.88311516562561,
+      "drag_N": 294.34542153709833,
+      "pitch_moment_Nm": -13.659074257496657,
+      "geometric_stall_flag": true
+    },
+    {
+      "pitch_deg": 35.0,
+      "lift_pct": 38.913641020929376,
+      "drag_N": 297.2257363764084,
+      "pitch_moment_Nm": -18.966511870827436,
+      "geometric_stall_flag": true
+    }
+  ]
+}

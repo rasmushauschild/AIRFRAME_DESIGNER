@@ -1,0 +1,257 @@
+{
+  "name": "atlas_mvp_01_gains2",
+  "evaluations": 48,
+  "best": {
+    "x": [
+      2.9197417111501145,
+      0.7849190290607525,
+      0.0357903632981088,
+      0.2034435339827413,
+      4.253050612880491,
+      0.29441744818030297,
+      0.01130415749606068,
+      0.2583749417511657
+    ],
+    "values": {
+      "px4.MC_PITCH_P": 2.9197417111501145,
+      "px4.MC_PITCHRATE_P": 0.7849190290607525,
+      "px4.MC_PITCHRATE_D": 0.0357903632981088,
+      "px4.MC_PITCHRATE_I": 0.2034435339827413,
+      "px4.MC_ROLL_P": 4.253050612880491,
+      "px4.MC_ROLLRATE_P": 0.29441744818030297,
+      "px4.MC_ROLLRATE_D": 0.01130415749606068,
+      "px4.MPC_THR_HOVER": 0.2583749417511657
+    },
+    "score": 2.70654,
+    "objective": 2.70654,
+    "feasible": true,
+    "violations": [],
+    "ok": true,
+    "status": "done",
+    "failures": [],
+    "metrics": {
+      "hover": {
+        "crashed": false,
+        "crash_reason": "",
+        "max_tilt_deg": 17.81,
+        "max_alt_m": 3.59,
+        "energy_wh": 195.375,
+        "saturation_fraction": 0.0244,
+        "touchdown_speed": null,
+        "events": [
+          {
+            "t": 17.38,
+            "text": "takeoff altitude reached after 13.2s"
+          }
+        ],
+        "phases": {
+          "wait_ready": {
+            "t0": 0.004,
+            "t1": 4.144,
+            "samples": 208,
+            "duration": 4.14,
+            "alt_mean": 0.645,
+            "alt_min": 0.573,
+            "alt_max": 0.72,
+            "alt_std": 0.0424,
+            "pos_drift": 0.0,
+            "pos_std_xy": 0.0001,
+            "speed_mean": 0.0,
+            "speed_max": 0.02,
+            "vz_std": 0.0008,
+            "roll_mean_deg": 0.0,
+            "roll_rms_deg": 0.0,
+            "roll_std_deg": 0.0,
+            "roll_max_deg": 0.0,
+            "pitch_mean_deg": -24.817,
+            "pitch_rms_deg": 24.833,
+            "pitch_std_deg": 0.903,
+            "pitch_max_deg": 26.0,
+            "yaw_drift_deg": -0.0,
+            "yaw_std_deg": 0.0,
+            "rates_rms_deg_s": 0.368,
+            "tilt_max_deg": 10.0,
+            "tilt_mean_deg": 8.817,
+            "thrust_mean": 0.0,
+            "thrust_to_weight_mean": 0.0,
+            "power_mean": 0.0,
+            "power_max": 0.0,
+            "lift_share_mean": 0.0,
+            "airspeed_mean": 0.018,
+            "util_max": 0.0,
+            "util_mean": 0.0,
+            "cmd_mean": 0.0,
+            "airborne_fraction": 0.0,
+            "power_ratio_vs_hover": 0.0
+          },
+          "takeoff": {
+            "t0": 4.144,
+            "t1": 19.38,
+            "samples": 761,
+            "duration": 15.236,
+            "alt_mean": 1.794,
+            "alt_min": 0.562,
+            "alt_max": 3.381,
+            "alt_std": 0.9152,
+            "pos_drift": 0.276,
+            "pos_std_xy": 0.1143,
+            "speed_mean": 0.107,
+            "speed_max": 0.962,
+            "vz_std": 0.1402,
+            "roll_mean_deg": 0.035,
+            "roll_rms_deg": 1.725,
+            "roll_std_deg": 1.724,
+            "roll_max_deg": 8.149,
+            "pitch_mean_deg": -3.667,
+            "pitch_rms_deg": 5.391,
+            "pitch_std_deg": 3.951,
+            "pitch_max_deg": 23.107,
+            "yaw_drift_deg": -8.057,
+            "yaw_std_deg": 3.964,
+            "rates_rms_deg_s": 10.483,
+            "tilt_max_deg": 17.808,
+            "tilt_mean_deg": 12.801,
+            "thrust_mean": 1086.488,
+            "thrust_to_weight_mean": 0.9634,
+            "power_mean": 26789.5,
+            "power_max": 51239.42,
+            "lift_share_mean": -0.0001,
+            "airspeed_mean": 0.235,
+            "util_max": 0.9519,
+            "util_mean": 0.5969,
+            "cmd_mean": 0.5319,
+            "airborne_fraction": 0.664,
+            "alt_err_rms": 2.1324,
+            "alt_err_max": 3.1576,
+            "time_to_alt": 13.24,
+            "power_ratio_vs_hover": 0.9069
+          },
+          "hover": {
+            "t0": 19.38,
+            "t1": 29.38,
+            "samples": 500,
+            "duration": 10.0,
+            "alt_mean": 3.524,
+            "alt_min": 3.384,
+            "alt_max": 3.587,
+            "alt_std": 0.0428,
+            "pos_drift": 0.04,
+            "pos_std_xy": 0.0267,
+            "speed_mean": 0.032,
+            "speed_max": 0.124,
+            "vz_std": 0.036,
+            "roll_mean_deg": -0.031,
+            "roll_rms_deg": 0.156,
+            "roll_std_deg": 0.153,
+            "roll_max_deg": 0.347,
+            "pitch_mean_deg": -2.246,
+            "pitch_rms_deg": 2.265,
+            "pitch_std_deg": 0.291,
+            "pitch_max_deg": 2.848,
+            "yaw_drift_deg": 0.347,
+            "yaw_std_deg": 0.596,
+            "rates_rms_deg_s": 0.907,
+            "tilt_max_deg": 14.145,
+            "tilt_mean_deg": 13.754,
+            "thrust_mean": 1195.779,
+            "thrust_to_weight_mean": 1.0603,
+            "power_mean": 29538.57,
+            "power_max": 30195.73,
+            "lift_share_mean": -0.0,
+            "airspeed_mean": 0.049,
+            "util_max": 0.6075,
+            "util_mean": 0.5913,
+            "cmd_mean": 0.5683,
+            "airborne_fraction": 1.0,
+            "pos_err_rms": 0.1492,
+            "pos_err_final": 0.2071,
+            "power_ratio_vs_hover": 1.0
+          }
+        },
+        "flight_time": 20.1,
+        "final_alt": 3.587,
+        "final_speed": 0.046
+      }
+    },
+    "timing": {
+      "hover": {
+        "wall_s": 5.5,
+        "px4_boot_s": 0.32,
+        "sim_s": 29.38,
+        "rtf": 5.67,
+        "lockstep_timeouts": 8,
+        "steps": 7345,
+        "instance": 2
+      }
+    },
+    "generation": 3,
+    "t": 35.4
+  },
+  "objective": "phases.hover.pitch_rms_deg + phases.hover.roll_rms_deg + 0.02 * phases.hover.rates_rms_deg_s + 2 * phases.hover.pos_std_xy + 5 * phases.hover.alt_std",
+  "constraints": [
+    "not metrics.crashed",
+    "ok"
+  ],
+  "variables": [
+    {
+      "path": "px4.MC_PITCH_P",
+      "range": [
+        1.0,
+        8.0
+      ]
+    },
+    {
+      "path": "px4.MC_PITCHRATE_P",
+      "range": [
+        0.1,
+        1.2
+      ]
+    },
+    {
+      "path": "px4.MC_PITCHRATE_D",
+      "range": [
+        0.0,
+        0.04
+      ]
+    },
+    {
+      "path": "px4.MC_PITCHRATE_I",
+      "range": [
+        0.0,
+        0.6
+      ]
+    },
+    {
+      "path": "px4.MC_ROLL_P",
+      "range": [
+        1.0,
+        8.0
+      ]
+    },
+    {
+      "path": "px4.MC_ROLLRATE_P",
+      "range": [
+        0.1,
+        1.2
+      ]
+    },
+    {
+      "path": "px4.MC_ROLLRATE_D",
+      "range": [
+        0.0,
+        0.04
+      ]
+    },
+    {
+      "path": "px4.MPC_THR_HOVER",
+      "range": [
+        0.15,
+        0.6
+      ]
+    }
+  ],
+  "algorithm": "cmaes",
+  "wall_s": 72.9,
+  "out_dir": "/Users/rasmushauschild/AIRFRAME_DESIGNER/results/atlas_mvp_01_gains2",
+  "feasible": 40
+}
