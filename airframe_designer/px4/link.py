@@ -230,7 +230,7 @@ class PX4Link:
     # On a cable there is no reason to be shy: USB carries ~92 kB/s and this is ~12. Pose at 50 Hz is as
     # fast as the recorder keeps it, so nothing below is thrown away.
     FLIGHT_RATES_HZ = {30: 50, 31: 50, 32: 50, 105: 50, 375: 20, 106: 20, 132: 10, 141: 5,
-                       291: 5, 147: 2, 74: 5, 24: 2, 33: 5}
+                       291: 5, 147: 2, 74: 5, 24: 2, 33: 5, 65: 5}
     #                  ..., OPTICAL_FLOW_RAD, DISTANCE_SENSOR, ALTITUDE
     #                  ATTITUDE, ATT_QUAT, LOCAL_POS, HIGHRES_IMU, ACTUATOR_OUT, ESC_STATUS, BATTERY, VFR_HUD, GPS, GLOBAL_POS
     # 375 is ACTUATOR_OUTPUT_STATUS, which is what `board_motors` reads and therefore what fills the motor
@@ -239,18 +239,18 @@ class PX4Link:
     # What each of those costs on the wire, bytes per message including MAVLink v2 framing. Close enough to
     # divide a link up with: the point is the ratio between a 148-byte actuator report and a 32-byte VFR_HUD.
     MSG_BYTES = {30: 40, 31: 46, 32: 40, 105: 74, 375: 148, 106: 56, 132: 50, 141: 44,
-                 291: 60, 147: 66, 74: 32, 24: 64, 33: 40}
+                 291: 60, 147: 66, 74: 32, 24: 64, 33: 40, 65: 54}
 
     # When there is not enough link for all of it, this is the order things are given up in: the last one
     # standing is where the aircraft is and which way it is pointing, because that is the 3D view and the
     # graph. ATTITUDE goes first and always - the quaternion beside it says the same thing.
-    GIVE_UP_ORDER = [30, 24, 291, 147, 105, 141, 74, 33, 132, 106, 375, 31, 32]
+    GIVE_UP_ORDER = [30, 24, 291, 147, 105, 141, 74, 33, 65, 132, 106, 375, 31, 32]
 
     # Enough of each to be worth having at all, and then the order the rest of the link is spent in.
     # Position and attitude rise together, because a pose is both of them at the same instant.
     # Enough of each to be worth having at all. Kept small, because a floor is money taken from the pose
     # before anything is decided, and on a radio there is not much money.
-    FLOOR_HZ = {30: 0, 32: 5, 31: 5, 106: 2, 375: 1, 132: 1, 147: 1, 141: 1, 74: 1, 33: 1, 105: 0, 291: 0, 24: 0}
+    FLOOR_HZ = {30: 0, 32: 5, 31: 5, 106: 2, 375: 1, 132: 1, 147: 1, 141: 1, 74: 1, 33: 1, 65: 2, 105: 0, 291: 0, 24: 0}
 
     # Then the rest of the link is spent in this order, each step up to the rate beside it (None = as much
     # as a cable would get). Position and attitude rise together - a pose is both at the same instant -
@@ -264,7 +264,12 @@ class PX4Link:
     # a third of the traffic - the graph is choppy because the link is busy carrying RC channels and
     # mission status - so when the budget is tight these are switched off by name. Anything the app does
     # use (STATUSTEXT, COMMAND_ACK, PARAM_VALUE, HEARTBEAT, the streams above) is never touched.
-    SILENCE_ON_RADIO = {65: "RC_CHANNELS", 36: "SERVO_OUTPUT_RAW", 42: "MISSION_CURRENT",
+    # RC_CHANNELS is NOT in here: the Remote section is the pilot's own sticks, and a real flight is
+    # exactly when you want to see them. It was silenced on the premise that nothing read it, which left
+    # the Remote section saying "not detected · 0 channels" over a radio while the aircraft was being
+    # flown by hand. At 5 Hz it costs about 270 B/s of a 2.6 kB/s budget, and it is given up early when
+    # the link is tighter than that.
+    SILENCE_ON_RADIO = {36: "SERVO_OUTPUT_RAW", 42: "MISSION_CURRENT",
                         245: "EXTENDED_SYS_STATE", 29: "SCALED_PRESSURE", 230: "ESTIMATOR_STATUS",
                         241: "VIBRATION", 83: "ATTITUDE_TARGET", 85: "POSITION_TARGET_LOCAL_NED",
                         87: "POSITION_TARGET_GLOBAL_INT", 62: "NAV_CONTROLLER_OUTPUT", 331: "ODOMETRY",

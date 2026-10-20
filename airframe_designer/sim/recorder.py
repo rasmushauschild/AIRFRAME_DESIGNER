@@ -46,11 +46,26 @@ COLUMNS = [
     "flow_range",                               # H-flow slant range to the ground, m (-1 = out of range)
     "flow_q",                                   # H-flow picture quality, 0-255
     "mode",                                     # PX4 flight mode: main mode, + sub mode / 100 when Auto
+    # The pilot's own hands, as the receiver reports them: RC_CHANNELS 1-8 in microseconds (1000-2000,
+    # 0 = no such channel). Recorded so a flight can be replayed with the stick that caused it visible
+    # beside what the aircraft then did - the same columns whether the sticks came from the USB remote in
+    # SITL or from the receiver on the aircraft. Eight because that is sticks plus the switches that
+    # matter; a channel beyond those is configuration, not input.
+    "rc1", "rc2", "rc3", "rc4", "rc5", "rc6", "rc7", "rc8",
 ]
+
+#: How many receiver channels the recording keeps.
+RC_CHANNELS = 8
 
 #: Appended once per rotor, after the fixed columns above: the throttle PX4 asked for, what the motor has
 #: actually spooled up to (both 0-1), and the thrust that makes, in newtons.
 ROTOR_COLUMNS = ("cmd", "spool", "thrust")
+
+
+def _rc_values(status: dict) -> list[float]:
+    """The first `RC_CHANNELS` receiver channels, in microseconds; 0 for a channel the receiver has not got."""
+    ch = list((status or {}).get("rc") or [])
+    return [float(ch[i]) if i < len(ch) and ch[i] is not None else 0.0 for i in range(RC_CHANNELS)]
 
 
 def columns_for(rotors: int) -> list[str]:
@@ -148,6 +163,7 @@ class Recorder:
             round(float(ex.get("flow_range", -1.0)), 4),
             round(float(ex.get("flow_quality", 0.0)), 1),
             round(float(status.get("mode", 0.0)), 2),
+            *[round(float(v), 1) for v in _rc_values(status)],
             *self._rotor_values(body, motors, n_rotors),
         ])
 

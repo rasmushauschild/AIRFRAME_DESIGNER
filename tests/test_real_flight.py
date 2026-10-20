@@ -138,9 +138,9 @@ def test_a_radio_is_not_asked_for_more_than_it_can_carry():
     assert radio[30] == 0, "ATTITUDE is dropped; the quaternion beside it says the same thing"
     # and the streams nobody reads are switched off by name, which is a third of a radio's traffic
     off = telemetry_asks(57600, seen=("RC_CHANNELS", "MISSION_CURRENT", "SERVO_OUTPUT_RAW"))
-    assert off[65] == 0 and off[42] == 0 and off[36] == 0, "RC channels, mission status and servo output"
+    assert off[42] == 0 and off[36] == 0, "mission status and servo output are read by nothing"
+    assert off.get(65, 1) != 0, "the pilot's sticks are asked for, not silenced: the Remote section reads them"
     assert 242 not in off, "a stream that is not arriving costs a round trip to switch off and saves nothing"
-    assert 65 not in telemetry_asks(921600, seen=("RC_CHANNELS",)), "a cable is not worth the round trips"
 
 
 def test_the_cable_is_still_asked_for_everything():
@@ -539,3 +539,24 @@ def test_pushing_a_wiring_takes_back_the_ports_it_no_longer_uses():
     assert stale == {"PWM_MAIN_FUNC7": 0, "PWM_AUX_FUNC3": 0, "PWM_AUX_FUNC8": 0}
     assert "PWM_AUX_FUNC5" not in stale          # the servo keeps its function
     assert "PWM_MAIN_FUNC8" not in stale         # motor 8 is not in this design's set at all
+
+
+def test_a_real_flight_still_shows_the_pilots_sticks():
+    """RC_CHANNELS is asked for in flight and never silenced: the Remote section is the pilot's hands.
+
+    It used to be switched off on a radio as "traffic nothing reads", which left the Remote section
+    saying "not detected - 0 channels" during exactly the flight you would want to watch the sticks in.
+    """
+    from airframe_designer.px4.link import PX4Link
+    assert 65 in PX4Link.FLIGHT_RATES_HZ and 65 not in PX4Link.SILENCE_ON_RADIO
+    assert PX4Link.FLOOR_HZ[65] >= 1 and 65 in PX4Link.MSG_BYTES
+    # it is given up before the pose, which is what the 3D view and the graph are made of
+    order = PX4Link.GIVE_UP_ORDER
+    assert order.index(65) < order.index(32) and order.index(65) < order.index(31)
+
+
+def test_the_sticks_survive_a_57600_radio_budget():
+    """At the full share of a 57600 link there is still room for the sticks beside the pose."""
+    asks = telemetry_asks(57600)
+    assert asks.get(65, 0) >= 1, f"no room left for the pilot's sticks: {asks}"
+    assert asks[32] >= 10 and asks[31] >= 10, "and the pose does not pay for them"

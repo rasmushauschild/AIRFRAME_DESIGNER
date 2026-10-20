@@ -1716,6 +1716,13 @@ const SERIES_BASE = {
   on_ground: { label: 'on ground', unit: '', c: '#475569', cat: 'State' },
   mode:      { label: 'flight mode', unit: '', c: '#818cf8', cat: 'State',
                desc: "the mode PX4 is in, as it reports it in its heartbeat" },
+  // The pilot's own hands, in microseconds as the receiver reports them. Whoever is holding the sticks -
+  // the USB remote in SITL, the receiver on the aircraft in flight - they land in the same columns, so a
+  // replay shows the input beside what the aircraft did with it.
+  ...Object.fromEntries([1, 2, 3, 4, 5, 6, 7, 8].map(i => [`rc${i}`, {
+    label: `RC ${i}`, unit: 'µs', c: `hsl(${(i - 1) * 34 + 190} 70% 55%)`, cat: 'Remote',
+    desc: `receiver channel ${i} as the pilot moved it, 1000-2000 µs (0 = the receiver has no such channel)`,
+  }])),
   qw: null, qx: null, qy: null, qz: null,            // the quaternion is for replay, not for reading
 };
 const MOTOR_KIND = {
@@ -1723,7 +1730,7 @@ const MOTOR_KIND = {
   spool:  { label: 'spooled', unit: '', hue: 150, desc: 'what the motor has actually reached: the throttle after the spool-up lag' },
   thrust: { label: 'thrust', unit: 'N', hue: 272, desc: 'the force this rotor is making at that spooled throttle, newtons' },
 };
-const CAT_ORDER = ['Flight', 'Attitude', 'Motors', 'Sensors', 'H-flow', 'Power', 'State'];
+const CAT_ORDER = ['Flight', 'Attitude', 'Motors', 'Remote', 'Sensors', 'H-flow', 'Power', 'State'];
 // Inside a drawer the order is the one you would read them in, not the order the recorder happens to
 // write them: the three positions together, then the three speeds, and so on.
 const SERIES_ORDER = ['height', 'speed', 'airspeed', 'vd', 'n', 'e', 'd', 'vn', 've', 'thrust', 'lift', 'wind',
@@ -1869,7 +1876,11 @@ function modeLabel(v) {
   return main === 4 ? (PX4_AUTO_MODES[sub] || `Auto ${sub}`) : (PX4_MAIN_MODES[main] || `mode ${main}`);
 }
 function formatSeries(key, v) {
-  if (!isFinite(v)) return '—';
+  // isFinite(null) is true in JavaScript - null converts to 0 - so a null walked straight through this
+  // guard and threw on .toFixed() below, inside updateReadouts(), inside drawGraph(), before the plot
+  // was drawn: the graph then showed "nothing recorded yet" over a recording that was running fine.
+  // The server sends null for anything non-finite (SafeJSON / json_safe), so null is a value this sees.
+  if (typeof v !== 'number' || !isFinite(v)) return '—';
   const u = (describeSeries(key) || {}).unit || '';
   const num = Math.abs(v) >= 100 ? v.toFixed(0) : Math.abs(v) >= 10 ? v.toFixed(1) : v.toFixed(2);
   if (key === 'power' && airframe) {
@@ -1892,7 +1903,8 @@ function drawGraph() {
   const W = Math.max(120, host.clientWidth), H = Math.max(60, host.clientHeight);
   const T = 6, B = 14, L = 2, R = 2, ph = H - T - B, pw = W - L - R;
   const cursor = rowAt(data, replayT);
-  updateReadouts();
+  // A readout is a number in a corner; the plot is the point of the window. One must never stop the other.
+  try { updateReadouts(); } catch (e) { console.error('[graph] readouts failed, plotting anyway', e); }
   if (rows.length < 2) {
     host.innerHTML = `<svg viewBox="0 0 ${W} ${H}"><text x="${W / 2}" y="${H / 2}" text-anchor="middle">`
       + `${shownRun ? 'this run has no samples' : 'nothing recorded yet — start the simulation'}</text></svg>`;

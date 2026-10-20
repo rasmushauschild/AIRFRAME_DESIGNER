@@ -353,6 +353,14 @@ airframes/    schema-2 JSON (docs/SCHEMA.md);  scenarios/  studies/  results/ (g
   stay structural: the 3D view draws the aircraft, and the aircraft is a physical object. FLIGHT turns the
   attitude the other way on the way in (`_follow_telemetry`), so what the aircraft reported is what the
   recording says and the model is still drawn where it really is.
+* **The pilot's hands are in the recording.** `rc1`..`rc8` are the receiver's channels in microseconds
+  (0 = no such channel), from the same RC_CHANNELS whoever is holding the sticks - the USB remote in
+  SITL, the receiver on the aircraft in flight - so a replay shows the input beside what the aircraft did
+  with it. Eight, because that is sticks plus the switches that matter. They are asked for on a radio
+  too (`FLIGHT_RATES_HZ[65]`, floor 2 Hz, ~270 B/s of a 2.6 kB/s budget) and given up before the pose
+  when the link is tighter than that; RC_CHANNELS used to be in `SILENCE_ON_RADIO` as traffic nothing
+  reads, which left the Remote section saying "not detected - 0 channels" during the one flight you would
+  want to watch the sticks in.
 * What is recorded is everything worth plotting: the fixed `COLUMNS` (pose, speeds, forces, the IMU as it
   reads, the baro, the H-flow, and PX4's flight mode as a number — main mode with Auto's sub-mode behind
   the decimal point, so one column plots as a staircase and reads back as "Hold") and then three per

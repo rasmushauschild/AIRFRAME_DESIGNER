@@ -197,8 +197,14 @@ class Simulator:
         behind the decimal point (4.03 is Auto/Hold), so one column plots as a readable staircase."""
         custom = int(getattr(link, "custom_mode", 0) or 0)
         main, sub = (custom >> 16) & 0xFF, (custom >> 24) & 0xFF
+        # and the sticks: whoever is holding them - the USB remote in SITL, the receiver on the aircraft -
+        # they arrive on the same RC_CHANNELS and go into the same columns, so a replay shows the input
+        # beside what it did.
+        rc = getattr(link, "rc", None) or {}
+        fresh = rc and (time.time() - float(rc.get("t", 0.0))) < 3.0
         return {"armed": bool(getattr(link, "armed", False)),
-                "mode": main + (sub / 100.0 if main == 4 else 0.0)}
+                "mode": main + (sub / 100.0 if main == 4 else 0.0),
+                "rc": list(rc.get("channels") or []) if fresh else []}
 
     def battery_percent(self) -> float:
         """Charge left, as the gauge shows it. 100 when no capacity is configured."""

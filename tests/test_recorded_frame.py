@@ -109,3 +109,29 @@ def test_a_real_flight_records_exactly_what_the_aircraft_reported():
     # and the model is drawn where the aircraft actually is: 20 degrees further nose-up
     assert abs(math.degrees(q_to_euler(q_normalize(np.array([row["qw"], row["qx"], row["qy"], row["qz"]])))[1])
                - 26.0) < 1e-2
+
+
+# ------------------------------------------------------------------ the pilot's own hands
+def test_the_sticks_are_recorded_so_a_flight_replays_with_its_input():
+    """Whoever holds the sticks - the USB remote in SITL, the receiver in flight - lands in rc1..rc8."""
+    af = quad_x()
+    r = Recorder(sample_hz=1000.0)
+    r.sample(0.0, vehicle(af), {"armed": True, "rc": [1500, 1600, 1000, 1480, 2000]}, 100.0)
+    row = dict(zip(r.columns, r.rows[0]))
+    assert [row[f"rc{i}"] for i in range(1, 9)] == [1500, 1600, 1000, 1480, 2000, 0, 0, 0]
+
+
+def test_a_flight_with_no_receiver_records_zeros_rather_than_nothing():
+    """A column that is always there is a column a saved run can be read by; 0 says 'no such channel'."""
+    r = Recorder(sample_hz=1000.0)
+    r.sample(0.0, vehicle(quad_x()), {"armed": False}, 100.0)
+    row = dict(zip(r.columns, r.rows[0]))
+    assert all(row[f"rc{i}"] == 0 for i in range(1, 9))
+
+
+def test_the_rotor_columns_still_come_after_the_fixed_ones():
+    """Appending to COLUMNS is safe; it must not have reordered what a saved run already carries."""
+    from airframe_designer.sim.recorder import COLUMNS, columns_for
+    cols = columns_for(4)
+    assert cols[:len(COLUMNS)] == list(COLUMNS)
+    assert cols[len(COLUMNS)] == "m1_cmd" and cols[-1] == "m4_thrust"
