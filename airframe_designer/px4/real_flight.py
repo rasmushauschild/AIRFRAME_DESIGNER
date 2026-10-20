@@ -2,6 +2,13 @@
 import time
 
 MAIN_OUTPUTS = 8          # PWM_MAIN_FUNC1..8, then PWM_AUX_FUNC1..
+AUX_OUTPUTS = 8           # PWM_AUX_FUNC1..8
+
+
+def all_output_keys() -> list[str]:
+    """Every output a motor may be wired to, in board order: MAIN 1-8, then AUX 1-8."""
+    return ([f"PWM_MAIN_FUNC{i}" for i in range(1, MAIN_OUTPUTS + 1)]
+            + [f"PWM_AUX_FUNC{i}" for i in range(1, AUX_OUTPUTS + 1)])
 
 
 def output_keys(n: int) -> list[str]:
@@ -54,12 +61,23 @@ def flight_params(airframe):
     source = airframe.px4_params(hitl=False)
     params = {k: v for k, v in source.items() if carries_over(k)}
     n = len(airframe.active_rotors())
-    keys = output_keys(n)
     overrides = airframe.px4_overrides or {}
-    saved = any(k in overrides for k in keys)
-    mapping = {k: int(overrides.get(k, 0)) if saved else 101 + i for i, k in enumerate(keys)}
+    every = all_output_keys()
+    # A design may put its motors on any output the board has - the Rotors table offers all sixteen - so
+    # the wiring is read from all of them, not from the first n. Reading only `output_keys(n)` meant a
+    # design with a motor on AUX 3 looked like a design with motors missing, and the honest-sounding
+    # "assign each motor to exactly one port" was raised against a wiring that did exactly that.
+    if any(k in overrides for k in every):
+        mapping = {k: int(overrides[k]) for k in every if int(overrides.get(k, 0) or 0)}
+    else:
+        mapping = {k: 101 + i for i, k in enumerate(output_keys(n))}
     if sorted(mapping.values()) != list(range(101, 101 + n)):
-        raise ValueError(f"Assign each of the {n} motors to exactly one PWM port in Geometry before real-flight setup")
+        vals = list(mapping.values())
+        doubled = sorted({v - 100 for v in vals if vals.count(v) > 1 and 101 <= v <= 100 + n})
+        missing = sorted(set(range(1, n + 1)) - {v - 100 for v in vals})
+        why = (f"motor(s) {doubled} share a port" if doubled else
+               f"motor(s) {missing} are not on a port" if missing else "a port holds something that is not a motor")
+        raise ValueError(f"Assign each of the {n} motors to exactly one output port in the Rotors table ({why})")
     params.update(mapping)
     params.update(SYS_HITL=0, CBRK_SUPPLY_CHK=0)
     # The interlock belongs to the nose-lift module. A design that has switched the module off is not

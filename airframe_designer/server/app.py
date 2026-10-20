@@ -605,7 +605,13 @@ def build_app(state: AppState) -> FastAPI:
     @app.get("/api/connection")
     async def get_connection():
         st = state.conn.status()
-        st["checklist"] = state.conn.checklist(export_params() if state.conn.mode == "hitl" else None)
+        try:
+            st["checklist"] = state.conn.checklist(export_params() if state.conn.mode == "hitl" else None)
+        except ValueError as e:
+            # The browser polls this one. A design whose real-flight set cannot be built must not take the
+            # whole status with it - the switch, the link, the telemetry and the ports all live here.
+            st["checklist"] = None
+            st["checklist_error"] = str(e)
         return st
 
     @app.post("/api/connection/connect")
@@ -1209,7 +1215,15 @@ target_link_libraries(external__{name} PRIVATE px4_work_queue)
         if link.armed:
             push_job.update(running=False, step='')
             return JSONResponse({"ok": False, "error": "vehicle is armed; disarm before updating PX4"}, status_code=409)
-        params = export_params()
+        try:
+            params = export_params()
+        except ValueError as e:
+            # A design the real-flight set cannot be built for - motors not on ports, two motors on one -
+            # is a sentence to read, not a 500 to stare at. The export endpoint has always answered this
+            # way; the push forgot to, and "Internal Server Error" is all the button could say.
+            push_job.update(running=False, step='')
+            return JSONResponse({"ok": False, "error": str(e), "problems": [str(e)] + sim.airframe.validate()},
+                                status_code=409)
         only = body.get("only")
         if only:
             params = {k: v for k, v in params.items() if k in only}

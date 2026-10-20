@@ -36,7 +36,7 @@ def test_custom_wiring_preserves_geometry_and_front_fan_roles():
 
 def test_duplicate_wiring_rejected():
     af=model(); af.px4_overrides["PWM_MAIN_FUNC1"]=101
-    with pytest.raises(ValueError, match="exactly one"):
+    with pytest.raises(ValueError, match="exactly one output port"):
         flight_params(af)
 
 
@@ -201,7 +201,7 @@ def test_a_design_that_cannot_be_wired_is_a_sentence_not_a_500(tmp_path):
     af = Airframe.from_dict({"rotors": [{"name": f"M{i}"} for i in range(1, 5)],
                              "px4_overrides": {"PWM_MAIN_FUNC1": 101, "PWM_MAIN_FUNC2": 101,
                                                "PWM_MAIN_FUNC3": 103, "PWM_MAIN_FUNC4": 104}})
-    with pytest.raises(ValueError, match="exactly one PWM port"):
+    with pytest.raises(ValueError, match="exactly one output port"):
         flight_params(af)
 
 
@@ -244,7 +244,7 @@ def test_the_export_endpoint_answers_in_words_when_the_design_cannot_be_wired():
     routes = {r.path: r.endpoint for r in build_app(state).routes if hasattr(r, "endpoint")}
     r = asyncio.run(routes["/api/px4/export"]())
     assert r.status_code == 409
-    assert b"exactly one PWM port" in r.body
+    assert b"exactly one output port" in r.body
 
 
 def link_at(baud, share="balanced"):
@@ -458,3 +458,32 @@ def test_a_parameter_this_firmware_has_not_got_says_so():
     link.get_param = lambda name, timeout=2.0: None            # the board does not know it
     out = link.set_params({"NLF_HW_OK": 1}, timeout=0.2, pace=0.0)
     assert out[0]["ok"] is False and "no parameter of that name" in out[0]["error"]
+
+
+def test_motors_may_live_on_any_output_the_board_has():
+    """A design wired to AUX 3 and AUX 4 is a wiring, not a design with motors missing.
+
+    `flight_params` used to read only `output_keys(n)` - the first n ports - so a motor on AUX 3 was
+    invisible and the check raised "assign each motor to exactly one port" against a wiring that did
+    exactly that. In the push that surfaced as Internal Server Error.
+    """
+    af = Airframe.from_dict({"rotors": [{"name": f"M{i}"} for i in range(1, 10)]})
+    af.px4_overrides.update({f"PWM_MAIN_FUNC{i}": 100 + i for i in range(1, 7)})
+    af.px4_overrides.update(PWM_AUX_FUNC4=107, PWM_AUX_FUNC1=108, PWM_AUX_FUNC3=109)
+    p = flight_params(af)
+    assert p["PWM_AUX_FUNC4"] == 107 and p["PWM_AUX_FUNC1"] == 108 and p["PWM_AUX_FUNC3"] == 109
+    assert "PWM_MAIN_FUNC7" not in p and "PWM_MAIN_FUNC8" not in p      # nothing is wired there
+
+
+def test_a_motor_with_no_port_says_which_one():
+    af = Airframe.from_dict({"rotors": [{"name": f"M{i}"} for i in range(1, 10)]})
+    af.px4_overrides.update({f"PWM_MAIN_FUNC{i}": 100 + i for i in range(1, 8)})   # motors 8 and 9 nowhere
+    with pytest.raises(ValueError, match=r"motor\(s\) \[8, 9\] are not on a port"):
+        flight_params(af)
+
+
+def test_two_motors_on_one_port_says_so():
+    af = Airframe.from_dict({"rotors": [{"name": f"M{i}"} for i in range(1, 4)]})
+    af.px4_overrides.update(PWM_MAIN_FUNC1=101, PWM_MAIN_FUNC2=102, PWM_MAIN_FUNC3=102)
+    with pytest.raises(ValueError, match="share a port"):
+        flight_params(af)
