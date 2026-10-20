@@ -1434,6 +1434,31 @@ target_link_libraries(external__{name} PRIVATE px4_work_queue)
         r = await run_in_threadpool(state.conn.sync_to_sitl)
         return r if r.get("ok") else JSONResponse(r, status_code=409)
 
+    @app.post("/api/params/read_many")
+    async def read_params_many(body: dict):
+        """Read a named handful of parameters straight from the vehicle, one round trip each.
+
+        The whole list is ~50 kB and is not downloaded over a radio unless asked for; a section that
+        needs thirty names should not have to wait for a thousand. The Remote section wants the RC_MAP_*
+        mapping and the calibration of the channels that are mapped - about 0.2 s each on a radio, so a
+        few seconds instead of several minutes, and the sticks get their labels during a real flight.
+        """
+        if not link.ctl_connected:
+            return JSONResponse({"ok": False, "error": "no link to the aircraft"}, status_code=409)
+        names = [str(n) for n in (body.get("names") or [])][:120]
+        def read_all() -> dict:
+            out = {}
+            for n in names:
+                if n in link.params:                      # already known: no round trip for it
+                    out[n] = link.params[n]["value"]
+                    continue
+                info = link.get_param(n, timeout=1.5)
+                if info is not None:
+                    out[n] = info["value"]
+            return out
+        values = await run_in_threadpool(read_all)
+        return {"ok": True, "values": values, "missing": [n for n in names if n not in values]}
+
     @app.post("/api/params/set_many")
     async def set_params_many(body: dict):
         """Write several parameters at once ({"params": {name: value}}), e.g. an RC calibration; saves them."""

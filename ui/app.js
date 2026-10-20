@@ -2976,6 +2976,26 @@ $('#fw-flash').addEventListener('click', async e => {
 // ============================================================ Remote control (PX4 tab): indicator + one row per channel
 let lastRc = {}, lastManual = {}, rcLastRender = 0, rcIndKey = '', rcBuiltFor = '';
 let rcCal = null;   // stick calibration in progress: { step, min: [], max: [] }
+// Over a radio the whole parameter list is not downloaded - it is ~50 kB and the pose matters more - so
+// this section asks for the thirty-odd names it actually needs, one round trip each. Without it the
+// Controls column sat on "Reading the board's parameters…" for the whole flight, which is exactly when
+// you want to know which switch is the kill switch.
+let rcParamsAsked = 0;
+async function ensureRcParams(channels) {
+  if (params.RC_MAP_ROLL || !status.ctl_connected) return;          // already known, or nothing to ask
+  if (Date.now() - rcParamsAsked < 20000) return;                   // one attempt at a time, not per frame
+  rcParamsAsked = Date.now();
+  const names = RC_FUNCS.flatMap(f => f.th ? [f.p, f.th] : [f.p])
+    .concat(['RC_CHAN_CNT', 'RC_MAP_FLTMODE', 'COM_FLTMODE1', 'COM_FLTMODE2', 'COM_FLTMODE3',
+             'COM_FLTMODE4', 'COM_FLTMODE5', 'COM_FLTMODE6'])
+    .concat(Array.from({ length: Math.min(Math.max(channels | 0, 8), 18) },
+                       (_, i) => [`RC${i + 1}_MIN`, `RC${i + 1}_MAX`, `RC${i + 1}_TRIM`, `RC${i + 1}_REV`]).flat());
+  try {
+    const r = await api('/api/params/read_many', { names: [...new Set(names)] });
+    Object.entries(r.values || {}).forEach(([k, v]) => params[k] = { ...(params[k] || {}), value: v });
+    if (Object.keys(r.values || {}).length) { rcBuiltFor = null; renderRcBoard(); renderRcLive(); }
+  } catch (e) { logLine('[remote] could not read the mapping: ' + e.message); }
+}
 // what a channel can control (PX4's RC_MAP_* functions); 'switch' ones have a threshold, 'mode' has six slots
 const RC_FUNCS = [
   { p: 'RC_MAP_ROLL', label: 'Roll', kind: 'stick' }, { p: 'RC_MAP_PITCH', label: 'Pitch', kind: 'stick' }, { p: 'RC_MAP_THROTTLE', label: 'Throttle', kind: 'stick' }, { p: 'RC_MAP_YAW', label: 'Yaw', kind: 'stick' },
@@ -3101,6 +3121,7 @@ function renderRcBoard() {
         }; }
     } else if (cal.dataset.step !== '' && cal.dataset.step !== 'done') { cal.dataset.step = ''; cal.innerHTML = ''; }
   }
+  if (!params.RC_MAP_ROLL) ensureRcParams(src ? src.count : 0);
   const foot = $('#rc-foot'); if (foot) foot.innerHTML = [
     params.RC_MAP_ROLL ? '' : '<span class="warn">Reading the board\'s parameters…</span>',
     src && src.via === 'app' ? `${esc(src.name || 'remote')}: ${src.count} channels through this computer (the app relays the sticks to PX4).`
