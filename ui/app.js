@@ -557,7 +557,7 @@ const nf = (v, d = 3) => (typeof v === 'number' && isFinite(v)) ? +v.toFixed(d) 
 function renderRotorTable() {
   const el = $('#rotor-table');
   const rows = pairedOrder(airframe.rotors).map(i => rotorRowHtml(i, airframe.rotors[i])).join('');
-  el.innerHTML = `<table class="grid"><thead><tr><th title="Physical PWM port: 1–8 = MAIN 1–8; 9–10 = AUX 1–2">#</th><th title="enabled: takes part in the simulation and the PX4 export">On</th><th title="tied to the rotor on the other side: moving one moves the other. They keep their own name, output and spin">Sym</th><th>Name</th><th title="position, m, structural frame (FRD like PX4): X forward">X</th><th title="Y right (+)">Y</th><th title="Z DOWN (+): a rotor 10 cm above the reference point has Z = -0.10">Z</th><th title="forward lean of the thrust axis from vertical, degrees; negative = backward">Tilt°</th><th title="sideways lean, degrees; positive = outward from the centreline (right for a rotor on the centreline)">Cant°</th><th title="resulting unit thrust vector = CA_ROTORn_AX / AY / AZ">Axis AX AY AZ</th><th title="direction of rotation; click a cell to flip it (the sign of KM)">Spin</th><th title="max thrust N">Tmax</th><th title="share of max thrust this rotor needs to hover, as PX4's allocator would solve it">Hover</th><th></th></tr></thead><tbody>${rows || '<tr><td colspan="14" class="hint">No rotors. Add one below.</td></tr>'}</tbody></table>`;
+  el.innerHTML = `<table class="grid"><thead><tr><th title="Which output on the flight controller this rotor's ESC is plugged into. MAIN 1-8 are the first eight outputs, AUX 1-2 the next two; the export writes it as PWM_MAIN_FUNCn / PWM_AUX_FUNCn = 100 + motor number. Change it here to re-map, and two motors can be swapped by moving one to a free port first.">Port</th><th title="enabled: takes part in the simulation and the PX4 export">On</th><th title="tied to the rotor on the other side: moving one moves the other. They keep their own name, output and spin">Sym</th><th>Name</th><th title="position, m, structural frame (FRD like PX4): X forward">X</th><th title="Y right (+)">Y</th><th title="Z DOWN (+): a rotor 10 cm above the reference point has Z = -0.10">Z</th><th title="forward lean of the thrust axis from vertical, degrees; negative = backward">Tilt°</th><th title="sideways lean, degrees; positive = outward from the centreline (right for a rotor on the centreline)">Cant°</th><th title="resulting unit thrust vector = CA_ROTORn_AX / AY / AZ">Axis AX AY AZ</th><th title="direction of rotation; click a cell to flip it (the sign of KM)">Spin</th><th title="max thrust N">Tmax</th><th title="share of max thrust this rotor needs to hover, as PX4's allocator would solve it">Hover</th><th></th></tr></thead><tbody>${rows || '<tr><td colspan="14" class="hint">No rotors. Add one below.</td></tr>'}</tbody></table>`;
   api('/api/airframe/hover_check').then(showHover).catch(() => { });
   el.querySelectorAll('tr[data-i]').forEach(tr => {
     const i = +tr.dataset.i;
@@ -1396,6 +1396,12 @@ const hardwareMotors = () => (status.conn_mode || status.mode) === 'hitl';
 function rotorPortKey(port) {
   return port <= 8 ? `PWM_MAIN_FUNC${port}` : `PWM_AUX_FUNC${port - 8}`;
 }
+// What is written on the board beside the connector. A bare "9" in this column was read as a row number
+// for as long as the column was headed "#", and nothing on screen said the ninth motor is plugged into
+// AUX 1 rather than a ninth MAIN pin that does not exist.
+function rotorPortLabel(port) {
+  return port <= 8 ? `MAIN ${port}` : `AUX ${port - 8}`;
+}
 function motorPortValues() {
   const values = {}, overrides = airframe.px4_overrides || {};
   // Keep a complete saved wiring map once edited. Older models default to 1..N.
@@ -1413,13 +1419,19 @@ function rotorPortHtml(i, r) {
   const motor = r.enabled === false ? 0 : airframe.rotors.slice(0,i+1).filter(x => x.enabled !== false).length;
   const values = motorPortValues();
   const port = Array.from({length:10},(_,i)=>i+1).find(p=>values[rotorPortKey(p)] === 100+motor);
-  return `<select class="rotor-port" data-motor="${motor}" aria-label="PWM port for ${esc(r.name)}" ${!motor || status.armed || $('#motor-enable').checked ? 'disabled' : ''}><option value="">—</option>${Array.from({length:10},(_,i)=>i+1).map(p=>`<option value="${rotorPortKey(p)}" ${p===port?'selected':''}>${p}</option>`).join('')}</select>`;
+  return `<select class="rotor-port" data-motor="${motor}" data-name="${esc(r.name)}" aria-label="Pixhawk output port for ${esc(r.name)}" title="${port ? `${esc(r.name)} is wired to ${rotorPortLabel(port)} (motor ${motor}, ${rotorPortKey(port)} = ${100 + motor})` : 'not wired to a port'}" ${!motor || status.armed || $('#motor-enable').checked ? 'disabled' : ''}><option value="">—</option>${Array.from({length:10},(_,i)=>i+1).map(p=>`<option value="${rotorPortKey(p)}" ${p===port?'selected':''}>${rotorPortLabel(p)}</option>`).join('')}</select>`;
 }
 function updateMotorPorts() {
   const values = motorPortValues();
   $$('#rotor-table select.rotor-port').forEach(sel => {
-    sel.disabled = !!status.armed || $('#motor-enable').checked || !Number(sel.dataset.motor);
-    if (document.activeElement !== sel) sel.value = Object.keys(values).find(k=>values[k]===100+Number(sel.dataset.motor)) || '';
+    const motor = Number(sel.dataset.motor);
+    sel.disabled = !!status.armed || $('#motor-enable').checked || !motor;
+    const key = Object.keys(values).find(k => values[k] === 100 + motor) || '';
+    if (document.activeElement !== sel) sel.value = key;
+    // the row says where this motor is plugged in, so it has to say it after a re-map too
+    const port = key ? Array.from({length:10},(_,i)=>i+1).find(p => rotorPortKey(p) === key) : 0;
+    sel.title = port ? `${sel.dataset.name || 'this rotor'} is wired to ${rotorPortLabel(port)} (motor ${motor}, ${key} = ${100 + motor})`
+                     : 'not wired to a port';
   });
 }
 function changeMotorPort(sel) {

@@ -211,6 +211,10 @@ table.grid tr:last-child td { border-bottom: 0; }
 #rotor-table input[type=number] { width: 58px; padding: 4px 5px; font-size: 12px; box-shadow: none; background: transparent; border-radius: 7px; }
 #rotor-table input[data-k=tilt], #rotor-table input[data-k=cant] { width: 46px; }
 #rotor-table input[data-k=tmax] { width: 44px; }
+/* The port is the one column that names a thing on the board rather than a number in the design, so it
+   reads as "MAIN 3" and is wide enough to say so without wrapping. */
+#rotor-table select.rotor-port { font-size: 12px; padding: 3px 4px; min-width: 76px; font-variant-numeric: tabular-nums; }
+#rotor-table select.rotor-port:disabled { color: var(--text-3); }
 #rotor-table td.axis { font-family: var(--mono); font-size: 11px; color: var(--text-2); white-space: pre; letter-spacing: -0.01em; }
 #rotor-table input[type=number]:hover { background: var(--soft); }
 #rotor-table input[type=number]:focus { background: var(--panel); box-shadow: inset 0 0 0 1.5px var(--accent); }

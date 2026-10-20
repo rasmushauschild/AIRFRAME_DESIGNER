@@ -332,7 +332,12 @@
     "MC_ROLLRATE_P": 0.44999998807907104,
     "MC_ROLLRATE_D": 0.003000000026077032,
     "MC_ROLLRATE_I": 0.05000000074505806,
-    "NLF_TARGET": 8.5
+    "NLF_TARGET": 8.5,
+    "RC_MAP_FLTMODE": 7,
+    "COM_FLTMODE1": 8,
+    "COM_FLTMODE2": 8,
+    "COM_FLTMODE5": 10,
+    "COM_FLTMODE6": 10
   },
   "design": {
     "cruise_speed_kmh": 50,
