@@ -2982,7 +2982,7 @@ let rcCal = null;   // stick calibration in progress: { step, min: [], max: [] }
 // you want to know which switch is the kill switch.
 let rcParamsAsked = 0;
 async function ensureRcParams(channels) {
-  if (params.RC_MAP_ROLL || !status.ctl_connected) return;          // already known, or nothing to ask
+  if (pv('RC_MAP_ROLL') !== null || !status.ctl_connected) return;  // already known, or nothing to ask
   if (Date.now() - rcParamsAsked < 20000) return;                   // one attempt at a time, not per frame
   rcParamsAsked = Date.now();
   const names = RC_FUNCS.flatMap(f => f.th ? [f.p, f.th] : [f.p])
@@ -3023,7 +3023,15 @@ function rcSource() {
   if (src) return { channels: src.axes.map(v => Math.round(1500 + Math.max(-1, Math.min(1, v)) * 500)), count: src.axes.length, via: 'app', name: src.name };
   return null;
 }
-const pv = (name, d = null) => (params[name] && params[name].value != null) ? +params[name].value : d;
+// What the vehicle says, and failing that what this design has already set. A mapping programmed here
+// is kept with the airframe (px4_overrides) and pushed by Update PX4, so the app has always known it -
+// it simply was not being read, and the section waited on a parameter download for an answer it had.
+// The vehicle still wins when its value is known: the aircraft is the truth about the aircraft.
+const pv = (name, d = null) => {
+  if (params[name] && params[name].value != null) return +params[name].value;
+  const mine = (airframe && airframe.px4_overrides) ? airframe.px4_overrides[name] : undefined;
+  return (mine === undefined || mine === null) ? d : +mine;
+};
 function rcNorm(ch, v) {   // PWM -> -1..1 with the board's calibration (RCn_MIN/TRIM/MAX), like PX4's rc_update
   const mn = pv(`RC${ch}_MIN`, 1000), mx = pv(`RC${ch}_MAX`, 2000), tr = pv(`RC${ch}_TRIM`, 1500), rev = pv(`RC${ch}_REV`, 1);
   const x = v > tr ? (v - tr) / Math.max(1, mx - tr) : (v - tr) / Math.max(1, tr - mn);
@@ -3046,7 +3054,13 @@ function renderRcIndicator() {
 const rcKnownFuncs = () => params.RC_MAP_ROLL ? RC_FUNCS.filter(f => params[f.p]) : RC_FUNCS;
 const rcFuncOf = (ch) => rcKnownFuncs().find(f => pv(f.p, 0) === ch) || null;
 async function rcSet(name, value) {
-  try { await api('/api/params/set', { name, value }); params[name] = { ...(params[name] || {}), value }; } catch (e) { logLine('[rc] ' + e.message); }
+  try {
+    await api('/api/params/set', { name, value });
+    params[name] = { ...(params[name] || {}), value };
+    // the server keeps it with the airframe (px4_overrides) so Update PX4 re-applies it; keep this copy
+    // in step, or the section would forget its own mapping until the next time the design is fetched
+    if (airframe) airframe.px4_overrides = { ...(airframe.px4_overrides || {}), [name]: value };
+  } catch (e) { logLine('[rc] ' + e.message); }
 }
 async function rcAssign(ch, p) {        // give channel ch the function p (moving it away from wherever it was), or none
   const had = rcFuncOf(ch);
@@ -3121,9 +3135,9 @@ function renderRcBoard() {
         }; }
     } else if (cal.dataset.step !== '' && cal.dataset.step !== 'done') { cal.dataset.step = ''; cal.innerHTML = ''; }
   }
-  if (!params.RC_MAP_ROLL) ensureRcParams(src ? src.count : 0);
+  if (pv('RC_MAP_ROLL') === null) ensureRcParams(src ? src.count : 0);
   const foot = $('#rc-foot'); if (foot) foot.innerHTML = [
-    params.RC_MAP_ROLL ? '' : '<span class="warn">Reading the board\'s parameters…</span>',
+    pv('RC_MAP_ROLL') === null ? '<span class="warn">Reading the board\'s parameters…</span>' : '',
     src && src.via === 'app' ? `${esc(src.name || 'remote')}: ${src.count} channels through this computer (the app relays the sticks to PX4).`
       : `${(src ? src.count : 0) <= 18 ? (src ? src.count : 0) : '?'} channels from the receiver (PX4 carries at most 18).`,
     pv('RC_CHAN_CNT', 0) > 0 ? `Sticks calibrated.` : '<span class="warn">Sticks not calibrated.</span>',

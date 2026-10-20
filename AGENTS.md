@@ -275,7 +275,11 @@ airframes/    schema-2 JSON (docs/SCHEMA.md);  scenarios/  studies/  results/ (g
   A section that needs a handful of parameters asks for them by name rather than waiting for the list:
   `POST /api/params/read_many` reads each straight from the vehicle (~0.2 s apiece on a radio), which is
   how the Remote section gets `RC_MAP_*` and the channel calibration during a real flight instead of
-  sitting on "Reading the board's parameters…" for the whole of it.
+  sitting on "Reading the board's parameters…" for the whole of it. Before it asks the aircraft, it asks
+  the design: `pv()` falls back to `px4_overrides`, because a mapping set here is kept with the airframe
+  and pushed by Update PX4 - the app has always known it, and used to wait on a download for an answer it
+  already had. The vehicle still wins when its value is known, because the aircraft is the truth about
+  the aircraft.
   `link.status()["telemetry"]` reports asked against measured so the gap is visible, and the radio's own
   RADIO_STATUS (rssi, remrssi, txbuf) sits beside it. The aircraft has a cap of its own - PX4 sends no more
   than `MAV_<n>_RATE` on a port and drops the big messages first, so a board capped at 1200 B/s answers
