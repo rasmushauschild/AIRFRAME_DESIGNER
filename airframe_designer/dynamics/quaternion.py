@@ -34,6 +34,24 @@ def q_to_euler(q: np.ndarray) -> tuple[float, float, float]:
     return float(roll), float(pitch), float(yaw)
 
 
+def q_from_rotmat(R: np.ndarray) -> np.ndarray:
+    """The quaternion of a rotation matrix, by the branch with the largest divisor (numerically safe)."""
+    tr = float(R[0, 0] + R[1, 1] + R[2, 2])
+    if tr > 0:
+        s = np.sqrt(tr + 1.0) * 2
+        q = np.array([0.25 * s, (R[2, 1] - R[1, 2]) / s, (R[0, 2] - R[2, 0]) / s, (R[1, 0] - R[0, 1]) / s])
+    elif R[0, 0] > R[1, 1] and R[0, 0] > R[2, 2]:
+        s = np.sqrt(1.0 + R[0, 0] - R[1, 1] - R[2, 2]) * 2
+        q = np.array([(R[2, 1] - R[1, 2]) / s, 0.25 * s, (R[0, 1] + R[1, 0]) / s, (R[0, 2] + R[2, 0]) / s])
+    elif R[1, 1] > R[2, 2]:
+        s = np.sqrt(1.0 + R[1, 1] - R[0, 0] - R[2, 2]) * 2
+        q = np.array([(R[0, 2] - R[2, 0]) / s, (R[0, 1] + R[1, 0]) / s, 0.25 * s, (R[1, 2] + R[2, 1]) / s])
+    else:
+        s = np.sqrt(1.0 + R[2, 2] - R[0, 0] - R[1, 1]) * 2
+        q = np.array([(R[1, 0] - R[0, 1]) / s, (R[0, 2] + R[2, 0]) / s, (R[1, 2] + R[2, 1]) / s, 0.25 * s])
+    return q_normalize(q)
+
+
 def q_deriv(q: np.ndarray, omega_body: np.ndarray) -> np.ndarray:
     w, x, y, z = q
     p, qq, r = omega_body

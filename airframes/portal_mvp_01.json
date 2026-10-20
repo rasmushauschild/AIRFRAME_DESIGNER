@@ -53,15 +53,15 @@
         0.3826
       ],
       "axis": [
-        0.42260624405338415,
+        0.3107023706681323,
         0.0,
-        -0.9063133908792761
+        -0.9505072523980038
       ],
       "km": 0.01,
-      "max_thrust": 250,
+      "max_thrust": 324.83299065960875,
       "max_power_w": 15600,
       "tau": 0.12,
-      "diameter": 0.21,
+      "diameter": 0.25,
       "thrust_exponent": 2,
       "enabled": true,
       "pair": "pr9gan0u"
@@ -74,15 +74,15 @@
         0.725111120644516
       ],
       "axis": [
-        0.42260624405338415,
+        -0.02440005551018943,
         0.0,
-        -0.9063133908792761
+        -0.9997022743252612
       ],
       "km": 0.01,
-      "max_thrust": 250,
+      "max_thrust": 317.18388493996554,
       "max_power_w": 15600,
       "tau": 0.12,
-      "diameter": 0.21,
+      "diameter": 0.25,
       "thrust_exponent": 2,
       "enabled": true,
       "pair": "psthua2b"
@@ -95,15 +95,15 @@
         -0.14
       ],
       "axis": [
-        0.0,
-        -0.5000110003630134,
-        -0.8660190526287391
+        0.2588190579255234,
+        -0.4829631080905364,
+        -0.8365161872181993
       ],
-      "km": 0.01,
-      "max_thrust": 250,
+      "km": -0.01,
+      "max_thrust": 338.2925919700051,
       "max_power_w": 15600,
       "tau": 0.12,
-      "diameter": 0.21,
+      "diameter": 0.25,
       "thrust_exponent": 2,
       "enabled": true,
       "pair": "panuu7m4"
@@ -120,11 +120,11 @@
         0.0,
         -1.0
       ],
-      "km": -0.01,
-      "max_thrust": 250,
+      "km": 0.01,
+      "max_thrust": 0,
       "max_power_w": 15600,
       "tau": 0.12,
-      "diameter": 0.21,
+      "diameter": 0.25,
       "thrust_exponent": 2,
       "enabled": true,
       "pair": ""
@@ -137,15 +137,15 @@
         0.5515
       ],
       "axis": [
-        0.42260624405338415,
+        0.1444027718378084,
         0.0,
-        -0.9063133908792761
+        -0.9895189939993865
       ],
       "km": -0.01,
-      "max_thrust": 250,
+      "max_thrust": 321.00843779978715,
       "max_power_w": 15600,
       "tau": 0.12,
-      "diameter": 0.21,
+      "diameter": 0.25,
       "thrust_exponent": 2,
       "enabled": true,
       "pair": "pqcpcs4j"
@@ -158,15 +158,15 @@
         0.3826
       ],
       "axis": [
-        0.42260624405338415,
+        0.3107023706681323,
         0.0,
-        -0.9063133908792761
+        -0.9505072523980038
       ],
       "km": -0.01,
-      "max_thrust": 250,
+      "max_thrust": 324.83299065960875,
       "max_power_w": 15600,
       "tau": 0.12,
-      "diameter": 0.21,
+      "diameter": 0.25,
       "thrust_exponent": 2,
       "enabled": true,
       "pair": "pr9gan0u"
@@ -179,15 +179,15 @@
         0.5515
       ],
       "axis": [
-        0.42260624405338415,
+        0.1444027718378084,
         0.0,
-        -0.9063133908792761
+        -0.9895189939993865
       ],
       "km": 0.01,
-      "max_thrust": 250,
+      "max_thrust": 321.00843779978715,
       "max_power_w": 15600,
       "tau": 0.12,
-      "diameter": 0.21,
+      "diameter": 0.25,
       "thrust_exponent": 2,
       "enabled": true,
       "pair": "pqcpcs4j"
@@ -200,15 +200,15 @@
         0.725111120644516
       ],
       "axis": [
-        0.42260624405338415,
+        -0.02440005551018943,
         0.0,
-        -0.9063133908792761
+        -0.9997022743252612
       ],
       "km": -0.01,
-      "max_thrust": 250,
+      "max_thrust": 317.18388493996554,
       "max_power_w": 15600,
       "tau": 0.12,
-      "diameter": 0.21,
+      "diameter": 0.25,
       "thrust_exponent": 2,
       "enabled": true,
       "pair": "psthua2b"
@@ -221,15 +221,15 @@
         -0.14
       ],
       "axis": [
-        0.0,
-        0.5000110003630134,
-        -0.8660190526287391
+        0.2588190579255234,
+        0.4829631080905364,
+        -0.8365161872181993
       ],
       "km": 0.01,
-      "max_thrust": 250,
+      "max_thrust": 338.2925919700051,
       "max_power_w": 15600,
       "tau": 0.12,
-      "diameter": 0.21,
+      "diameter": 0.25,
       "thrust_exponent": 2,
       "enabled": true,
       "pair": "panuu7m4"
@@ -244,12 +244,12 @@
         0,
         -0.153
       ],
-      "root_y": 0.527,
-      "span": 2.688,
+      "root_y": 0.617,
+      "span": 2.638,
       "root_chord": 1.134,
       "tip_chord": 0.743,
       "sweep_deg": 14.7,
-      "dihedral_deg": 29.3,
+      "dihedral_deg": 32.3,
       "incidence_deg": 0,
       "twist_deg": 0,
       "pitch_deg": 0,
@@ -364,7 +364,7 @@
       "pair": ""
     }
   ],
-  "hover_pitch_deg": 20.0,
+  "hover_pitch_deg": 10.000000000066347,
   "landed_pitch_deg": -26.26,
   "px4_overrides": {
     "MIS_TAKEOFF_ALT": 10,
@@ -403,17 +403,7 @@
     "CA_ROTOR5_CT": 6.228489,
     "CA_ROTOR6_CT": 6.333889,
     "CA_ROTOR7_CT": 5.910261,
-    "CA_ROTOR8_CT": 5.910261,
-    "PWM_MAIN_FUNC1": 101,
-    "PWM_MAIN_FUNC2": 106,
-    "PWM_MAIN_FUNC3": 102,
-    "PWM_MAIN_FUNC4": 108,
-    "PWM_MAIN_FUNC5": 103,
-    "PWM_MAIN_FUNC6": 109,
-    "PWM_MAIN_FUNC7": 104,
-    "PWM_MAIN_FUNC8": 105,
-    "PWM_AUX_FUNC1": 107,
-    "PWM_AUX_FUNC2": 0
+    "CA_ROTOR8_CT": 5.910261
   },
   "design": {
     "cruise_speed_kmh": 50,

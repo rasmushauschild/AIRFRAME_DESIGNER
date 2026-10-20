@@ -112,8 +112,17 @@ class Recorder:
         n_rotors = len(motors) if motors is not None else (0 if cmds is None else len(cmds))
         if not self.rows:
             self.columns = columns_for(n_rotors)
-        roll, pitch, yaw = (float(np.degrees(v)) for v in body.euler)
-        rates = [float(np.degrees(v)) for v in body.rates]
+        # Attitude, rates and the accelerometer are recorded in PX4's body frame - the structural frame
+        # pitched nose-up by hover_pitch_deg - and never in the structural one, because a column has to
+        # mean the same thing in a simulated run and in a real flight, and in a real flight PX4's frame is
+        # the only one there is. The quaternion columns stay structural: they are what the 3D view draws,
+        # and the model is a physical object.
+        R = body.af.hover_rotation() if getattr(body, "af", None) is not None else np.eye(3)
+        euler = body.hover_frame_euler() if hasattr(body, "hover_frame_euler") else body.euler
+        roll, pitch, yaw = (float(np.degrees(v)) for v in euler)
+        rates = [float(np.degrees(v)) for v in R @ body.rates]
+        if accel is not None:
+            accel = R @ np.asarray(accel, float)
         wind = float(np.linalg.norm(body.wind_ned))
         self.rows.append([
             round(elapsed, 4),
@@ -133,7 +142,7 @@ class Recorder:
             1.0 if status.get("armed") else 0.0,
             1.0 if body.on_ground else 0.0,
             *[round(float(v), 4) for v in (accel if accel is not None else np.zeros(3))],
-            *[round(float(np.degrees(v)), 3) for v in body.rates],
+            *[round(v, 3) for v in rates],
             round(float(ex.get("alt_baro", -body.pos[2])), 3),
             *[round(float(v), 5) for v in (ex.get("flow_rate") or (0.0, 0.0))],
             round(float(ex.get("flow_range", -1.0)), 4),

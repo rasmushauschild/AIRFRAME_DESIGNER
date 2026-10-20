@@ -290,6 +290,14 @@ airframes/    schema-2 JSON (docs/SCHEMA.md);  scenarios/  studies/  results/ (g
   is the flight controller's and only its: `logLine` keeps the `[px4]` lines (PX4's console and the events
   it sends) and sends everything the app says to the browser console instead. A saved run carries that log
   for the span it covers, and selecting the run shows it.
+* **A recorded rotation is PX4's, never the airframe's.** `roll`/`pitch`/`yaw`, the body rates and the
+  accelerometer go into the recording in PX4's body frame - the structural frame pitched nose-up by
+  `hover_pitch_deg` - in SITL, in HITL, in FLIGHT and in an imported .ulg alike, because in a real flight
+  PX4's frame is the only one there is and a column has to mean one thing. An aircraft sitting at its
+  design hover attitude therefore reads level, as PX4 reads it. The `q*` columns are the exception and
+  stay structural: the 3D view draws the aircraft, and the aircraft is a physical object. FLIGHT turns the
+  attitude the other way on the way in (`_follow_telemetry`), so what the aircraft reported is what the
+  recording says and the model is still drawn where it really is.
 * What is recorded is everything worth plotting: the fixed `COLUMNS` (pose, speeds, forces, the IMU as it
   reads, the baro, the H-flow, and PX4's flight mode as a number — main mode with Auto's sub-mode behind
   the decimal point, so one column plots as a staircase and reads back as "Hold") and then three per

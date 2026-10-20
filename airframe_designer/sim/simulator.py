@@ -16,7 +16,7 @@ from typing import Callable
 
 import numpy as np
 
-from ..dynamics.quaternion import q_from_euler, q_normalize
+from ..dynamics.quaternion import q_from_euler, q_from_rotmat, q_normalize, q_to_rotmat
 from ..geometry.airframe import Airframe
 from ..sensors import SensorSuite, Home
 from .recorder import Recorder
@@ -143,12 +143,17 @@ class Simulator:
                 s.pos = pos
             if vel is not None:
                 s.vel = vel
+            # What arrives is PX4's: its body frame, which is the structural frame pitched nose-up by
+            # hover_pitch_deg. It is turned back into the structural frame here, because that is what the
+            # rest of the app holds - the 3D view draws the aircraft itself - and the recorder turns it
+            # into PX4's again on the way out. A design with no hover pitch passes through untouched.
+            Rh = s.af.hover_rotation() if getattr(s, "af", None) is not None else np.eye(3)
             if q is not None:
-                s.q = q_normalize(q)
+                s.q = q_from_rotmat(q_to_rotmat(q_normalize(q)) @ Rh)
             elif euler is not None:
-                s.q = q_from_euler(*[float(v) for v in euler])
+                s.q = q_from_rotmat(q_to_rotmat(q_from_euler(*[float(v) for v in euler])) @ Rh)
             if rates is not None:
-                s.rates = rates
+                s.rates = Rh.T @ rates
             s.on_ground = bool(-float(s.pos[2]) < 0.4)
             s.breakdown = {}
             self.time_usec += int(round(elapsed * 1e6))
