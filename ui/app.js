@@ -1393,23 +1393,28 @@ $('#recenter').addEventListener('click', (e) => { scene.recenterView(); e.curren
 let motorTestTimer = null, motorTestBusy = false, heldMotor = null, motorTestStarted = 0;
 const hardwareMotors = () => (status.conn_mode || status.mode) === 'hitl';
 // Physical connector numbering is independent of allocator motor identity.
+// Eight MAIN then eight AUX, the same ports real_flight.output_keys() wires a design to. The UI used to
+// stop at AUX 2 for no reason the hardware shares: a board with more outputs than that could not be
+// told about them, and a tenth motor had nowhere to go.
+const MAIN_PORTS = 8, PORT_COUNT = 16;
+const everyPort = () => Array.from({ length: PORT_COUNT }, (_, i) => i + 1);
 function rotorPortKey(port) {
-  return port <= 8 ? `PWM_MAIN_FUNC${port}` : `PWM_AUX_FUNC${port - 8}`;
+  return port <= MAIN_PORTS ? `PWM_MAIN_FUNC${port}` : `PWM_AUX_FUNC${port - MAIN_PORTS}`;
 }
 // What is written on the board beside the connector. A bare "9" in this column was read as a row number
 // for as long as the column was headed "#", and nothing on screen said the ninth motor is plugged into
 // AUX 1 rather than a ninth MAIN pin that does not exist.
 function rotorPortLabel(port) {
-  return port <= 8 ? `MAIN ${port}` : `AUX ${port - 8}`;
+  return port <= MAIN_PORTS ? `MAIN ${port}` : `AUX ${port - MAIN_PORTS}`;
 }
 function motorPortValues() {
   const values = {}, overrides = airframe.px4_overrides || {};
   // Keep a complete saved wiring map once edited. Older models default to 1..N.
-  const saved = Array.from({length:10}, (_,i) => rotorPortKey(i+1)).some(k => k in overrides);
-  const live = Array.from({length:10}, (_,i) => Number(params[rotorPortKey(i+1)]?.value || 0));
-  const liveMapped = live.some(v => v >= 101 && v <= 116);
+  const saved = everyPort().map(p => rotorPortKey(p)).some(k => k in overrides);
+  const live = everyPort().map(p => Number(params[rotorPortKey(p)]?.value || 0));
+  const liveMapped = live.some(v => v >= 101 && v <= 100 + PORT_COUNT);
   const count = airframe.rotors.filter(r => r.enabled !== false).length;
-  for (let port=1; port<=10; port++) {
+  for (const port of everyPort()) {
     const key = rotorPortKey(port);
     values[key] = saved ? Number(overrides[key] || 0) : liveMapped ? live[port-1] : port <= count ? 100+port : 0;
   }
@@ -1418,8 +1423,8 @@ function motorPortValues() {
 function rotorPortHtml(i, r) {
   const motor = r.enabled === false ? 0 : airframe.rotors.slice(0,i+1).filter(x => x.enabled !== false).length;
   const values = motorPortValues();
-  const port = Array.from({length:10},(_,i)=>i+1).find(p=>values[rotorPortKey(p)] === 100+motor);
-  return `<select class="rotor-port" data-motor="${motor}" data-name="${esc(r.name)}" aria-label="Pixhawk output port for ${esc(r.name)}" title="${port ? `${esc(r.name)} is wired to ${rotorPortLabel(port)} (motor ${motor}, ${rotorPortKey(port)} = ${100 + motor})` : 'not wired to a port'}" ${!motor || status.armed || $('#motor-enable').checked ? 'disabled' : ''}><option value="">—</option>${Array.from({length:10},(_,i)=>i+1).map(p=>`<option value="${rotorPortKey(p)}" ${p===port?'selected':''}>${rotorPortLabel(p)}</option>`).join('')}</select>`;
+  const port = everyPort().find(p => values[rotorPortKey(p)] === 100 + motor);
+  return `<select class="rotor-port" data-motor="${motor}" data-name="${esc(r.name)}" aria-label="Pixhawk output port for ${esc(r.name)}" title="${port ? `${esc(r.name)} is wired to ${rotorPortLabel(port)} (motor ${motor}, ${rotorPortKey(port)} = ${100 + motor})` : 'not wired to a port'}" ${!motor || status.armed || $('#motor-enable').checked ? 'disabled' : ''}><option value="">—</option>${everyPort().map(p=>`<option value="${rotorPortKey(p)}" ${p===port?'selected':''}>${rotorPortLabel(p)}</option>`).join('')}</select>`;
 }
 function updateMotorPorts() {
   const values = motorPortValues();
@@ -1429,7 +1434,7 @@ function updateMotorPorts() {
     const key = Object.keys(values).find(k => values[k] === 100 + motor) || '';
     if (document.activeElement !== sel) sel.value = key;
     // the row says where this motor is plugged in, so it has to say it after a re-map too
-    const port = key ? Array.from({length:10},(_,i)=>i+1).find(p => rotorPortKey(p) === key) : 0;
+    const port = key ? everyPort().find(p => rotorPortKey(p) === key) : 0;
     sel.title = port ? `${sel.dataset.name || 'this rotor'} is wired to ${rotorPortLabel(port)} (motor ${motor}, ${key} = ${100 + motor})`
                      : 'not wired to a port';
   });
@@ -1440,7 +1445,7 @@ function changeMotorPort(sel) {
   const old = Object.keys(values).filter(k => values[k] === fn);
   if (target && !(target in values)) return;
   const occupant = target ? values[target] : 0;
-  if (occupant && (occupant < 101 || occupant > 116)) { logLine('[motor ports] This port is assigned to a non-motor output.'); sel.blur(); updateMotorPorts(); return; }
+  if (occupant && (occupant < 101 || occupant > 100 + PORT_COUNT)) { logLine('[motor ports] This port is assigned to a non-motor output.'); sel.blur(); updateMotorPorts(); return; }
   if (occupant && occupant !== fn && old.length !== 1) { logLine('[motor ports] Assign this motor to a free port before swapping.'); sel.blur(); updateMotorPorts(); return; }
   for (const k of old) values[k] = 0;
   if (target) values[target] = fn;

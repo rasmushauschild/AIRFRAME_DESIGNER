@@ -56,7 +56,9 @@ airframes/    schema-2 JSON (docs/SCHEMA.md);  scenarios/  studies/  results/ (g
   plugged into - MAIN 1-8 then AUX 1-2, named as they are printed beside the connector - and changing it
   re-maps the motor (`PWM_MAIN_FUNCn` / `PWM_AUX_FUNCn` = 100 + motor number, held as an override).
   Two motors swap by moving one to a free port first, which the table enforces rather than silently
-  double-assigning a port. It was headed `#` for a long time and read as an index, so nobody could see
+  double-assigning a port. The list is MAIN 1-8 then AUX 1-8, the same sixteen `real_flight.output_keys()`
+  wires a design to; the UI stopped at AUX 2 for no reason the hardware shares, so a board with more
+  outputs could not be told about them (`MAIN_PORTS` / `PORT_COUNT` in ui/app.js are the one place). It was headed `#` for a long time and read as an index, so nobody could see
   that the ninth motor goes to AUX 1 rather than to a ninth MAIN pin that does not exist.
 * A rotor or a leg may carry a `pair` token: two items sharing one are a left/right couple and the app keeps
   their geometry mirrored about y as either is edited. They stay two separate things — two PX4 outputs, two
