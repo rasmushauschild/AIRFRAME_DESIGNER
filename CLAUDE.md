@@ -148,6 +148,12 @@ airframes/    schema-2 JSON (docs/SCHEMA.md);  scenarios/  studies/  results/ (g
     3D view. Stop stops the sequence, not the simulation - the aircraft keeps flying under PX4, and a
     sequence that fails no longer freezes the loop, because the graph already holds what happened.
   - **Live control** is the aircraft right now: flight mode, the remote, the wind, the motor sliders.
+  **Nothing asks with `window.confirm()`**: this app's web view answers it `false` instantly, without
+  ever showing a dialog, so a control guarded by it can never be switched on - the motor-slider checkbox
+  unticked itself the moment it was ticked, for exactly that reason. A dangerous control asks on itself
+  (`confirmTwice`): the first press turns it into "Really?" for 8 seconds, the second does the thing, and
+  a click anywhere else or Escape takes the question back. tests/test_ui_js.py fails the build if
+  `confirm(` reappears in ui/.
   Every section on every tab is a `<details class="sec">`: the white box, its title the handle, its contents
   directly on it, nothing inside it that is another white box. Which sections are open is the user's and is
   remembered.

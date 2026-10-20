@@ -1531,7 +1531,17 @@ function updateMotorSliders(st) {
 $('#motor-enable').addEventListener('change', (e) => {
   stopMotorTest();
   if (e.target.checked && hardwareMotors()) {
-    if (status.armed || !status.ctl_connected || !confirm('REAL MOTOR TEST: remove propellers/impellers where the manufacturer permits, secure the aircraft, and keep clear of all fans. Hold a slider to run one motor; release to stop. Ready?')) e.target.checked = false;
+    // This spins real fans, so it is asked twice - but never with window.confirm(), which returns false
+    // at once in this web view and so unchecked the box the instant it was ticked. The checkbox asks the
+    // way every other dangerous control here does: tick it once to be asked, tick it again to mean it.
+    const why = status.armed ? 'the aircraft is armed: disarm before testing motors'
+              : !status.ctl_connected ? 'no flight controller connected'
+              : '';
+    if (why) { e.target.checked = false; logLine('[motor test] ' + why); markSaved(why, 4000); }
+    else if (!confirmTwice('motor-test', e.target, 'run REAL motors')) {
+      e.target.checked = false;
+      markSaved('REAL MOTOR TEST: take the props off, secure the aircraft, stand clear — then tick it again', 8000);
+    }
   }
   $$('#motor-sliders input').forEach(inp => {inp.value=0; inp.disabled=!e.target.checked;});
   if (!hardwareMotors()) { if (e.target.checked) sendOverride(); else api('/api/sim/motor_override', {values:null}); }
