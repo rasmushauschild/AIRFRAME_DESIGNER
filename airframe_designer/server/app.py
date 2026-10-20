@@ -1227,6 +1227,20 @@ target_link_libraries(external__{name} PRIVATE px4_work_queue)
         only = body.get("only")
         if only:
             params = {k: v for k, v in params.items() if k in only}
+        # A wiring is the whole wiring. Setting the ports this design uses and leaving the rest as they
+        # were means every re-map leaves a ghost behind: the board ends up with one motor on three
+        # outputs, and testing it spins three fans. So any other output still pointing at one of this
+        # design's motors is cleared - the same thing `real_flight.apply_verified` has always done on the
+        # way to a real flight, which is where the asymmetry came from. A servo or any other function is
+        # left alone: only motor numbers this design owns are taken back.
+        if not only and any(k.startswith(("PWM_MAIN_FUNC", "PWM_AUX_FUNC")) for k in params):
+            mine = {int(v) for k, v in params.items() if k.startswith(("PWM_MAIN_FUNC", "PWM_AUX_FUNC")) and int(v)}
+            stale = {k: 0 for k, e in (link.params or {}).items()
+                     if k.startswith(("PWM_MAIN_FUNC", "PWM_AUX_FUNC")) and k not in params and int(e["value"]) in mine}
+            if stale:
+                state.log(f"[export] clearing {len(stale)} output(s) still assigned to this design's motors: "
+                          + ", ".join(sorted(stale)))
+                params.update(stale)
         complete = bool(link.params) and link.param_count and link.status().get("params_loaded", 0) >= link.param_count
         if link.mode == "hitl" and link.params.get("SYS_HITL", {}).get("value") == 0 and complete:
             # Only a complete list proves an output is absent. Over a radio the list is not downloaded

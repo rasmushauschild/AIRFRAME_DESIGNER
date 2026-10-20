@@ -199,6 +199,13 @@ airframes/    schema-2 JSON (docs/SCHEMA.md);  scenarios/  studies/  results/ (g
   is asked about and sent again with the type the board gave. What is left after that is reported by name
   with the reason - "this firmware has no parameter of that name" is the honest answer for `NLF_*` on a
   board without the ATLAS module.
+* **A wiring is the whole wiring.** When the export carries motor outputs, the push also clears every
+  other `PWM_MAIN_FUNC*` / `PWM_AUX_FUNC*` still pointing at one of this design's motors. Without that,
+  each re-map leaves a ghost - a board that had motor 9 on AUX 3 and is told it is now on AUX 1 keeps
+  both, PX4 drives both pins, and one motor test spins two fans (a real board here ended up with nine
+  motors on thirteen outputs, motor 9 on three of them). Only motor numbers this design owns are taken
+  back; a servo or anything else on the board is left alone. `real_flight.apply_verified` has always done
+  this on the way to a real flight - the ordinary push did not, which is where the asymmetry came from.
 * **Update PX4 leaves the board matching the simulator, not merely matching the design.** It writes the
   design's own parameters first, and then every other parameter that differs from the SITL reference - the
   snapshot of a full SITL parameter set taken whenever the app runs one - so a value this design never

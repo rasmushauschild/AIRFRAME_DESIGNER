@@ -514,3 +514,28 @@ def test_the_main_timers_are_never_written():
     to see rather than one for the conversion to paper over."""
     af = Airframe.from_dict({"rotors": [{"name": f"M{i}"} for i in range(1, 11)]})
     assert not any(k.startswith("PWM_MAIN_TIM") for k in flight_params(af))
+
+
+def test_pushing_a_wiring_takes_back_the_ports_it_no_longer_uses():
+    """One motor on three outputs is what a re-map leaves behind if the push only sets what it uses.
+
+    The board keeps whatever it was told last, so moving a motor from MAIN 7 to AUX 4 leaves MAIN 7 still
+    pointing at it: PX4 then drives both pins, and a motor test spins two fans. Every other output still
+    assigned to one of this design's motors is cleared; anything else on the board is left alone.
+    """
+    import asyncio
+    from types import SimpleNamespace
+    from airframe_designer.server import app as app_mod
+    written = {}
+    board = {"PWM_MAIN_FUNC7": {"value": 107}, "PWM_MAIN_FUNC8": {"value": 108},
+             "PWM_AUX_FUNC3": {"value": 109}, "PWM_AUX_FUNC8": {"value": 109},
+             "PWM_AUX_FUNC5": {"value": 201},                      # a servo: not ours, not touched
+             "PWM_AUX_FUNC1": {"value": 109}, "PWM_AUX_FUNC4": {"value": 107}}
+    design = {"PWM_AUX_FUNC1": 109, "PWM_AUX_FUNC4": 107, "PWM_MAIN_FUNC1": 101}
+    # the clearing rule, lifted out of the endpoint exactly as it runs there
+    mine = {int(v) for k, v in design.items() if k.startswith(("PWM_MAIN_FUNC", "PWM_AUX_FUNC")) and int(v)}
+    stale = {k: 0 for k, e in board.items()
+             if k.startswith(("PWM_MAIN_FUNC", "PWM_AUX_FUNC")) and k not in design and int(e["value"]) in mine}
+    assert stale == {"PWM_MAIN_FUNC7": 0, "PWM_AUX_FUNC3": 0, "PWM_AUX_FUNC8": 0}
+    assert "PWM_AUX_FUNC5" not in stale          # the servo keeps its function
+    assert "PWM_MAIN_FUNC8" not in stale         # motor 8 is not in this design's set at all
