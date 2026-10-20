@@ -368,12 +368,20 @@ class ConnectionManager:
 
     # ------------------------------------------------------------ firmware
     def detected_board(self) -> dict:
-        """Which PX4 make target the plugged-in board needs, from its USB descriptor."""
+        """Which PX4 make target the plugged-in board needs, from its USB descriptor.
+
+        `bootloader` says the board is sitting in its loader rather than running firmware: the USB name
+        carries a "BL" ("Auterion PX4 BL FMU v6X.x"). A board in that state speaks the flashing protocol
+        and nothing else - no heartbeat, no parameters - so it always needs an image, and nothing that
+        talks MAVLink to it will ever work.
+        """
         for p in self.list_ports_cached():
             if p["likely_px4"]:
-                t = board_target_from_description(p["description"])
-                return {"device": p["device"], "description": p["description"], "target": t}
-        return {"device": None, "description": None, "target": None}
+                d = p["description"] or ""
+                t = board_target_from_description(d)
+                return {"device": p["device"], "description": d, "target": t,
+                        "bootloader": " BL " in f" {d} ".replace("-", " ")}
+        return {"device": None, "description": None, "target": None, "bootloader": False}
 
     TOOLCHAIN_DIRS = ("/opt/homebrew/opt/arm-gcc-bin@13/bin", "/usr/local/opt/arm-gcc-bin@13/bin")
 
@@ -1008,12 +1016,19 @@ class ConnectionManager:
 
     def board_firmware_status(self) -> dict:
         """Is the board image older than the module sources (needs a build) or newer than what was last flashed?"""
-        target = self.detected_board().get("target")
+        board = self.detected_board()
+        target = board.get("target")
         image = self.firmware_file(target) if target else None
         atlas_dir = str(PROJECT_DIR / "firmware" / "atlas")
-        out = {"target": target, "image": image, "needs_rebuild": False, "needs_flash": False, "stale": []}
+        out = {"target": target, "image": image, "needs_rebuild": False, "needs_flash": False, "stale": [],
+               "bootloader": bool(board.get("bootloader"))}
         if not target:
             return out
+        if out["bootloader"]:
+            # It has no firmware to be newer or older than. The marker from the last flash says nothing
+            # about a board that is not running what was flashed, and refusing here is how a board gets
+            # stranded in its loader with the one button that could rescue it declining to act.
+            out["needs_flash"] = True
         if not image:
             out["needs_rebuild"] = True
             out["stale"] = ["no board image built yet"]

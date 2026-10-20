@@ -357,6 +357,8 @@ def test_update_px4_writes_the_design_and_then_everything_else():
                                (written.append(k), {"name": k, "ok": True})[1] for k in vals],
                            preflight_storage=Mock(), quiet_streams=Mock(), request_flight_telemetry=Mock())
     conn = SimpleNamespace(mode="hitl", reset_all=lambda: {"steps": []},
+                           # a board running firmware, not sitting in its loader
+                           detected_board=lambda: {"device": "/dev/x", "target": "px4_fmu-v6x", "bootloader": False},
                            sitl_diff=lambda: {"ok": True, "differ": [{"name": "MPC_XY_P", "board": 1, "sitl": 2}],
                                               "skipped": 7, "compared": 900},
                            sync_to_sitl=lambda: {"ok": True, "written": 1, "failed": [], "skipped": 7, "seconds": 0.2},

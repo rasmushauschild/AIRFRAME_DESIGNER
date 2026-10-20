@@ -104,6 +104,15 @@ airframes/    schema-2 JSON (docs/SCHEMA.md);  scenarios/  studies/  results/ (g
     is then a row you edit. Update PX4 writes those parameters to the vehicle *and* saves them to its flash
     (`/api/px4/push` ends in `preflight_storage`), so the section has no Save-to-flash button; Fetch
     descriptions appears only when this computer has no metadata for the firmware that is running.
+    **Flash firmware** is the same button as Update PX4 and does the board's image first when it is
+    stale (`board_firmware_status`): the firmware belongs to the project, not to the design loaded at
+    the time, so a design that never touches the nose-lift module still flashes a board whose image is
+    out of date. It was once gated on the design exporting `NLF_ENABLE = 1`, which meant the button said
+    one thing and did another. **A board in its bootloader always needs an image** (`detected_board()`
+    reads the "BL" in the USB name): it has no firmware to be newer or older than, so the last-flash
+    marker says nothing, and a board stranded in its loader must never be refused by the one button that
+    rescues it. Its loader does enumerate and the link reports "up" on sysid 0, which is not a vehicle -
+    the push says so and stops rather than failing 123 parameter writes one at a time.
     **Firmware modules** has a switch per module - *In this design* - because a module this aircraft does
     not fly with has no business configuring it: switched off, every parameter in its own `params.yaml`
     leaves the export and the Parameters table, the ground-sequence block stops running with them, and

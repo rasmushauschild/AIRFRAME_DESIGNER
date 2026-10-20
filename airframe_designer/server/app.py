@@ -1173,19 +1173,39 @@ target_link_libraries(external__{name} PRIVATE px4_work_queue)
             if not fw_res.get("ok"):
                 push_job.update(running=False, step='')
                 return JSONResponse({"ok": False, "error": fw_res.get("error"), "firmware": fw_res}, status_code=500)
-        elif firmware_wanted and state.conn.mode == "hitl" and (export_params().get("NLF_ENABLE") == 1):
+        elif firmware_wanted and state.conn.mode == "hitl":
+            # The firmware is the project's, not the design's. This used to flash only when the design
+            # exported NLF_ENABLE = 1, so a design with the nose-lift module switched off - or any design
+            # that does not use it - left the board on whatever it had while the button still read
+            # "Flash firmware" and the banner still said the firmware was out of date. The button and the
+            # action have to mean the same thing: a board whose image is stale gets the image.
             b = state.conn.board_firmware_status()
             if b["needs_rebuild"] or b["needs_flash"]:
                 if link.armed:
                     push_job.update(running=False, step='')
                     return JSONResponse({"ok": False, "error": "vehicle is armed; disarm before flashing"}, status_code=409)
+                push_job.update(step="flashing the board" if not b["needs_rebuild"] else "building the firmware")
                 fw_res = await run_in_threadpool(state.conn.update_board_firmware)
                 if not fw_res.get("ok"):
                     push_job.update(running=False, step='')
                     return JSONResponse({"ok": False, "error": fw_res.get("error"), "firmware": fw_res}, status_code=500)
+                if b["bootloader"]:
+                    # It had no firmware a moment ago, so it has no parameters either and the link that
+                    # follows is a fresh boot. Saying so and stopping beats a hundred failed writes.
+                    push_job.update(running=False, step='')
+                    return {"ok": True, "firmware": fw_res, "results": [], "flashed_only": True,
+                            "note": "the board was in its bootloader and has been flashed; press Update PX4 "
+                                    "again once it has booted to write the parameters"}
         if not link.ctl_connected:
             push_job.update(running=False, step='')
             return JSONResponse({"ok": False, "error": "PX4 control link not connected"}, status_code=409)
+        if state.conn.mode == "hitl" and state.conn.detected_board().get("bootloader"):
+            # The link reports "up" because the loader's USB enumerates and heartbeats arrive as sysid 0;
+            # it is not a vehicle, and every parameter written at it fails.
+            push_job.update(running=False, step='')
+            return JSONResponse({"ok": False, "error": "the board is in its bootloader, not running firmware: "
+                                                       "flash it (Flash firmware) before writing parameters"},
+                                status_code=409)
         if link.armed:
             push_job.update(running=False, step='')
             return JSONResponse({"ok": False, "error": "vehicle is armed; disarm before updating PX4"}, status_code=409)

@@ -80,3 +80,48 @@ def test_switching_a_module_off_records_its_parameters_with_the_design(tmp_path,
     assert af.design["modules_off"] == {}
     bad = asyncio.run(routes["/api/firmware/modules/enable"]({"dir": "nope", "on": False}))
     assert bad.status_code == 404
+
+
+def test_a_stale_board_is_flashed_whatever_the_design_asks_for(monkeypatch):
+    """The button says "Flash firmware"; the push must flash, design or no design.
+
+    The flash used to be gated on the design exporting NLF_ENABLE = 1, so a design with the nose-lift
+    module switched off - or any design that never uses it - clicked Flash firmware and got a parameter
+    push instead, while the banner went on saying the firmware was out of date. The firmware belongs to
+    the project, not to the airframe loaded at the time.
+    """
+    import inspect
+    from airframe_designer.server import app as app_mod
+    src = inspect.getsource(app_mod.build_app)
+    i = src.index('elif firmware_wanted and state.conn.mode == "hitl"')
+    gate = src[i:src.index("\n", i)]
+    assert "NLF_ENABLE" not in gate, f"the board flash is gated on a design parameter again: {gate.strip()}"
+    assert "board_firmware_status" in src[i:i + 900], "the flash decision must come from the board's own image"
+
+
+def test_a_board_in_its_bootloader_always_needs_an_image(monkeypatch):
+    """A loader has no firmware to be newer or older than, so the last-flash marker means nothing.
+
+    This is how a board gets stranded: it sits in its loader, `needs_flash` says False because the image
+    on disk has not changed since the last successful flash, and the one button that could rescue it
+    declines to act while the banner still says the firmware is out of date.
+    """
+    from airframe_designer.px4.connection import ConnectionManager as CM
+    c = CM.__new__(CM)
+    monkeypatch.setattr(c, "detected_board", lambda: {"device": "/dev/cu.usbmodem01", "target": "px4_fmu-v6x",
+                                                      "description": "Auterion PX4 BL FMU v6X.x", "bootloader": True},
+                        raising=False)
+    monkeypatch.setattr(c, "firmware_file", lambda t: None, raising=False)
+    st = CM.board_firmware_status(c)
+    assert st["bootloader"] is True and st["needs_flash"] is True
+
+
+def test_the_bootloader_is_read_from_the_usb_name():
+    from airframe_designer.px4.connection import ConnectionManager as CM
+    def board(desc):
+        c = CM.__new__(CM)
+        c.list_ports_cached = lambda: [{"device": "/dev/x", "description": desc, "likely_px4": True}]
+        return CM.detected_board(c)
+    assert board("Auterion PX4 BL FMU v6X.x")["bootloader"] is True
+    assert board("Auterion PX4 FMU v6X.x")["bootloader"] is False     # running firmware, not a loader
+    assert board("PX4 BL FMU v5x")["bootloader"] is True
