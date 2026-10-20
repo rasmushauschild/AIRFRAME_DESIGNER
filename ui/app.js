@@ -1069,7 +1069,11 @@ function updateFooter() {
 
   tko.classList.toggle('hidden', !!status.armed && !status.on_ground_hint && false);
   const upd = $('#btn-update');
-  upd.disabled = !status.ctl_connected || !!status.armed;
+  // A board in its loader answers no MAVLink, so every other button is rightly dead - but flashing is
+  // precisely what it can still do, and the one thing that gets it out. The button must not be disabled
+  // for want of a link it cannot have.
+  const inLoader = !!(status.firmware || {}).bootloader;
+  upd.disabled = (!status.ctl_connected && !inLoader) || !!status.armed;
   const fw = status.firmware || {};
   const fwStale = !!(fw.needs_rebuild || fw.needs_relaunch || fw.needs_flash);
   const onBoard = !!fw.board;
@@ -1079,7 +1083,8 @@ function updateFooter() {
                         : `Firmware sources changed (${(fw.stale || []).slice(0, 3).join(', ') || 'new binary'}): rebuilds PX4 SITL, relaunches it, then pushes the parameters`)
       : (status.ctl_connected ? 'Write the rotor geometry and output mapping to the flight controller and save it' : 'PX4 not connected'));
   upd.classList.toggle('fw-stale', fwStale);
-  if (fwStale && !geometryDirty && !$('#update-status').textContent) $('#update-status').innerHTML = onBoard ? '<span class="warn">The board firmware is out of date</span>' : '<span class="warn">Firmware sources changed: Update PX4 rebuilds it</span>';
+  if (inLoader) $('#update-status').innerHTML = '<span class="warn">The board is in its bootloader: press Flash firmware</span>';
+  else if (fwStale && !geometryDirty && !$('#update-status').textContent) $('#update-status').innerHTML = onBoard ? '<span class="warn">The board firmware is out of date</span>' : '<span class="warn">Firmware sources changed: Update PX4 rebuilds it</span>';
 }
 // ============================================================ the parameter table
 // Two kinds of row, and the difference is not a matter of taste: a *geometry dependent* parameter is one

@@ -1042,6 +1042,10 @@ class ConnectionManager:
             out["needs_flash"] = (last.get("mtime") is None) or t_img > float(last["mtime"]) + 1e-3
         except Exception:
             out["needs_flash"] = True      # never flashed by this app
+        # Last word, not first: a board in its loader needs an image whatever the marker says, and the
+        # marker comparison above would otherwise take that answer back - which left the button reading
+        # "Update PX4" and refusing, at the one moment flashing is the only thing that can be done.
+        out["needs_flash"] = out["needs_flash"] or out["bootloader"]
         return out
 
     def update_board_firmware(self) -> dict:

@@ -182,7 +182,8 @@ def build_app(state: AppState) -> FastAPI:
                 s["firmware"] = state.conn.firmware_status()
             elif state.conn.mode == "hitl":        # board image older than the sources, or newer than what was flashed?
                 b = state.conn.board_firmware_status()
-                s["firmware"] = {"board": True, "custom": True, "needs_rebuild": b["needs_rebuild"], "needs_flash": b["needs_flash"], "stale": b["stale"]}
+                s["firmware"] = {"board": True, "custom": True, "needs_rebuild": b["needs_rebuild"],
+                                 "needs_flash": b["needs_flash"], "stale": b["stale"], "bootloader": b["bootloader"]}
             else:
                 s["firmware"] = None
         except Exception:
