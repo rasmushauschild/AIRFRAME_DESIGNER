@@ -174,31 +174,31 @@ class PX4Link:
 
     # ------------------------------------------------------------------- write
     def send_hil_sensor(self, s: dict) -> None:
-        if self.mode == "hitl" and (getattr(self, "block_hil", False) or self.params.get("SYS_HITL", {}).get("value") != 1):
+        if self.listening:
             return  # Never inject simulator sensors into a real-flight board.
         with self._write_lock:
             self.conn.mav.hil_sensor_send(**s)
 
     def send_hil_gps(self, g: dict) -> None:
-        if self.mode == "hitl" and (getattr(self, "block_hil", False) or self.params.get("SYS_HITL", {}).get("value") != 1):
+        if self.listening:
             return  # Never inject simulator sensors into a real-flight board.
         with self._write_lock:
             self.conn.mav.hil_gps_send(**g)
 
     def send_hil_optical_flow(self, f: dict) -> None:
-        if self.mode == "hitl" and (getattr(self, "block_hil", False) or self.params.get("SYS_HITL", {}).get("value") != 1):
+        if self.listening:
             return  # Never inject simulator sensors into a real-flight board.
         with self._write_lock:
             self.conn.mav.hil_optical_flow_send(**f)
 
     def send_distance_sensor(self, d: dict) -> None:
-        if self.mode == "hitl" and (getattr(self, "block_hil", False) or self.params.get("SYS_HITL", {}).get("value") != 1):
+        if self.listening:
             return  # Never inject simulator sensors into a real-flight board.
         with self._write_lock:
             self.conn.mav.distance_sensor_send(**d)
 
     def send_hil_state_quaternion(self, st: dict) -> None:
-        if self.mode == "hitl" and (getattr(self, "block_hil", False) or self.params.get("SYS_HITL", {}).get("value") != 1):
+        if self.listening:
             return  # Never inject simulator sensors into a real-flight board.
         with self._write_lock:
             self.conn.mav.hil_state_quaternion_send(**st)
@@ -433,8 +433,24 @@ class PX4Link:
 
     @property
     def listening(self) -> bool:
-        """True when a board is flying on its own sensors and this app is only watching it."""
-        return self.mode == "hitl" and (self.block_hil or self.params.get("SYS_HITL", {}).get("value") != 1)
+        """True when a board is flying on its own sensors and this app is only watching it.
+
+        The question is whether the board wants our sensors, and the board answers it in every
+        heartbeat: MAV_MODE_FLAG_HIL_ENABLED. `SYS_HITL` is the same answer in slower form, and it is
+        only *available* once the parameter list has been downloaded - which over a cable takes a few
+        seconds and over a radio never happens unless asked. Reading the parameter first meant that a
+        board in HITL, freshly connected, was treated as a real flight: every HIL send was dropped, and
+        the board sat there reporting no accelerometer, no gyro and no attitude, exactly as if its
+        sensors had failed. So the heartbeat decides whenever it has spoken, and the parameter is the
+        fallback for a link that has not heard one yet.
+        """
+        if self.mode != "hitl":
+            return False
+        if self.block_hil:                       # a deliberate decision: FLIGHT, or a board about to fly
+            return True
+        if self.heartbeat_time and time.time() - self.heartbeat_time < 3.0:
+            return not self.hil_enabled
+        return self.params.get("SYS_HITL", {}).get("value") != 1
 
     def trim_telemetry(self) -> None:
         """Throttle the board's default telemetry streams (HITL); 0 Hz disables a stream."""

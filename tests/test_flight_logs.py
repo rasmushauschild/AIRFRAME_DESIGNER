@@ -133,7 +133,7 @@ def test_the_recorder_keeps_up_with_a_cable_and_not_with_a_radio():
                   params={}, status=lambda: {"armed": False}, request_flight_telemetry=Mock(),
                   link_budget_bps=lambda: (baud / 10.0 * 0.28 if baud and baud <= 115200 else None))
         sim = NS(lock=threading.RLock(), hooks=[], t=0.0, paused=True, airframe=None, recorder=Recorder(),
-                 motor_override=[1], stop_nose_lift=Mock(), reset=Mock())
+                 motor_override=[1], reset=Mock())
         state = NS(simulator=sim, conn=NS(mode="hitl", reset_all=lambda: {"steps": []},
                                           connect_hitl=lambda *a: {}, status=lambda: {}),
                    link=link, log=Mock())

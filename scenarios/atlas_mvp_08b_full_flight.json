@@ -13,19 +13,10 @@
       "timeout": 40
     },
     {
-      "type": "nose_lift",
-      "motors": [
-        4,
-        5,
-        6
-      ],
-      "rate_deg_s": 4,
-      "timeout": 40
-    },
-    {
-      "type": "takeoff",
-      "alt": 10,
-      "timeout": 40
+      "type": "module",
+      "action": "takeoff",
+      "timeout": 40,
+      "alt": 10.0
     },
     {
       "type": "hold",
@@ -75,16 +66,9 @@
       "ramp": 0.6
     },
     {
-      "type": "nose_land",
-      "motors": [
-        4,
-        5,
-        6
-      ],
-      "descent_speed": 0.4,
-      "rate_deg_s": 3,
-      "timeout": 100,
-      "name": "rear_leg_touchdown_and_nose_lower"
+      "type": "module",
+      "action": "land",
+      "timeout": 100
     }
   ],
   "params": {

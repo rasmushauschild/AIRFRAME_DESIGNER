@@ -85,3 +85,46 @@ def test_a_newer_press_supersedes_the_one_in_flight():
     r = conn.set_mode("real", gen=4)          # an older attempt, still running
     assert r.get("superseded") or r["ok"], "it stood aside instead of fighting the newer press"
     assert ("SYS_HITL", 0) not in written
+
+
+# --------------------------------------------------------------------- HITL without a parameter list
+def _link(**kw):
+    """A link object with just the fields `listening` reads."""
+    from airframe_designer.px4.link import PX4Link
+    l = PX4Link.__new__(PX4Link)
+    l.mode = kw.get("mode", "hitl")
+    l.block_hil = kw.get("block_hil", False)
+    l.hil_enabled = kw.get("hil_enabled", True)
+    l.heartbeat_time = kw.get("heartbeat_time", time.time())
+    l.params = kw.get("params", {})
+    return l
+
+
+def test_a_board_in_hitl_is_flown_before_its_parameters_arrive():
+    """The heartbeat says HIL_ENABLED long before the parameter list exists; that is the answer.
+
+    Reading SYS_HITL out of an empty parameter cache made a freshly connected HITL board look like a
+    real flight, so every HIL_SENSOR was dropped and the board reported no accelerometer, no gyro and
+    no attitude - a simulator that appeared to have broken the aircraft.
+    """
+    assert _link(hil_enabled=True, params={}).listening is False
+    assert _link(hil_enabled=False, params={}).listening is True
+
+
+def test_the_parameter_still_answers_when_no_heartbeat_has_arrived():
+    assert _link(hil_enabled=True, heartbeat_time=0.0, params={}).listening is True
+    assert _link(hil_enabled=True, heartbeat_time=0.0,
+                 params={"SYS_HITL": {"value": 1}}).listening is False
+
+
+def test_a_stale_heartbeat_falls_back_to_the_parameter():
+    old = time.time() - 30
+    assert _link(hil_enabled=True, heartbeat_time=old, params={"SYS_HITL": {"value": 0}}).listening is True
+
+
+def test_blocking_is_a_decision_nothing_overrides():
+    assert _link(block_hil=True, hil_enabled=True, params={"SYS_HITL": {"value": 1}}).listening is True
+
+
+def test_sitl_never_listens():
+    assert _link(mode="sitl", hil_enabled=False, params={}).listening is False

@@ -51,18 +51,16 @@ power, wing lift share, airspeed, busiest-motor utilisation, saturation. Offboar
 
 Bundled in `scenarios/` (`airframe-designer scenarios` lists them): `hover`, `takeoff_hover_land`, `cruise`
 (offboard velocity 12 m/s), `box` (offboard position, 20 m square), `gust` (6 m/s wind switches on), `motor_out`
-(rotor 1 dies), `manual_push` (full forward stick in Position mode), `nose_lift_takeoff` (nose-up hoverer:
-raise the nose with the front motors before arming). Write your own: a JSON with phases
-`wait_ready`, `nose_lift`, `takeoff`, `hold`, `land`, `offboard_velocity`, `offboard_position`, `manual`, `wait`,
+(rotor 1 dies), `manual_push` (full forward stick in Position mode). Write your own: a JSON with phases
+`wait_ready`, `takeoff`, `hold`, `land`, `module`, `offboard_velocity`, `offboard_position`, `manual`, `wait`,
 `wind`, `motor_failure`, `param`, `arm`, `mode` (documented in `airframe_designer/sim/scenario.py`).
 
-`nose_lift` (`{"type": "nose_lift", "motors": [8, 9], "target_pitch_deg": 25, "rate_deg_s": 8, "assist_motors": [...],
-"assist_cmd": 0.2}`) is a ground sequence for aircraft that park nose-down but hover nose-up: while PX4 is still
-disarmed the simulator drives the listed motors to raise the nose to the hover pitch, the next `takeoff` phase arms
-PX4, and the sequence keeps holding the nose until PX4's own commands take over, then fades out. PX4 needs no
-changes (it only sees its attitude change, as if tilted by hand). The metrics report `time_to_pitch` and `max_cmd`
-(how close to full thrust the lifting motors came). The same sequence is available interactively on the Flight tab
-and, when enabled for an airframe (`design.nose_lift`), the Takeoff button runs it first. Give phases a
+`module` (`{"type": "module", "action": "takeoff", "alt": 1.5, "timeout": 60}`) hands the ground to the
+firmware: the aircraft's own module is asked over MAV_CMD_USER_1 (1 = take off, 2 = land), which is the one
+command PX4 leaves to the airframe's code. An aircraft that parks nose-down and hovers nose-up is lifted by
+`firmware/atlas/src/atlas_nose_lift`, the same code in SITL and on the board. The simulator has no ground
+sequence of its own and must never grow one: a floor under PX4's commands makes SITL fly an aircraft that
+does not exist, and the tuning it produces is worthless on the bench. Give phases a
 `"name"` to group metrics; scenario `"params"` seed PX4 parameters for that scenario.
 
 ## Many runs in parallel
@@ -148,9 +146,8 @@ motors before PX4's own control loop takes over. Three ways, in order of how wel
 
 1. **PX4 external mode (ROS 2 / uXRCE-DDS) on a companion computer** — the closest match. The PX4 ROS 2 Interface
    Library (`px4_ros2`) lets a companion register a custom flight mode that PX4 arms in and that publishes
-   *direct actuator setpoints* (`DirectActuatorsSetpointType`), i.e. per-motor commands exactly like the
-   simulator's floor. The mode runs the same loop (geometric balance feed-forward + rate loop + yaw split, all in
-   `airframe_designer/sim/nose_lift.py`, about 150 lines to port), then requests Takeoff/Position mode at the target
+   *direct actuator setpoints* (`DirectActuatorsSetpointType`), i.e. per-motor commands. The mode runs a
+   geometric balance feed-forward + rate loop + yaw split, then requests Takeoff/Position mode at the target
    pitch. The motors are already running at the handover, so PX4's allocator takes over from a live state instead
    of from zero. Needs PX4 >= 1.15 and a companion (Raspberry Pi / Jetson) or a laptop on the DDS link.
 2. **A custom PX4 module** in the firmware that does the same as an internal mode and publishes `actuator_motors`
@@ -216,7 +213,7 @@ Three ways, from most to least capable:
    `.venv/bin/python -m airframe_designer.mcp_server` (stdio) or `... --http 8765` (streamable HTTP at
    `http://127.0.0.1:8765/mcp`). It exposes tools: `get_status`, `get_airframe`, `list_paths`, `set_parameters`
    (edit by parameter path, optionally push to PX4 and save), `load_airframe`, `px4_command`, `sim_control`
-   (reset/pause/speed/physics/wind), `nose_lift`, `list_scenarios`, `analyse`, `run_scenario`, `compare_physics`,
+   (reset/pause/speed/physics/wind), `list_scenarios`, `analyse`, `run_scenario`, `compare_physics`,
    `run_study`, plus the guide and schema as resources. The live tools need the app running (URL in `AFD_APP_URL`,
    default `http://127.0.0.1:8081`); the headless ones run their own PX4. ChatGPT reaches a *local* server only
    through a public HTTPS tunnel (e.g. `ngrok http 8765`, then add the tunnel URL + `/mcp` as a connector in

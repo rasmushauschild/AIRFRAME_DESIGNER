@@ -329,13 +329,9 @@ class ConnectionManager:
         self.mode = mode
         self.native_module_seen = False
         if mode == "hitl":
-            # a real flight controller flies the aircraft exactly as it would on the real drone: the simulator is only the
-            # plant, so drop every simulator-side assist (motor overrides, the Python nose-lift hook)
+            # a real flight controller flies the aircraft exactly as it would on the real drone: the
+            # simulator is only the plant, so the hand on the motor sliders lets go
             self.sim.motor_override = None
-            try:
-                self.sim.stop_nose_lift()
-            except Exception:
-                pass
         self.serial = link.address if mode == "hitl" else None
         self.error = None
         self._params_session += 1

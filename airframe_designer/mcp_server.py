@@ -138,19 +138,8 @@ def sim_control(reset: bool = False, paused: bool | None = None, speed: float | 
 
 
 @server.tool()
-def nose_lift(motors: list[int], target_pitch_deg: float | None = None, rate_deg_s: float = 8.0, assist_cmd: float = 0.0) -> dict:
-    """Start the nose-lift ground sequence on the live vehicle (0-based motor indices that lift the nose), then arm
-    and take off once get_status shows it holding."""
-    body = {"motors": motors, "rate_deg_s": rate_deg_s, "assist_cmd": assist_cmd}
-    if target_pitch_deg is not None:
-        body["target_pitch_deg"] = target_pitch_deg
-    return _api("/api/sim/nose_lift", body)
-
-
-# ----------------------------------------------------------------- headless
-@server.tool()
 def list_scenarios() -> list[dict]:
-    """Bundled flight scripts (hover, takeoff_hover_land, cruise, box, gust, motor_out, manual_push, nose_lift_takeoff)."""
+    """Bundled flight scripts (hover, takeoff_hover_land, cruise, box, gust, motor_out, manual_push)."""
     out = []
     for p in sorted((PROJECT_DIR / "scenarios").glob("*.json")):
         d = json.loads(p.read_text())

@@ -89,8 +89,12 @@ def test_rejects_unusable_board(field,value):
 def test_simulator_sensor_gate(method,mode,sys_hitl,blocked,expected):
     import threading
     from airframe_designer.px4.link import PX4Link
+    # no heartbeat here: this is the parameter fallback, which is what a link that has not heard the
+    # board yet has to go on. The heartbeat path is in tests/test_mode_switch.py.
     link=SimpleNamespace(mode=mode,params={'SYS_HITL':{'value':sys_hitl}},block_hil=blocked,
+                         heartbeat_time=0.0,hil_enabled=False,
                          _write_lock=threading.Lock(),conn=SimpleNamespace(mav=Mock()))
+    link.listening=PX4Link.listening.fget(link)
     getattr(PX4Link,method)(link,{})
     assert bool(link.conn.mav.mock_calls) == expected
 
@@ -232,7 +236,7 @@ def test_the_export_endpoint_answers_in_words_when_the_design_cannot_be_wired():
                              "px4_overrides": {"PWM_MAIN_FUNC1": 101, "PWM_MAIN_FUNC2": 101,
                                                "PWM_MAIN_FUNC3": 103, "PWM_MAIN_FUNC4": 104}})
     sim = SimpleNamespace(lock=threading.RLock(), hooks=[], t=0.0, paused=False, airframe=af,
-                          stop_nose_lift=Mock(), reset=Mock())
+                          reset=Mock())
     link = SimpleNamespace(mode="hitl", ctl_connected=True, params={"SYS_HITL": {"value": 0}},
                            status=lambda: {"armed": False})
     state = SimpleNamespace(simulator=sim, conn=SimpleNamespace(mode="hitl", reset_all=lambda: {"steps": []}),
@@ -323,7 +327,7 @@ def test_setting_something_on_the_link_reaches_the_link():
                            SHARES={"light": 0.1, "balanced": 0.3, "full": 0.5},
                            status=lambda: {"telemetry": {"share": real.share}})
     sim = SimpleNamespace(lock=threading.RLock(), hooks=[], t=0.0, paused=False, airframe=None,
-                          stop_nose_lift=Mock(), reset=Mock())
+                          reset=Mock())
     state = SimpleNamespace(simulator=sim, conn=SimpleNamespace(mode="hitl", reset_all=lambda: {"steps": []}),
                             link=real, log=Mock())
     routes = {r.path: r.endpoint for r in build_app(state).routes if hasattr(r, "endpoint")}
@@ -359,7 +363,7 @@ def test_update_px4_writes_the_design_and_then_everything_else():
                            board_firmware_status=lambda: {"needs_rebuild": False, "needs_flash": False},
                            update_firmware=Mock())
     sim = SimpleNamespace(lock=threading.RLock(), hooks=[], t=0.0, paused=False, airframe=af,
-                          stop_nose_lift=Mock(), reset=Mock(), recorder=SimpleNamespace(sample_hz=20.0))
+                          reset=Mock(), recorder=SimpleNamespace(sample_hz=20.0))
     state = SimpleNamespace(simulator=sim, conn=conn, link=link, log=Mock(), export_log=[])
     routes = {r.path: r.endpoint for r in build_app(state).routes if hasattr(r, "endpoint")}
     r = asyncio.run(routes["/api/px4/push"]({"save": True, "firmware": False}))

@@ -1,6 +1,5 @@
 let lastPrearmReportRequest = 0;
 let prearmReportRequestPending = false;
-import { noseSelection, removeNoseMotor, simulatorNoseSelected } from '/static/nose_selection.js';
 const V = new URL(import.meta.url).search;
 const { createScene } = await import('/static/scene.js' + V);
 const { pairToken, twinOf, unpair, mirrorRotorOnto, mirrorLegOnto, makePair, legFoot, pairedOrder }
@@ -567,8 +566,7 @@ function renderRotorTable() {
     tr.querySelector('input.sym').addEventListener('change', (e) => toggleRotorPair(i, e.target.checked));
     tr.querySelector('.rotor-port').addEventListener('change', e => changeMotorPort(e.target));
     tr.querySelector('.spin').addEventListener('click', () => { airframe.rotors[i].km = -airframe.rotors[i].km; scene.updateRotorNode(i, airframe.rotors[i]); renderRotorTable(); pushAirframe(true); });
-    tr.querySelector('.del').addEventListener('click', () => { unpair(airframe.rotors, i); airframe.design ||= {}; airframe.design.nose_lift ||= {};
-      airframe.design.nose_lift.motors = removeNoseMotor(noseSelection(airframe.rotors, airframe.design.nose_lift.motors), i);
+    tr.querySelector('.del').addEventListener('click', () => { unpair(airframe.rotors, i);
       airframe.rotors.splice(i, 1); selected = -1; setAirframe(airframe); pushAirframe(true); });
   });
 }
@@ -1061,15 +1059,13 @@ function updateFooter() {
   $('#af-hover').disabled = !!status.armed;
   $('#af-landed').readOnly = true;
   const targetInput = $('#af-takeoff');
-  const simPitch = status.mode === 'sitl';
-  targetInput.disabled = !!status.armed || !status.ctl_connected || (!simPitch && !status.native_module);
+  // One nose-lift target, and it is the firmware's: the module that raises the nose in SITL is the same
+  // module that raises it on the aircraft, so there is no simulator-side figure to keep beside it.
+  targetInput.disabled = !!status.armed || !status.ctl_connected || !status.native_module;
   targetInput.step = 'any';
-  targetInput.title = simPitch
-    ? 'SITL nose-lift target, shared with Flight and scenarios. Does not change hover pitch.'
-    : 'PX4 NLF_TARGET: firmware nose-lift target. Editable while connected and disarmed.';
-  if (document.activeElement !== targetInput) targetInput.value = simPitch
-    ? (airframe.design?.nose_lift?.target_pitch_deg ?? airframe.hover_pitch_deg ?? 0)
-    : ((params.NLF_TARGET || {}).value ?? airframe.px4_overrides?.NLF_TARGET ?? ((airframe.hover_pitch_deg ?? 25) - 10));
+  targetInput.title = 'PX4 NLF_TARGET: firmware nose-lift target. Editable while connected and disarmed.';
+  if (document.activeElement !== targetInput)
+    targetInput.value = (params.NLF_TARGET || {}).value ?? airframe.px4_overrides?.NLF_TARGET ?? ((airframe.hover_pitch_deg ?? 25) - 10);
 
   tko.classList.toggle('hidden', !!status.armed && !status.on_ground_hint && false);
   const upd = $('#btn-update');
@@ -3643,14 +3639,6 @@ $('#af-takeoff').addEventListener('change', async () => {
   const value = Number(inp.value);
   try {
     if (status.armed || !status.ctl_connected || !Number.isFinite(value)) throw new Error('Enter a finite takeoff pitch while connected and disarmed');
-    if (status.mode === 'sitl') {
-      airframe.design ||= {};
-      airframe.design.nose_lift = { ...(airframe.design.nose_lift || {}), target_pitch_deg: value };
-      $('#nl-target').value = value;
-      pushAirframe(true);
-      updateFooter();
-      return;
-    }
     const saved = await api('/api/params/set', { name: 'NLF_TARGET', value });
     if (!saved.ok || Math.abs(Number(saved.value) - value) > 0.01) throw new Error(saved.error || 'PX4 did not confirm the takeoff pitch');
     params.NLF_TARGET = { ...(params.NLF_TARGET || {}), value };
@@ -3658,9 +3646,7 @@ $('#af-takeoff').addEventListener('change', async () => {
     logLine('[ui] Takeoff pitch saved: ' + value + '°');
   } catch (e) {
     logLine('[ui] ' + e.message);
-    inp.value = status.mode === 'sitl'
-      ? (airframe.design?.nose_lift?.target_pitch_deg ?? airframe.hover_pitch_deg ?? 0)
-      : ((params.NLF_TARGET || {}).value ?? airframe.px4_overrides?.NLF_TARGET ?? 25);
+    inp.value = (params.NLF_TARGET || {}).value ?? airframe.px4_overrides?.NLF_TARGET ?? 25;
   }
 });
 

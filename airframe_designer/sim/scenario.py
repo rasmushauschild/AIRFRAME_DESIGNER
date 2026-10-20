@@ -243,31 +243,6 @@ class ScenarioRunner:
         elif self._elapsed(simr) > float(self.phase.get("timeout", 60.0)):
             self.fail(simr, "did not land in time")
 
-    def _p_nose_land(self, simr) -> None:
-        """SITL-only descent, rear-foot support, then controlled nose lowering."""
-        from .wing_controller import NoseLower
-        if self.link.mode != "sitl":
-            self.fail(simr, "Nose landing test is SITL-only", fatal=True); return
-        st = self._state
-        if "lower" in st:
-            lower = st["lower"]
-            lower.step(simr)
-            if lower.done:
-                self.metrics.note(simr.t, "nose settled, motors stopped and disarmed")
-                self._next(simr)
-        else:
-            self._offboard_stream(simr, vel=[0., 0., float(self.phase.get("descent_speed", .3))], yaw=None)
-            s = simr.sim
-            feet = s.legs.r @ s.rotmat.T + s.pos
-            rear = feet[s.legs.r[:, 0] < 0]
-            contact = s.on_ground and len(rear) > 0 and float(rear[:,2].max()) > -.025 and abs(s.vel[2]) < .2
-            st["contact_since"] = st.get("contact_since", simr.t) if contact else simr.t
-            if contact and simr.t-st["contact_since"] > .3:
-                st["lower"] = NoseLower(simr, self.phase.get("motors", []), float(self.phase.get("rate_deg_s", 3.)))
-                self.metrics.note(simr.t, "rear legs supported; lowering nose")
-        if self._elapsed(simr) > float(self.phase.get("timeout", 90)):
-            self.fail(simr, "nose landing timed out", fatal=True)
-
     def _offboard_stream(self, simr, pos=None, vel=None, yaw=0.0) -> None:
         st = self._state
         every = max(1, int(round(simr.sensor_rate / 20.0)))     # 20 Hz setpoints
@@ -385,29 +360,6 @@ class ScenarioRunner:
             self._next(simr)
         elif self._elapsed(simr) > 3.0:
             self.fail(simr, f"no echo for parameter {name}")
-
-    def _p_nose_lift(self, simr) -> None:
-        """Raise the nose with the given motors (0-based) to target_pitch_deg before arming; the following takeoff
-        phase arms PX4 and the sequence hands over by itself."""
-        st = self._state
-        if "nl" not in st:
-            motors = self.phase.get("motors") or []
-            kw = {k: self.phase[k] for k in ("rate_deg_s", "kp", "ki", "kd", "max_cmd", "tolerance_deg", "hold_s", "fade_s", "k_ang", "kq", "kqi", "assist_motors", "assist_cmd") if k in self.phase}
-            st["nl"] = simr.start_nose_lift(motors, float(self.phase.get("target_pitch_deg", simr.airframe.design.get("nose_lift", {}).get("target_pitch_deg", simr.airframe.hover_pitch_deg))), **kw)
-            self.targets[self._name()] = {}
-            return
-        nl = st["nl"]
-        if nl.state == "holding":
-            self.metrics.note(simr.t, f"nose at {nl.pitch:.1f} deg after {simr.t - self.phase_t0:.1f}s")
-            self.metrics.phases[self._name()]["time_to_pitch"] = round(simr.t - self.phase_t0, 2)
-            self.metrics.phases[self._name()]["max_cmd"] = round(max((c for _, _, c in nl.history), default=0.0), 3)
-            self.metrics.phases[self._name()]["overshoot_deg"] = round(max((p for _, p, _ in nl.history), default=nl.target) - nl.target, 2)
-            self.metrics.phases[self._name()]["start_pitch_deg"] = round(nl.history[0][1], 2) if nl.history else None
-            self._next(simr)
-        elif nl.state == "failed":
-            self.fail(simr, f"nose lift failed: {nl.reason}", fatal=bool(self.phase.get("fatal", True)))
-        elif self._elapsed(simr) > float(self.phase.get("timeout", 30.0)):
-            self.fail(simr, f"nose lift did not reach the target (at {nl.pitch:.1f} deg)", fatal=True)
 
     def _p_module(self, simr) -> None:
         """Hand the takeoff or the landing to a module in the firmware.

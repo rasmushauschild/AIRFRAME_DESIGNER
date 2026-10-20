@@ -62,7 +62,7 @@ def test_switching_a_module_off_records_its_parameters_with_the_design(tmp_path,
     af = quad_x()
     af.name = "MODULES_TEST"
     sim = NS(lock=threading.RLock(), hooks=[], t=0.0, paused=False, airframe=af,
-             set_airframe=lambda x: None, stop_nose_lift=Mock(), reset=Mock())
+             set_airframe=lambda x: None, reset=Mock())
     state = NS(simulator=sim, conn=NS(mode="sitl", reset_all=lambda: {"steps": []}),
                link=NS(status=lambda: {"armed": False}), log=Mock())
     routes = {r.path: r.endpoint for r in mod.build_app(state).routes if hasattr(r, "endpoint")}

@@ -23,7 +23,7 @@ def routes(tmp_path, monkeypatch):
     af = quad_x()
     af.name = "AUTOSAVE_TEST"
     sim = NS(lock=threading.RLock(), hooks=[], t=0.0, paused=False, airframe=af,
-             set_airframe=lambda x: setattr(sim, "airframe", x), stop_nose_lift=Mock(), reset=Mock())
+             set_airframe=lambda x: setattr(sim, "airframe", x), reset=Mock())
     state = NS(simulator=sim, conn=NS(mode="sitl", reset_all=lambda: {"steps": []}),
                link=NS(status=lambda: {"armed": False}), log=Mock())
     app = server_app.build_app(state)

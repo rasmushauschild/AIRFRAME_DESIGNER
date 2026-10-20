@@ -58,8 +58,6 @@ class Simulator:
         self.power_avg_w = 0.0          # ~5 s moving average of the power, for the minutes-left estimate
         self._last_diverge_log = 0.0
         self.motor_override: list[float] | None = None
-        self.nose_lift = None          # sim.nose_lift.NoseLift while a ground sequence runs
-        self.nose_lift_last = None     # status of the last finished sequence (for the UI)
         self.hooks: list[Callable[["Simulator"], None]] = []
         # The flight recorder. Always on: a run you did not think to record is the one you want back.
         self.recorder = Recorder()
@@ -110,7 +108,6 @@ class Simulator:
             self.energy_wh = 0.0
             self.power_avg_w = 0.0
             self.motor_override = None
-            self.nose_lift = None
             if self.link is not None:
                 self.link.clear_actuators()
 
@@ -238,17 +235,6 @@ class Simulator:
             self.sim.wind_ned = model.at(self.time_usec / 1e6)
             return self.wind
 
-    def start_nose_lift(self, motors, target_pitch_deg: float, **kw):
-        from .nose_lift import NoseLift
-        with self.lock:
-            self.nose_lift = NoseLift(motors, target_pitch_deg, **kw)
-            self.log(f"[sim] nose lift: motors {[m + 1 for m in self.nose_lift.motors]} to {target_pitch_deg:g} deg at {self.nose_lift.rate:g} deg/s")
-            return self.nose_lift
-
-    def stop_nose_lift(self) -> None:
-        with self.lock:
-            self.nose_lift = None
-
     def set_rotor_health(self, scales) -> None:
         with self.lock:
             self.sim.set_rotor_health(scales)
@@ -285,16 +271,10 @@ class Simulator:
             return True
         sub_dt = dt / self.substeps
         with self.lock:
+            # What the motors do is PX4's business and nothing else's. Nothing here may put a floor, a
+            # ceiling or a nudge under the flight controller's commands: a ground sequence belongs in the
+            # firmware, where it also exists on the real aircraft, or it does not exist at all.
             cmd = self.motor_override if self.motor_override is not None else link.actuators
-            nl = self.nose_lift
-            if nl is not None:
-                fl = nl.floor(self.sim.rotors.n)
-                if fl is None:
-                    self.nose_lift_last = nl.status()
-                    self.log(f"[sim] nose lift {nl.state}: {nl.reason}")
-                    self.nose_lift = None
-                else:
-                    cmd = np.maximum(np.asarray(cmd, float)[: self.sim.rotors.n], fl)   # the sequence holds a floor under PX4
             self.sim.wind_ned = self.wind.at(self.time_usec / 1e6)
             self.sim.set_motor_commands(cmd)
             try:
@@ -317,11 +297,6 @@ class Simulator:
             self.time_usec += int(round(dt * 1e6))
             self._account_energy(dt)
             t_us = self.time_usec
-            if self.nose_lift is not None:
-                try:
-                    self.nose_lift(self)
-                except Exception as e:
-                    self.log(f"[sim] nose lift failed: {e}"); self.nose_lift = None
             try:
                 self.recorder.sample(self.time_usec / 1e6, self.sim, self._link_status(link),
                                      self.battery_percent(), extra=self._last_flow)
@@ -450,5 +425,4 @@ class Simulator:
                 "motor_override": self.motor_override, "wind": s.wind_ned.tolist(),
                 "rotor_health": s.rotors.scale.tolist(),
                 "physics": self.physics,
-                "nose_lift": self.nose_lift.status() if self.nose_lift is not None else self.nose_lift_last,
             }

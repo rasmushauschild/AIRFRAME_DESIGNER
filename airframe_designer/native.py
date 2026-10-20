@@ -105,7 +105,6 @@ class NativeConnectionManager(ConnectionManager):
                     self.sim._sim_start = 0
                     self.sim._rtf_t0 = time.perf_counter()
                     self.sim._rtf_sim0 = 0
-                    self.sim.nose_lift_last = None
                     # whether the loop is running is the user's: the app opens stopped and Start is the
                     # only thing that starts it, so relaunching PX4 under it must not start it instead
                 return super().connect_sitl(True)
@@ -128,7 +127,6 @@ class NativeConnectionManager(ConnectionManager):
         link = self.link
         if link is not None and link.ctl_connected and link.armed:
             link.send_command_long(mavlink.MAV_CMD_COMPONENT_ARM_DISARM, 0.0, 21196.0)
-        self.sim.stop_nose_lift()
         self.sim.motor_override = None
         self.sim.reset()
         if self._model_timer:                 # the relaunch loads the current model anyway

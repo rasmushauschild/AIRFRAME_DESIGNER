@@ -638,7 +638,6 @@ def build_app(state: AppState) -> FastAPI:
         # is the session buffer: 120k samples is 40 minutes at 50 Hz instead of 100 at 20.
         sim.recorder.sample_hz = 20.0 if link.link_budget_bps() else 50.0
         sim.motor_override = None
-        sim.stop_nose_lift()
         await run_in_threadpool(state.link.request_flight_telemetry)
         state.log("[link] real flight: the simulator is only listening; no sensors are sent to the aircraft")
         return r
@@ -664,7 +663,6 @@ def build_app(state: AppState) -> FastAPI:
         baud = body.get("baud")
         sim.paused = False                 # a paused loop neither flies the simulation nor follows a flight
         sim.motor_override = None
-        sim.stop_nose_lift()
         cancel_live("mode change")
 
         def work():
@@ -1497,35 +1495,6 @@ target_link_libraries(external__{name} PRIVATE px4_work_queue)
         return {"ok": True}
 
 
-    @app.post("/api/sim/nose_lift")
-    async def sim_nose_lift(body: dict):
-        """Start ({"motors": [8, 9], "target_pitch_deg": 25, "rate_deg_s": 8}) or stop ({"stop": true}) the nose-lift
-        ground sequence. The snapshot's "nose_lift" field reports its state; arm PX4 once it is "holding"."""
-        if state.conn.mode != "sitl":
-            return JSONResponse({"ok": False, "error": "Nose-lift motor selection is SITL only"}, status_code=409)
-        if body.get("stop"):
-            sim.stop_nose_lift()
-            return {"ok": True}
-        if state.conn.mode == "hitl":
-            return JSONResponse({"ok": False, "error": HITL_PLANT}, status_code=409)
-        if link.armed:
-            return JSONResponse({"ok": False, "error": "disarm first: the nose lift runs before arming"}, status_code=409)
-        if not sim.sim.on_ground:
-            return JSONResponse({"ok": False, "error": "the vehicle is not on the ground"}, status_code=409)
-        from ..sim.motor_selection import packed_selection
-        try:
-            editor = body.get("index_space") == "editor"
-            motors = packed_selection(sim.airframe.rotors, body.get("motors", []), editor)
-            assist = packed_selection(sim.airframe.rotors, body.get("assist_motors", []), editor, required=False)
-            if set(motors) & set(assist):
-                raise ValueError("Nose motors and assist motors must be separate")
-        except ValueError as exc:
-            return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
-        kw = {k: float(body[k]) for k in ("rate_deg_s", "kp", "ki", "kd", "max_cmd", "tolerance_deg", "hold_s", "fade_s", "k_ang", "kq", "kqi", "assist_cmd") if k in body}
-        kw["assist_motors"] = assist
-        nl = sim.start_nose_lift(motors, float(body.get("target_pitch_deg", sim.airframe.hover_pitch_deg)), **kw)
-        return {"ok": True, "status": nl.status()}
-
     @app.get("/api/sim/wind")
     async def sim_wind_get():
         return {"ok": True, "wind": sim.wind.to_dict(), "now": sim.sim.wind_ned.tolist()}
@@ -1562,7 +1531,6 @@ target_link_libraries(external__{name} PRIVATE px4_work_queue)
                 runner.finish(sim, reason, False)
             if live["hook"] in sim.hooks:
                 sim.hooks.remove(live["hook"])
-            sim.stop_nose_lift()
 
 
     @app.post("/api/sim/scenario/start")

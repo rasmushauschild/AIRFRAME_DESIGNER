@@ -52,9 +52,8 @@ def test_reset_puts_the_vehicle_down_at_once_and_never_refuses(monkeypatch):
     class FakeSim:
         running = False
         motor_override = [0.5]
-        def __init__(self): self.resets = 0; self.nose_lift = object()
+        def __init__(self): self.resets = 0
         def reset(self): self.resets += 1
-        def stop_nose_lift(self): self.nose_lift = None
 
     sim = FakeSim()
     args = SimpleNamespace(baud=None, launch_px4=True, px4_dir='.', px4_model='none_iris',
@@ -71,7 +70,7 @@ def test_reset_puts_the_vehicle_down_at_once_and_never_refuses(monkeypatch):
     t0 = time.perf_counter()
     conn.reset_all()
     assert time.perf_counter() - t0 < 0.1, 'the click waited for PX4'
-    assert sim.resets == 1 and sim.nose_lift is None and sim.motor_override is None
+    assert sim.resets == 1 and sim.motor_override is None
     assert started.wait(1.0), 'the relaunch never started'
 
     t1 = time.perf_counter()

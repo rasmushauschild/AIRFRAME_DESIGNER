@@ -67,8 +67,15 @@ airframes/    schema-2 JSON (docs/SCHEMA.md);  scenarios/  studies/  results/ (g
   are static limits and generous ones: PX4's own trim runs out first, because it does not know.
 * Ground contact damping is clamped per step to the integrator's stable range (dynamics/contact.py); without it a
   light, low-inertia airframe jitters on its legs and the fake gyro noise makes PX4's estimator refuse to arm.
-* `sim/nose_lift.py` is the pre-arm ground sequence (motor floors under PX4's commands); it is a simulator hook,
-  not a PX4 feature.
+* **Nothing in the simulator may touch what PX4 commands the motors to do.** There was once a pre-arm
+  ground sequence here (`sim/nose_lift.py`, motor floors under PX4's commands) and a matching landing
+  (`NoseLower`, which drove the motors outright). Both are gone, with their scenario phases
+  (`nose_lift`, `nose_land`), their endpoint, their motor selection and their UI. A ground sequence that
+  only exists in the simulator makes SITL fly an aircraft nobody built, and the tuning it produces is
+  worthless on the bench. The nose lift lives in the firmware (`firmware/atlas/src/atlas_nose_lift`),
+  where SITL and the real board run the same code, and a scenario reaches it with the `module` phase
+  over MAV_CMD_USER_1. `Simulator.motor_override` remains, because it is the user's own hand on the
+  motor sliders and it says so on screen.
 * Two sensors have a place on the aircraft, both in the structural frame and both with a mounting rotation
   (roll, pitch, yaw degrees, 0 = square with the airframe): the flight controller
   (`design.pixhawk_position` / `pixhawk_rotation`) and the H-flow (`design.flow_sensor`, off unless
@@ -236,6 +243,13 @@ airframes/    schema-2 JSON (docs/SCHEMA.md);  scenarios/  studies/  results/ (g
   lowers the budget to it. One painter owns the mode pill (`modeShown`): when the status poll and the
   connection poll each decided for themselves, one knew the link was only listening and the other did not,
   and the pill flickered between HITL and FLIGHT twice a second.
+* **Whether the app injects sensors is the board's answer, not the parameter cache's.** `PX4Link.listening`
+  is the one test that blocks every HIL send, and it reads MAV_MODE_FLAG_HIL_ENABLED out of the heartbeat
+  while one is fresh, falling back to `SYS_HITL` only when no heartbeat has arrived. It used to read the
+  parameter first, and a parameter nobody has downloaded yet is not a "no": a board freshly connected in
+  HITL was treated as a real flight, every HIL_SENSOR was dropped, and the board sat reporting no
+  accelerometer, no gyro and no attitude - the simulator looking exactly like broken hardware.
+  `block_hil` still overrules both, because FLIGHT and a board about to fly for real are decisions.
 * A board still set to `SYS_HITL = 1` cannot be flown for real and cannot be watched in FLIGHT: PX4 shuts
   its own IMU drivers down in HITL and waits for HIL_SENSOR, which FLIGHT deliberately never sends. The
   result is a perfectly good link with no attitude and no position on it - `uorb top` shows sensor_accel

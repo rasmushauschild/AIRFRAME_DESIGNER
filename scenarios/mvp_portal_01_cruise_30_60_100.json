@@ -32,14 +32,10 @@
       "duration": 8
     },
     {
-      "type": "nose_lift",
-      "motors": [
-        6,
-        7,
-        8
-      ],
-      "rate_deg_s": 4,
-      "timeout": 50
+      "type": "module",
+      "action": "takeoff",
+      "timeout": 50,
+      "alt": 10.0
     },
     {
       "type": "wait_ready",
@@ -110,14 +106,8 @@
       "duration": 10
     },
     {
-      "type": "nose_land",
-      "motors": [
-        6,
-        7,
-        8
-      ],
-      "descent_speed": 0.4,
-      "rate_deg_s": 3,
+      "type": "module",
+      "action": "land",
       "timeout": 100
     }
   ]
