@@ -519,11 +519,20 @@ export function createScene(canvas, handlers) {
       const frac = Math.min(1.5, mag / weight);
       setThrustArrow(arrow, 0.06 + 0.5 * frac, Math.min(1, frac));
     });
-    (st.rotors || []).forEach((rs, i) => {
+    // The arrows are how hard each motor is working. In a simulated flight that is the thrust it makes;
+    // a real aircraft reports its *output* and never the thrust, so a flight watched over a radio and a
+    // log read off the card carry a thrust of zero all the way down. When no rotor has any thrust the
+    // arrows follow the outputs instead - still a number out of the flight, never one worked out from
+    // the other - and in a simulated run that is a moment with every motor off, where they sit at rest
+    // whichever way it is read.
+    const rotorStates = st.rotors || [];
+    const byOutput = rotorStates.length > 0 && rotorStates.every((rs) => !rs.thrust);
+    rotorStates.forEach((rs, i) => {
       const n = rotorNodes[i];
       if (!n || !airframe || !airframe.rotors[i]) return;
       const r = airframe.rotors[i];
-      const frac = r.max_thrust > 0 ? rs.thrust / r.max_thrust : 0;
+      const frac = byOutput ? Math.max(0, Math.min(1, +rs.cmd || 0))
+                 : (r.max_thrust > 0 ? rs.thrust / r.max_thrust : 0);
       setThrustArrow(n.arrow, ARROW_BASE + frac * ARROW_GROW, frac);
       n.disc.rotation.y += (r.km >= 0 ? 1 : -1) * rs.omega * 0.6;
       n.disc.material.opacity = n.enabled ? 0.25 + 0.5 * rs.omega : 0.12;

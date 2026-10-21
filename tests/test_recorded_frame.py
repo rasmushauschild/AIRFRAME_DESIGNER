@@ -111,6 +111,48 @@ def test_a_real_flight_records_exactly_what_the_aircraft_reported():
                - 26.0) < 1e-2
 
 
+# ------------------------------------------------------------------ the motors of a real flight
+def test_a_real_flight_leaves_the_outputs_where_the_3d_view_reads_them():
+    """Nothing integrates in FLIGHT, so the vehicle's motors would hold the last simulated step forever.
+
+    What the aircraft reports is its outputs; they go into `cmd` and `omega` so the discs turn and the
+    thrust arrows grow with the flight that is happening, and `thrust` stays at zero because nobody
+    measured it. The recording gets exactly the same three numbers.
+    """
+    from types import SimpleNamespace
+    from airframe_designer.sim.simulator import Simulator
+    af = quad_x()
+    sim = Simulator(af)
+    sim.sim.cmd[:] = 0.9                         # left behind by the last simulated step
+    sim.sim.omega[:] = 0.9
+    sim.sim.thrust[:] = 11.0
+    link = SimpleNamespace(board_state={"pos": [0.0, 0.0, -2.0], "vel": [0, 0, 0],
+                                        "q": [1.0, 0.0, 0.0, 0.0], "rates": [0.0, 0.0, 0.0], "t": 0.0},
+                           board_motors=[1500, 1100, 0.25, 0.0], listening=True, mode="hitl", armed=True,
+                           ctl_connected=True, heartbeat_time=0.0, flow=None, params={})
+    sim._follow_telemetry(link, 0.05)
+    assert list(np.round(sim.sim.cmd, 4)) == [0.5, 0.1, 0.25, 0.0]      # PWM and fractions, one scale
+    assert list(np.round(sim.sim.omega, 4)) == [0.5, 0.1, 0.25, 0.0]
+    assert not sim.sim.thrust.any(), "a real aircraft does not report the thrust it made"
+    row = dict(zip(sim.recorder.columns, sim.recorder.rows[-1]))
+    assert [row[f"m{i}_cmd"] for i in range(1, 5)] == [0.5, 0.1, 0.25, 0.0]
+    assert all(row[f"m{i}_thrust"] == 0.0 for i in range(1, 5))
+
+
+def test_a_flight_that_reports_no_motors_leaves_the_vehicle_alone():
+    """No outputs on the link is not "every motor off": there is simply nothing to say about them."""
+    from types import SimpleNamespace
+    from airframe_designer.sim.simulator import Simulator
+    sim = Simulator(quad_x())
+    sim.sim.cmd[:] = 0.4
+    link = SimpleNamespace(board_state={"pos": [0.0, 0.0, -2.0], "vel": [0, 0, 0],
+                                        "q": [1.0, 0.0, 0.0, 0.0], "rates": [0.0, 0.0, 0.0], "t": 0.0},
+                           board_motors=[], listening=True, mode="hitl", armed=True,
+                           ctl_connected=True, heartbeat_time=0.0, flow=None, params={})
+    sim._follow_telemetry(link, 0.05)
+    assert list(np.round(sim.sim.cmd, 4)) == [0.4, 0.4, 0.4, 0.4]
+
+
 # ------------------------------------------------------------------ the pilot's own hands
 def test_the_sticks_are_recorded_so_a_flight_replays_with_its_input():
     """Whoever holds the sticks - the USB remote in SITL, the receiver in flight - lands in rc1..rc8."""

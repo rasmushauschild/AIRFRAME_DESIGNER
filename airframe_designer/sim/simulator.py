@@ -19,7 +19,7 @@ import numpy as np
 from ..dynamics.quaternion import q_from_euler, q_from_rotmat, q_normalize, q_to_rotmat
 from ..geometry.airframe import Airframe
 from ..sensors import SensorSuite, Home
-from .recorder import Recorder
+from .recorder import Recorder, output_fraction
 from .wind import WindModel
 
 
@@ -153,10 +153,20 @@ class Simulator:
                 s.rates = Rh.T @ rates
             s.on_ground = bool(-float(s.pos[2]) < 0.4)
             s.breakdown = {}
+            # The motors are the aircraft's too. Nothing is integrating, so `cmd` and `omega` would
+            # otherwise be whatever the last simulated step left behind - the 3D view's discs and thrust
+            # arrows frozen on a flight that is happening. What a real aircraft reports is its *outputs*,
+            # so those go in both, and `thrust` stays at zero because nobody measured it.
+            motors = list(getattr(link, "board_motors", []) or [])
+            if motors:
+                n = min(len(motors), len(s.cmd))
+                s.cmd[:] = 0.0; s.omega[:] = 0.0; s.thrust[:] = 0.0
+                for i in range(n):
+                    s.cmd[i] = s.omega[i] = output_fraction(motors[i])
             self.time_usec += int(round(elapsed * 1e6))
             try:
                 self.recorder.sample(self.time_usec / 1e6, s, self._link_status(link),
-                                     self.battery_percent(), motors=list(getattr(link, "board_motors", []) or []),
+                                     self.battery_percent(), motors=motors,
                                      extra=self._flight_extra(link, s))
             except Exception as e:
                 self.log(f"[sim] recorder failed: {e}")

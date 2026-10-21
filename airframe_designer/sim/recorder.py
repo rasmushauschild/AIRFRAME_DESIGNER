@@ -18,7 +18,7 @@ from pathlib import Path
 
 import numpy as np
 
-__all__ = ["Recorder", "RunStore", "COLUMNS"]
+__all__ = ["Recorder", "RunStore", "COLUMNS", "output_fraction"]
 
 #: One row per sample. Everything the overlay shows, plus the pose needed to replay the view.
 COLUMNS = [
@@ -60,6 +60,17 @@ RC_CHANNELS = 8
 #: Appended once per rotor, after the fixed columns above: the throttle PX4 asked for, what the motor has
 #: actually spooled up to (both 0-1), and the thrust that makes, in newtons.
 ROTOR_COLUMNS = ("cmd", "spool", "thrust")
+
+
+def output_fraction(v: float) -> float:
+    """One motor output as 0-1, however the aircraft reported it.
+
+    Telemetry carries an output either as a fraction or as a PWM in microseconds, and both arrive on the
+    same field. Anything above 1.5 can only be a pulse width."""
+    v = float(v)
+    if v > 1.5:
+        v = (v - 1000.0) / 1000.0
+    return max(0.0, min(1.0, v))
 
 
 def _rc_values(status: dict) -> list[float]:
@@ -173,10 +184,7 @@ class Recorder:
         out: list[float] = []
         for i in range(n):
             if motors is not None:
-                # telemetry reports an output either as 0-1 or as a PWM in microseconds
-                v = float(motors[i])
-                if v > 1.5:
-                    v = max(0.0, min(1.0, (v - 1000.0) / 1000.0))
+                v = output_fraction(motors[i])
                 out += [round(v, 4), round(v, 4), 0.0]
             else:
                 out += [round(float(body.cmd[i]), 4), round(float(body.omega[i]), 4), round(float(body.thrust[i]), 3)]
