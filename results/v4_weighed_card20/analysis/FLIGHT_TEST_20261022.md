@@ -40,3 +40,14 @@ To confirm before flying (props off): M7 spins the left front fan, M8 the right,
 
 The fans' own reaction torque (all one direction; bench km 0.0134 against 0.006 on the card) grows
 with thrust but is far smaller than the authority PX4 had, and does not explain 300 deg/s.
+
+## Second flight, after the fix
+
+Run `results/runs/20261022-203228.json`, armed 56.8-77.8 s: Takeoff to Position, a short Land,
+back to Position. Yaw rate within +/-21 deg/s throughout, about 1.2 m held, roll under 2 deg.
+The spin is gone.
+
+Reading this recording: in FLIGHT the motor columns follow the board's output pins, not the motor
+numbers. `m7_*` is MAIN 7, now empty (0 throughout); `m8_*` is MAIN 8, which is motor 7, the left
+front; motor 8 on AUX 4 (right front) is not recorded. The first 35 rows are the 39 base columns
+only, the rest carry the same 63 columns as `20261022-192443.json` whose header they lack.
