@@ -1185,7 +1185,13 @@
     "COM_DISARM_LAND": 2,
     "PWM_MAIN_FUNC7": 0,
     "PWM_MAIN_FUNC8": 107,
-    "PWM_AUX_FUNC4": 108
+    "PWM_AUX_FUNC4": 108,
+    "PWM_MAIN_FUNC1": 101,
+    "PWM_MAIN_FUNC2": 102,
+    "PWM_MAIN_FUNC3": 103,
+    "PWM_MAIN_FUNC4": 104,
+    "PWM_MAIN_FUNC5": 105,
+    "PWM_MAIN_FUNC6": 106
   },
   "design": {
     "v4": {
