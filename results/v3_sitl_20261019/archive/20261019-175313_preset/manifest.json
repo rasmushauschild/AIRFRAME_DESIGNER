@@ -1,0 +1,18 @@
+{
+ "id": "20261019-175313_preset",
+ "kind": "preset",
+ "time": "2026-10-20T00:53:13+00:00",
+ "board": {
+  "target": "preset"
+ },
+ "board_firmware": null,
+ "atlas": true,
+ "firmware_sha256": null,
+ "firmware_bytes": null,
+ "airframe": "SMALL_SCALE_V3",
+ "params_count": 0,
+ "export_count": 114,
+ "px4_source_commit": "2a0e9109238bd0274608e3c25201be7c40becd0c",
+ "designer_commit": "7eab64c9cf13a2b5255b940c6336c96d9d7b9431",
+ "note": ""
+}

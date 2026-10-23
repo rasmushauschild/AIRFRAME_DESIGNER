@@ -1,0 +1,15 @@
+{
+  "name": "takeoff_spin",
+  "description": "As flown on Oct 20: switch to Takeoff, arm (PX4 climbs to MIS_TAKEOFF_ALT = 2 m), hover, land.",
+  "max_time": 90,
+  "params": {"MIS_TAKEOFF_ALT": 2},
+  "abort": {"max_tilt_deg": 100, "max_alt": 30, "crash_speed": 4.0},
+  "phases": [
+    {"type": "wait_ready", "timeout": 60},
+    {"type": "mode", "mode": "takeoff", "timeout": 5},
+    {"type": "arm", "timeout": 8},
+    {"type": "takeoff", "alt": 2, "settle": 2, "timeout": 30},
+    {"type": "hold", "name": "hover", "duration": 12},
+    {"type": "land", "timeout": 40}
+  ]
+}

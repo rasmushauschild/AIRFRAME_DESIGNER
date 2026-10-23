@@ -1,0 +1,1001 @@
+{
+ "schema": 2,
+ "name": "ATLAS_V4_WEIGHED_CARD20",
+ "mass": {
+  "mass": 13.4,
+  "cg": [
+   -0.1994,
+   0.0012,
+   -0.4319
+  ],
+  "inertia": [
+   0.886,
+   1.1934,
+   1.6365
+  ],
+  "inertia_products": [
+   0.0003,
+   -0.276,
+   0.0011
+  ],
+  "items": [],
+  "from_items": false,
+  "manual": null
+ },
+ "body": {
+  "size": [
+   1.165,
+   1.238,
+   0.809
+  ],
+  "drag_quadratic": [
+   0.18,
+   0.18,
+   0.37
+  ],
+  "drag_angular": [
+   0.02,
+   0.02,
+   0.02
+  ],
+  "drag_center": [
+   -0.19,
+   -0.0021,
+   -0.4532
+  ]
+ },
+ "rotors": [
+  {
+   "name": "M1",
+   "pos": [
+    -0.531,
+    -0.322,
+    -0.157
+   ],
+   "axis": [
+    0.38268306645330297,
+    -0.46194008021636385,
+    -0.8001031389387223
+   ],
+   "km": 0.006,
+   "max_thrust": 28.5,
+   "tau": 0.055,
+   "diameter": 0.08,
+   "thrust_exponent": 2.0,
+   "enabled": true
+  },
+  {
+   "name": "M2",
+   "pos": [
+    -0.531,
+    0.322,
+    -0.157
+   ],
+   "axis": [
+    0.38268306645330297,
+    0.46194008021636385,
+    -0.8001031389387223
+   ],
+   "km": 0.006,
+   "max_thrust": 28.5,
+   "tau": 0.055,
+   "diameter": 0.08,
+   "thrust_exponent": 2.0,
+   "enabled": true
+  },
+  {
+   "name": "M3",
+   "pos": [
+    -0.531,
+    -0.214,
+    -0.2195
+   ],
+   "axis": [
+    0.38268306645330297,
+    -0.46194008021636385,
+    -0.8001031389387223
+   ],
+   "km": 0.006,
+   "max_thrust": 28.5,
+   "tau": 0.055,
+   "diameter": 0.08,
+   "thrust_exponent": 2.0,
+   "enabled": true
+  },
+  {
+   "name": "M4",
+   "pos": [
+    -0.531,
+    0.214,
+    -0.2195
+   ],
+   "axis": [
+    0.38268306645330297,
+    0.46194008021636385,
+    -0.8001031389387223
+   ],
+   "km": 0.006,
+   "max_thrust": 28.5,
+   "tau": 0.055,
+   "diameter": 0.08,
+   "thrust_exponent": 2.0,
+   "enabled": true
+  },
+  {
+   "name": "M5",
+   "pos": [
+    -0.531,
+    -0.1055,
+    -0.282
+   ],
+   "axis": [
+    0.38268306645330297,
+    -0.46194008021636385,
+    -0.8001031389387223
+   ],
+   "km": 0.006,
+   "max_thrust": 28.5,
+   "tau": 0.055,
+   "diameter": 0.08,
+   "thrust_exponent": 2.0,
+   "enabled": true
+  },
+  {
+   "name": "M6",
+   "pos": [
+    -0.531,
+    0.1055,
+    -0.282
+   ],
+   "axis": [
+    0.38268306645330297,
+    0.46194008021636385,
+    -0.8001031389387223
+   ],
+   "km": 0.006,
+   "max_thrust": 28.5,
+   "tau": 0.055,
+   "diameter": 0.08,
+   "thrust_exponent": 2.0,
+   "enabled": true
+  },
+  {
+   "name": "M7",
+   "pos": [
+    0.25502,
+    -0.06412,
+    -0.51995
+   ],
+   "axis": [
+    0.0,
+    0.500011022880005,
+    -0.8660190396281662
+   ],
+   "km": 0.006,
+   "max_thrust": 32.0,
+   "tau": 0.055,
+   "diameter": 0.08,
+   "thrust_exponent": 2.0,
+   "enabled": true
+  },
+  {
+   "name": "M8",
+   "pos": [
+    0.25502,
+    0.06412,
+    -0.51995
+   ],
+   "axis": [
+    0.0,
+    -0.500011022880005,
+    -0.8660190396281662
+   ],
+   "km": 0.006,
+   "max_thrust": 32.0,
+   "tau": 0.055,
+   "diameter": 0.08,
+   "thrust_exponent": 2.0,
+   "enabled": true
+  },
+  {
+   "name": "M9",
+   "pos": [
+    0.355,
+    0.0,
+    -0.50735
+   ],
+   "axis": [
+    0.0,
+    0.0,
+    -1.0
+   ],
+   "km": 0.006,
+   "max_thrust": 32.0,
+   "tau": 0.055,
+   "diameter": 0.08,
+   "thrust_exponent": 2.0,
+   "enabled": true
+  }
+ ],
+ "wings": [],
+ "legs": [
+  {
+   "name": "F",
+   "attach": [
+    0.573,
+    0.0,
+    -0.42000000000000004
+   ],
+   "length": 0.06767681323031621,
+   "tilt_deg": 0.0,
+   "cant_deg": 0.0,
+   "foot_radius": 0.01,
+   "stiffness": 5066.8,
+   "damping": 258.9,
+   "friction": 0.6,
+   "enabled": true
+  },
+  {
+   "name": "RL",
+   "attach": [
+    -0.395,
+    -0.595,
+    -0.03
+   ],
+   "length": 0.029999999999999992,
+   "tilt_deg": 0.0,
+   "cant_deg": -0.0,
+   "foot_radius": 0.01,
+   "stiffness": 5066.8,
+   "damping": 258.9,
+   "friction": 0.6,
+   "enabled": true
+  },
+  {
+   "name": "RR",
+   "attach": [
+    -0.395,
+    0.595,
+    -0.03
+   ],
+   "length": 0.029999999999999992,
+   "tilt_deg": 0.0,
+   "cant_deg": 0.0,
+   "foot_radius": 0.01,
+   "stiffness": 5066.8,
+   "damping": 258.9,
+   "friction": 0.6,
+   "enabled": true
+  }
+ ],
+ "hover_pitch_deg": 20.0,
+ "landed_pitch_deg": -20.0,
+ "px4_overrides": {},
+ "design": {
+  "v4": {
+   "config": {
+    "id": "asbuilt_cad",
+    "outer": 63.0,
+    "middle": 63.0,
+    "inner": 63.0,
+    "cg_dx": 0.0,
+    "cg_dz": 0.0
+   },
+   "draw": {
+    "hover_pitch": 20.0,
+    "park": -20.0,
+    "mass": 15.5,
+    "tmax_rear": 32.0,
+    "tmax_front": 32.0,
+    "foil_keep": 0.9,
+    "fan_scatter_1": 1.0,
+    "fan_scatter_2": 1.0,
+    "fan_scatter_3": 1.0,
+    "fan_scatter_4": 1.0,
+    "fan_scatter_5": 1.0,
+    "fan_scatter_6": 1.0,
+    "fan_scatter_7": 1.0,
+    "fan_scatter_8": 1.0,
+    "fan_scatter_9": 1.0,
+    "jet_err_fore_1": 0.0,
+    "jet_err_fore_2": 0.0,
+    "jet_err_fore_3": 0.0,
+    "jet_err_fore_4": 0.0,
+    "jet_err_fore_5": 0.0,
+    "jet_err_fore_6": 0.0,
+    "jet_err_side_1": 0.0,
+    "jet_err_side_2": 0.0,
+    "jet_err_side_3": 0.0,
+    "jet_err_side_4": 0.0,
+    "jet_err_side_5": 0.0,
+    "jet_err_side_6": 0.0,
+    "front_tilt_x_7": 0.0,
+    "front_tilt_y_7": 0.0,
+    "front_tilt_x_8": 0.0,
+    "front_tilt_y_8": 0.0,
+    "front_tilt_x_9": 0.0,
+    "front_tilt_y_9": 0.0,
+    "km": 0.006,
+    "battery_mass": 4.2,
+    "cg_err_x": 0.0,
+    "cg_err_y": 0.0,
+    "cg_err_z": 0.0,
+    "inertia_scale": 1.0,
+    "motor_tau": 0.055
+   },
+   "battery_pos": [
+    -0.145,
+    0.0,
+    -0.6
+   ],
+   "mirror_pairs": [
+    [
+     "M1",
+     "M2"
+    ],
+    [
+     "M3",
+     "M4"
+    ],
+    [
+     "M5",
+     "M6"
+    ],
+    [
+     "M7",
+     "M8"
+    ]
+   ],
+   "cant_deg": 30.0,
+   "card_rule": "vertical"
+  },
+  "sources": {
+   "frame": {
+    "value": "FRD m, origin = CAD origin",
+    "tag": "CAD"
+   },
+   "jet_theta_deg": {
+    "value": 63.0,
+    "tag": "CAD (rear-wing trailing-edge tangent, measured on the B-rep)",
+    "profile_le_te": [
+     54.22,
+     62.9
+    ]
+   },
+   "jet_cant_deg": {
+    "value": 30.0,
+    "tag": "CAD (rear section occurrence transform)"
+   },
+   "jet_exit_points": {
+    "value": {
+     "inner": [
+      -0.531,
+      -0.1055,
+      -0.282
+     ],
+     "middle": [
+      -0.531,
+      -0.214,
+      -0.2195
+     ],
+     "outer": [
+      -0.531,
+      -0.322,
+      -0.157
+     ]
+    },
+    "tag": "CAD (rear-wing bbox centre)"
+   },
+   "jetfoil_edf_points": {
+    "value": {
+     "inner": [
+      -0.34849,
+      -0.14988,
+      -0.3707
+     ],
+     "middle": [
+      -0.34849,
+      -0.25837,
+      -0.3081
+     ],
+     "outer": [
+      -0.34849,
+      -0.36678,
+      -0.2455
+     ]
+    },
+    "tag": "CAD (EDF body COM)"
+   },
+   "front_fans": {
+    "value": {
+     "M7": {
+      "mount": "EDF_L cradle bore",
+      "centre_cad": [
+       -6.412,
+       51.995,
+       -25.502
+      ],
+      "pos_frd": [
+       0.25502,
+       -0.06412,
+       -0.51995
+      ],
+      "axis_frd": [
+       0.0,
+       0.5,
+       -0.866
+      ]
+     },
+     "M8": {
+      "mount": "EDF_R cradle bore",
+      "centre_cad": [
+       6.412,
+       51.995,
+       -25.502
+      ],
+      "pos_frd": [
+       0.25502,
+       0.06412,
+       -0.51995
+      ],
+      "axis_frd": [
+       0.0,
+       -0.5,
+       -0.866
+      ]
+     },
+     "M9": {
+      "mount": "EDF_C cradle bore",
+      "centre_cad": [
+       0.0,
+       50.735,
+       -35.5
+      ],
+      "pos_frd": [
+       0.355,
+       0.0,
+       -0.50735
+      ],
+      "axis_frd": [
+       0.0,
+       0.0,
+       -1.0
+      ]
+     }
+    },
+    "tag": "CAD (front cradle bores)"
+   },
+   "batteries": {
+    "value": [
+     {
+      "name": "BATTERY_01__M700g:1",
+      "frd": [
+       -0.145,
+       0.083,
+       -0.58
+      ],
+      "box_frd": [
+       0.16,
+       0.05,
+       0.05
+      ]
+     },
+     {
+      "name": "BATTERY_02__M700g:1",
+      "frd": [
+       -0.145,
+       0.028,
+       -0.58
+      ],
+      "box_frd": [
+       0.16,
+       0.05,
+       0.05
+      ]
+     },
+     {
+      "name": "BATTERY_03__M700g:1",
+      "frd": [
+       -0.145,
+       -0.028,
+       -0.58
+      ],
+      "box_frd": [
+       0.16,
+       0.05,
+       0.05
+      ]
+     },
+     {
+      "name": "BATTERY_04__M700g:1",
+      "frd": [
+       -0.145,
+       -0.083,
+       -0.58
+      ],
+      "box_frd": [
+       0.16,
+       0.05,
+       0.05
+      ]
+     },
+     {
+      "name": "BATTERY_05__M700g:1",
+      "frd": [
+       -0.145,
+       0.028,
+       -0.64
+      ],
+      "box_frd": [
+       0.16,
+       0.05,
+       0.05
+      ]
+     },
+     {
+      "name": "BATTERY_06__M700g:1",
+      "frd": [
+       -0.145,
+       -0.028,
+       -0.64
+      ],
+      "box_frd": [
+       0.16,
+       0.05,
+       0.05
+      ]
+     }
+    ],
+    "tag": "CAD (6 x BATTERY_0n__M700g)"
+   },
+   "fixed_masses": {
+    "value": [
+     {
+      "name": "battery_1600mAh__M100g:1",
+      "kg": 0.1
+     },
+     {
+      "name": "XFLY 80mm EDF__M330g:1",
+      "kg": 0.33
+     },
+     {
+      "name": "XFLY 80mm EDF__M330g:1",
+      "kg": 0.33
+     },
+     {
+      "name": "XFLY 80mm EDF__M330g:1",
+      "kg": 0.33
+     },
+     {
+      "name": "ESC__M200g:1",
+      "kg": 0.2
+     },
+     {
+      "name": "ESC__M200g:2",
+      "kg": 0.2
+     },
+     {
+      "name": "ESC__M200g:3",
+      "kg": 0.2
+     },
+     {
+      "name": "PDB_XT90PW-F__M175g:1",
+      "kg": 0.175
+     },
+     {
+      "name": "PDB_XT90PW-F__M175g:2",
+      "kg": 0.175
+     },
+     {
+      "name": "ESC__M200g:4",
+      "kg": 0.2
+     },
+     {
+      "name": "ESC__M200g:5",
+      "kg": 0.2
+     },
+     {
+      "name": "BATTERY_01__M700g:1",
+      "kg": 0.7
+     },
+     {
+      "name": "BATTERY_02__M700g:1",
+      "kg": 0.7
+     },
+     {
+      "name": "BATTERY_03__M700g:1",
+      "kg": 0.7
+     },
+     {
+      "name": "BATTERY_04__M700g:1",
+      "kg": 0.7
+     },
+     {
+      "name": "BATTERY_05__M700g:1",
+      "kg": 0.7
+     },
+     {
+      "name": "BATTERY_06__M700g:1",
+      "kg": 0.7
+     },
+     {
+      "name": "ESC__M200g(Mirror):1",
+      "kg": 0.2
+     },
+     {
+      "name": "XFLY 80mm EDF__M330g(Mirror):1",
+      "kg": 0.33
+     },
+     {
+      "name": "XFLY 80mm EDF__M330g(Mirror):1",
+      "kg": 0.33
+     },
+     {
+      "name": "XFLY 80mm EDF__M330g(Mirror):1",
+      "kg": 0.33
+     },
+     {
+      "name": "ESC__M200g(Mirror) (1):1",
+      "kg": 0.2
+     },
+     {
+      "name": "ESC__M200g(Mirror) (1):2",
+      "kg": 0.2
+     },
+     {
+      "name": "PDB_XT90PW-F__M175g(Mirror):1",
+      "kg": 0.175
+     },
+     {
+      "name": "ESC__M200g(Mirror) (2):1",
+      "kg": 0.2
+     },
+     {
+      "name": "jetfoil inner L (no EDF)",
+      "kg": 0.5
+     },
+     {
+      "name": "jetfoil inner R (no EDF)",
+      "kg": 0.5
+     },
+     {
+      "name": "jetfoil middle L (no EDF)",
+      "kg": 0.5
+     },
+     {
+      "name": "jetfoil middle R (no EDF)",
+      "kg": 0.5
+     },
+     {
+      "name": "jetfoil outer L (no EDF)",
+      "kg": 0.5
+     },
+     {
+      "name": "jetfoil outer R (no EDF)",
+      "kg": 0.5
+     }
+    ],
+    "tag": "user (labels, jetfoil 0.500 kg)"
+   },
+   "total_mass_kg": {
+    "value": [
+     14.0,
+     17.0
+    ],
+    "tag": "user (drawn)"
+   },
+   "drawn_classes": {
+    "value": [
+     {
+      "name": "front cradle (incl. lock bolts)",
+      "lo": 0.5,
+      "hi": 1.0,
+      "class": "petg",
+      "vol_cm3": 867.86
+     },
+     {
+      "name": "long front foot",
+      "lo": 0.5,
+      "hi": 1.0,
+      "class": "petg",
+      "vol_cm3": 554.46
+     },
+     {
+      "name": "blue jetfoil frame L",
+      "lo": 0.5,
+      "hi": 1.0,
+      "class": "petg",
+      "vol_cm3": 219.88
+     },
+     {
+      "name": "blue jetfoil frame R",
+      "lo": 0.5,
+      "hi": 1.0,
+      "class": "petg",
+      "vol_cm3": 219.88
+     },
+     {
+      "name": "battery cradle + PDB tray + rails",
+      "lo": 0.5,
+      "hi": 1.0,
+      "class": "petg",
+      "vol_cm3": 314.04
+     },
+     {
+      "name": "wing clamps",
+      "lo": 0.5,
+      "hi": 1.0,
+      "class": "petg",
+      "vol_cm3": 134.21
+     },
+     {
+      "name": "HFlow insert + carrier",
+      "lo": 0.5,
+      "hi": 1.0,
+      "class": "petg",
+      "vol_cm3": 95.08
+     },
+     {
+      "name": "clamp caps",
+      "lo": 0.5,
+      "hi": 1.0,
+      "class": "petg",
+      "vol_cm3": 47.84
+     },
+     {
+      "name": "cradle roots",
+      "lo": 0.5,
+      "hi": 1.0,
+      "class": "petg",
+      "vol_cm3": 11.38
+     },
+     {
+      "name": "left outer foot (root Body1)",
+      "lo": 0.5,
+      "hi": 1.0,
+      "class": "petg",
+      "vol_cm3": 75.667
+     },
+     {
+      "name": "printed joints (meshes)",
+      "lo": 0.5,
+      "hi": 1.0,
+      "class": "petg",
+      "vol_cm3": 841.03
+     },
+     {
+      "name": "rods and hardware (mesh)",
+      "lo": 1.0,
+      "hi": 1.8,
+      "class": "kg",
+      "vol_cm3": null
+     },
+     {
+      "name": "PX4",
+      "lo": 0.04,
+      "hi": 0.11,
+      "class": "kg",
+      "vol_cm3": null
+     },
+     {
+      "name": "HFlow sensor",
+      "lo": 0.01,
+      "hi": 0.02,
+      "class": "kg",
+      "vol_cm3": null
+     },
+     {
+      "name": "wiring and screws",
+      "lo": 0.3,
+      "hi": 0.8,
+      "class": "kg",
+      "vol_cm3": null
+     },
+     {
+      "name": "front EDF M7",
+      "lo": 0.3,
+      "hi": 0.36,
+      "class": "kg",
+      "vol_cm3": null
+     },
+     {
+      "name": "front EDF M8",
+      "lo": 0.3,
+      "hi": 0.36,
+      "class": "kg",
+      "vol_cm3": null
+     },
+     {
+      "name": "front EDF M9",
+      "lo": 0.3,
+      "hi": 0.36,
+      "class": "kg",
+      "vol_cm3": null
+     }
+    ],
+    "tag": "user ranges, CAD centroids; scaled together to the drawn total"
+   },
+   "petg_density": {
+    "value": 1.27,
+    "tag": "user"
+   },
+   "stand_points": {
+    "value": {
+     "front": [
+      0.0,
+      39.0,
+      -57.3
+     ],
+     "rear_left": [
+      -59.5,
+      -0.0,
+      39.5
+     ]
+    },
+    "tag": "CAD (long front foot, left outer foot); right foot mirrored (assumed, no right foot in the CAD)"
+   },
+   "other_unknowns": {
+    "value": "paired SITL draws 0-63 (fans, keep, km, tolerances, hover, park)",
+    "tag": "sweep (Amendments 1-16)"
+   }
+  },
+  "as_flown": {
+   "px4_card": {
+    "CA_AIRFRAME": 0,
+    "CA_ROTOR_COUNT": 9,
+    "CA_ROTOR0_PX": -0.1431,
+    "CA_ROTOR0_PY": -0.5186,
+    "CA_ROTOR0_PZ": 0.395,
+    "CA_ROTOR0_AX": 0.0,
+    "CA_ROTOR0_AY": 0.0,
+    "CA_ROTOR0_AZ": -1.0,
+    "CA_ROTOR0_KM": 0.176,
+    "CA_ROTOR0_CT": 5.15,
+    "CA_ROTOR1_PX": -0.1492,
+    "CA_ROTOR1_PY": 0.5251,
+    "CA_ROTOR1_PZ": 0.395,
+    "CA_ROTOR1_AX": 0.0,
+    "CA_ROTOR1_AY": 0.0,
+    "CA_ROTOR1_AZ": -1.0,
+    "CA_ROTOR1_KM": -0.1648,
+    "CA_ROTOR1_CT": 5.15,
+    "CA_ROTOR2_PX": -0.1753,
+    "CA_ROTOR2_PY": -0.3809,
+    "CA_ROTOR2_PZ": 0.3363,
+    "CA_ROTOR2_AX": 0.0,
+    "CA_ROTOR2_AY": 0.0,
+    "CA_ROTOR2_AZ": -1.0,
+    "CA_ROTOR2_KM": 0.1669,
+    "CA_ROTOR2_CT": 5.15,
+    "CA_ROTOR3_PX": -0.1814,
+    "CA_ROTOR3_PY": 0.3874,
+    "CA_ROTOR3_PZ": 0.3363,
+    "CA_ROTOR3_AX": 0.0,
+    "CA_ROTOR3_AY": 0.0,
+    "CA_ROTOR3_AZ": -1.0,
+    "CA_ROTOR3_KM": -0.1557,
+    "CA_ROTOR3_CT": 5.15,
+    "CA_ROTOR4_PX": -0.2076,
+    "CA_ROTOR4_PY": -0.2427,
+    "CA_ROTOR4_PZ": 0.2775,
+    "CA_ROTOR4_AX": 0.0,
+    "CA_ROTOR4_AY": 0.0,
+    "CA_ROTOR4_AZ": -1.0,
+    "CA_ROTOR4_KM": 0.1576,
+    "CA_ROTOR4_CT": 5.15,
+    "CA_ROTOR5_PX": -0.2136,
+    "CA_ROTOR5_PY": 0.2492,
+    "CA_ROTOR5_PZ": 0.2775,
+    "CA_ROTOR5_AX": 0.0,
+    "CA_ROTOR5_AY": 0.0,
+    "CA_ROTOR5_AZ": -1.0,
+    "CA_ROTOR5_KM": -0.1464,
+    "CA_ROTOR5_CT": 5.15,
+    "CA_ROTOR6_PX": 0.4699,
+    "CA_ROTOR6_PY": -0.1962,
+    "CA_ROTOR6_PZ": -0.2149,
+    "CA_ROTOR6_AX": 0.0,
+    "CA_ROTOR6_AY": 0.0,
+    "CA_ROTOR6_AZ": -1.0,
+    "CA_ROTOR6_KM": 0.2264,
+    "CA_ROTOR6_CT": 5.29,
+    "CA_ROTOR7_PX": 0.4772,
+    "CA_ROTOR7_PY": 0.1961,
+    "CA_ROTOR7_PZ": -0.2149,
+    "CA_ROTOR7_AX": 0.0,
+    "CA_ROTOR7_AY": 0.0,
+    "CA_ROTOR7_AZ": -1.0,
+    "CA_ROTOR7_KM": -0.2128,
+    "CA_ROTOR7_CT": 5.29,
+    "CA_ROTOR8_PX": 0.58,
+    "CA_ROTOR8_PY": -0.0,
+    "CA_ROTOR8_PZ": -0.2372,
+    "CA_ROTOR8_AX": 0.0,
+    "CA_ROTOR8_AY": 0.0,
+    "CA_ROTOR8_AZ": -1.0,
+    "CA_ROTOR8_KM": 0.0068,
+    "CA_ROTOR8_CT": 6.108,
+    "SENS_BOARD_Y_OFF": 20.0,
+    "PWM_MAIN_FUNC1": 101,
+    "PWM_MAIN_FUNC2": 102,
+    "PWM_MAIN_FUNC3": 103,
+    "PWM_MAIN_FUNC4": 104,
+    "PWM_MAIN_FUNC5": 105,
+    "PWM_MAIN_FUNC6": 106,
+    "PWM_MAIN_FUNC7": 107,
+    "PWM_MAIN_FUNC8": 108,
+    "PWM_MAIN_FUNC9": 109,
+    "PWM_MAIN_FUNC10": 0,
+    "PWM_MAIN_FUNC11": 0,
+    "PWM_MAIN_FUNC12": 0,
+    "PWM_MAIN_FUNC13": 0,
+    "PWM_MAIN_FUNC14": 0,
+    "PWM_MAIN_FUNC15": 0,
+    "PWM_MAIN_FUNC16": 0,
+    "MPC_THR_HOVER": 0.649,
+    "MC_ROLLRATE_P": 1.6706,
+    "MC_ROLLRATE_I": 2.2275,
+    "MC_ROLLRATE_D": 0.0334,
+    "MC_PITCHRATE_P": 1.8824,
+    "MC_PITCHRATE_I": 2.5099,
+    "MC_PITCHRATE_D": 0.0376,
+    "MC_YAWRATE_P": 0.7053,
+    "MC_YAWRATE_I": 0.3527,
+    "MC_YAWRATE_D": 0.0,
+    "MC_ROLL_P": 2.0,
+    "MC_PITCH_P": 2.0,
+    "MC_YAW_P": 1.0,
+    "THR_MDL_FAC": 1.0,
+    "MC_ACRO_R_MAX": 720.0,
+    "MC_ACRO_P_MAX": 720.0,
+    "MC_ACRO_Y_MAX": 540.0,
+    "MC_ACRO_EXPO": 0.0,
+    "MC_ACRO_EXPO_Y": 0.0,
+    "MC_ACRO_SUPEXPO": 0.0,
+    "MC_ACRO_SUPEXPOY": 0.0,
+    "MC_AIRMODE": 1
+   }
+  },
+  "pixhawk_position": [
+   -0.1831,
+   -0.0013,
+   -0.4997
+  ],
+  "pixhawk_rotation": [
+   0,
+   0,
+   0
+  ],
+  "flow_sensor": {
+   "enabled": true,
+   "pos": [
+    -0.015,
+    0,
+    0.062
+   ],
+   "mount": "structure",
+   "rate": 50,
+   "flow_noise": 0.02,
+   "range_noise": 0.01,
+   "range_min": 0.08,
+   "range_max": 8,
+   "fov_deg": 42,
+   "note": "as built: fixed to the frame tilted 20.4 deg, right below the Pixhawk (CAD spot); in hover it looks hover_pitch - 20.4 deg off vertical. Enable per flight (scenario design.flow_sensor.enabled).",
+   "extra_pitch_deg": 20.4,
+   "position": [
+    -0.1611,
+    -0.0013,
+    -0.4587
+   ],
+   "rotation": [
+    0,
+    -8.3,
+    0
+   ],
+   "range_m": 8
+  },
+  "indoor": true
+ },
+ "notes": "Generated by scripts/v4_airframe.py (V4 clean sheet) from SMALL_SCALE_V4.2 (Fusion guide, left side mirrored).\n[2026-10-22] V4 as-built (sweep feat/v4-authority-sweep, atlas_v4_asbuilt.json) with the weighed 3-battery mass, CG and inertia of the live CAD (SMALL_SCALE_V4.2 v8, card_exact3s_live_20.json) and its 67.5 deg jet axes; the fork's jet turning loss folded into max_thrust.",
+ "cad": null
+}

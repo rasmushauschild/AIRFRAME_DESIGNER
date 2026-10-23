@@ -1,0 +1,21 @@
+armed 28.5s, lift-off 32.0s, reached 1.14 m at 34.2s, end 69.8s
+[take-off 32.0-35.2s]
+   roll   amplitude    5.67 deg    dominant  0.31 Hz
+   pitch  amplitude    3.01 deg    dominant  0.31 Hz
+   yaw    amplitude    1.39 deg    dominant  0.61 Hz
+   p      amplitude   15.02 deg/s  dominant  0.31 Hz
+   q      amplitude    9.05 deg/s  dominant  0.61 Hz
+   r      amplitude    3.94 deg/s  dominant  0.31 Hz
+   height amplitude    0.07 m      dominant  0.31 Hz
+   vd     amplitude    0.10 m/s    dominant  0.31 Hz
+   motor cmd amplitude [0.02, 0.02, 0.01, 0.01, 0.01, 0.01, 0.03, 0.03, 0.02]  max cmd 0.84
+[hover 35.2-69.8s]
+   roll   amplitude    6.80 deg    dominant  0.41 Hz
+   pitch  amplitude    4.43 deg    dominant  0.41 Hz
+   yaw    amplitude    1.72 deg    dominant  0.41 Hz
+   p      amplitude   16.13 deg/s  dominant  0.41 Hz
+   q      amplitude   11.69 deg/s  dominant  0.41 Hz
+   r      amplitude    4.33 deg/s  dominant  0.41 Hz
+   height amplitude    0.01 m      dominant  0.09 Hz
+   vd     amplitude    0.02 m/s    dominant  0.81 Hz
+   motor cmd amplitude [0.02, 0.02, 0.01, 0.01, 0.01, 0.01, 0.03, 0.02, 0.01]  max cmd 0.84

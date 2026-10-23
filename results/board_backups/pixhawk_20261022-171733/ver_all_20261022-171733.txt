@@ -1,0 +1,20 @@
+ver all
+
+NuttShell (NSH) NuttX-12.12.0
+nsh> [KHW arch: PX4_FMU_V6X
+HW type: V6X
+HW FMUM ID: 0x006
+HW BASE ID: 0x000
+PX4 git-hash: 2a0e9109238bd0274608e3c25201be7c40becd0c
+PX4 version: 1.18.0 80 (17956992)
+PX4 git-branch: main
+OS: NuttX
+OS version: Release 12.12.0 (202113279)
+OS git-hash: 0288ea632c598d3b40fe8ab847b41e9e7a018b8f
+Build datetime: Oct 19 2026 19:12:51
+Build uri: localhost
+Build variant: multicopter
+Toolchain: GNU GCC, 13.2.1 20231009
+PX4GUID: 0006000000003339343834335112003a0036
+MCU: STM32H7[4|5]xxx, rev. V
+nsh> [K

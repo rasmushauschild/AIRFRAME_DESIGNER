@@ -1,0 +1,37 @@
+{
+ "copied_at": "2026-10-22T17:17:56.532572-07:00",
+ "source": "/Users/stefanosfragkoulis/.airframe_designer/px4_firmware_archive/versions/20261019-193544_px4_fmu-v6x/firmware.px4",
+ "archive_version": "20261019-193544_px4_fmu-v6x",
+ "archive_manifest": {
+  "id": "20261019-193544_px4_fmu-v6x",
+  "kind": "flash",
+  "time": "2026-10-20T02:35:44+00:00",
+  "board": {
+   "device": "/dev/cu.usbmodem01",
+   "description": "Auterion PX4 FMU v6X.x",
+   "target": "px4_fmu-v6x",
+   "bootloader": false
+  },
+  "board_firmware": {
+   "version": "1.18.0 beta",
+   "git": "00000023",
+   "board": 53,
+   "vendor_id": 12677,
+   "product_id": 53
+  },
+  "atlas": true,
+  "firmware_sha256": "65ceedfce650f84f1822e02bd0f5b454ac030329a07fef7afb63104d8198619f",
+  "firmware_bytes": 1791954,
+  "airframe": "SMALL_SCALE_V3",
+  "params_count": 1224,
+  "export_count": 123,
+  "px4_source_commit": "2a0e9109238bd0274608e3c25201be7c40becd0c",
+  "designer_commit": "a50b0a09bc3e480ad665722bcdb2e4c0a32b04db",
+  "note": "rescue flash: board stranded in the bootloader"
+ },
+ "image_git_identity": "v1.18.0-beta1-647-g2a0e910923",
+ "image_build_time": "2026-10-19T19:12:58-07:00",
+ "sha256": "65ceedfce650f84f1822e02bd0f5b454ac030329a07fef7afb63104d8198619f",
+ "board_git": "2a0e9109238bd0274608e3c25201be7c40becd0c",
+ "board_build_datetime": "Oct 19 2026 19:12:51"
+}

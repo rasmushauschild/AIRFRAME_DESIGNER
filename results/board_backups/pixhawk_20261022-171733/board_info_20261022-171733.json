@@ -1,0 +1,30 @@
+{
+ "port": "/dev/cu.usbmodem01",
+ "read_started": "2026-10-22T17:17:33.902699-07:00",
+ "sysid": 1,
+ "compid": 0,
+ "heartbeat": {
+  "type": 2,
+  "autopilot": 12,
+  "base_mode": 61,
+  "custom_mode": 50593792,
+  "hil_enabled": true,
+  "armed": false
+ },
+ "autopilot_version": {
+  "flight_sw_version": "1.18.0 (type 128)",
+  "flight_custom_version": "0000002309910e2a",
+  "middleware_custom_version": "0000002309910e2a",
+  "os_sw_version": 202113279,
+  "os_custom_version": "3b8d592c63ea8802",
+  "board_version": 53,
+  "vendor_id": 12677,
+  "product_id": 53,
+  "uid": 3761439252395144248,
+  "uid2": "0006000000003339343834335112003a0036",
+  "capabilities": 59647
+ },
+ "param_count_reported": 1062,
+ "param_count_read": 1065,
+ "read_finished": "2026-10-22T17:17:41.813925-07:00"
+}

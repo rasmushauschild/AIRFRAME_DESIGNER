@@ -1,0 +1,6 @@
+{"label": "A_base", "climb_s": 2.7, "h_max": 1.94, "climb_yawrate_mean": -0.2, "climb_yawrate_absmax": 7.1, "climb_yaw_turned_deg": -0.8, "hover_yawrate_absmax": 1.8, "climb_motor_max": 0.88}
+{"label": "B_boardgains", "climb_s": 2.7, "h_max": 1.93, "climb_yawrate_mean": -0.1, "climb_yawrate_absmax": 6.3, "climb_yaw_turned_deg": -0.6, "hover_yawrate_absmax": 1.1, "climb_motor_max": 0.88}
+{"label": "C_km0134", "climb_s": 2.7, "h_max": 1.93, "climb_yawrate_mean": 13.3, "climb_yawrate_absmax": 21.8, "climb_yaw_turned_deg": 36.8, "hover_yawrate_absmax": 7.9, "climb_motor_max": 0.9}
+{"label": "D_km0134_boardgains", "climb_s": 2.7, "h_max": 1.94, "climb_yawrate_mean": 28.2, "climb_yawrate_absmax": 36.7, "climb_yaw_turned_deg": 78.2, "hover_yawrate_absmax": 28.9, "climb_motor_max": 0.89}
+{"label": "E_default", "climb_s": 2.7, "h_max": 1.93, "climb_yawrate_mean": 13.3, "climb_yawrate_absmax": 22.0, "climb_yaw_turned_deg": 36.5, "hover_yawrate_absmax": 7.8, "climb_motor_max": 0.91}
+{"label": "F_P04", "climb_s": 2.6, "h_max": 1.93, "climb_yawrate_mean": 8.4, "climb_yawrate_absmax": 17.0, "climb_yaw_turned_deg": 22.5, "hover_yawrate_absmax": 8.3, "climb_motor_max": 0.91}

@@ -1,0 +1,64 @@
+{
+ "backup": "pixhawk_20261022-171733",
+ "created": "2026-10-22T17:18:09.576808-07:00",
+ "board_read_started": "2026-10-22T17:17:33.902699-07:00",
+ "board_read_finished": "2026-10-22T17:17:41.813925-07:00",
+ "board": {
+  "port": "/dev/cu.usbmodem01",
+  "sysid": 1,
+  "hil_enabled": true,
+  "firmware": "1.18.0 (type 128)",
+  "px4_git": "2a0e9109238bd0274608e3c25201be7c40becd0c",
+  "build": "Oct 19 2026 19:12:51"
+ },
+ "params": {
+  "read": 1065,
+  "reported_by_board": 1062
+ },
+ "firmware_image": {
+  "file": "firmware_20261022-171733_from_archive_20261019-193544_px4_fmu-v6x.px4",
+  "note": "a Pixhawk cannot hand back its flash; this is the image the archive recorded as flashed (20261019-193544), and its git hash and build stamp match what the board reports",
+  "sha256": "65ceedfce650f84f1822e02bd0f5b454ac030329a07fef7afb63104d8198619f",
+  "image_build_time": "2026-10-19T19:12:58-07:00"
+ },
+ "changed_since_v3_flight_log_425": {
+  "COM_FLIGHT_UUID": {
+   "flight": 17,
+   "now": 18
+  },
+  "LND_FLIGHT_T_LO": {
+   "flight": -30605485,
+   "now": -14795002
+  },
+  "SYS_HITL": {
+   "flight": 0,
+   "now": 1
+  }
+ },
+ "files": {
+  "board_info_20261022-171733.json": {
+   "sha256": "9bd9395a3e7d827ecd3e32a44da749a09965de4d66c5038a2248c3d913461ed4",
+   "bytes": 775
+  },
+  "firmware_20261022-171733_from_archive_20261019-193544_px4_fmu-v6x.px4": {
+   "sha256": "65ceedfce650f84f1822e02bd0f5b454ac030329a07fef7afb63104d8198619f",
+   "bytes": 1791954
+  },
+  "firmware_20261022-171733_provenance.json": {
+   "sha256": "e81d2951c63324446843eaa117b189cb439fc7147573390b561f15ef08435380",
+   "bytes": 1339
+  },
+  "params_20261022-171733.json": {
+   "sha256": "0a7d0ce72e1b9996b5947ff3da08074e1da333fe163d0f1c6baa9daa9256c274",
+   "bytes": 79743
+  },
+  "params_20261022-171733.params": {
+   "sha256": "c0cbc72dc180e5c9d81bbf9bcac5c009f94a28fa24529a295b385a36b17a7b2d",
+   "bytes": 27179
+  },
+  "ver_all_20261022-171733.txt": {
+   "sha256": "e24f179f7455bc086a7eb887af1f66508d5d90dd520745a998f189e503480575",
+   "bytes": 535
+  }
+ }
+}

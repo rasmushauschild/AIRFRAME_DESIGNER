@@ -2,6 +2,24 @@
   "version": "0.0.1",
   "configurations": [
     {
+      "name": "v3-sitl-20261019",
+      "runtimeExecutable": "/bin/sh",
+      "runtimeArgs": [
+        "-c",
+        "cd $HOME/AIRFRAME_REPRO/v3_sitl_20261019/designer && exec /Users/stefanosfragkoulis/Documents/UtopiaLabs/new/AIRFRAME_DESIGNER/.venv/bin/python -m airframe_designer ui --airframe ../airframe_V3_20261019-135834.json --px4-instance 6 --http 127.0.0.1:8086 --no-browser --mode sitl"
+      ],
+      "port": 8086
+    },
+    {
+      "name": "v4-weighed-card20",
+      "runtimeExecutable": "/bin/sh",
+      "runtimeArgs": [
+        "-c",
+        "cd $HOME/AIRFRAME_REPRO/v3_sitl_20261019/designer && exec /Users/stefanosfragkoulis/Documents/UtopiaLabs/new/AIRFRAME_DESIGNER/.venv/bin/python -m airframe_designer ui --airframe $HOME/AIRFRAME_REPRO/v4_weighed_card20/current_airframe.json --px4-instance 7 --http 127.0.0.1:8087 --no-browser --mode sitl"
+      ],
+      "port": 8087
+    },
+    {
       "name": "airframe-designer",
       "runtimeExecutable": ".venv/bin/python",
       "runtimeArgs": [
