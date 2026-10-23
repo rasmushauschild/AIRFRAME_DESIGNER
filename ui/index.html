@@ -169,7 +169,7 @@
         <div class="row">
           <label title="Nose-up angle before takeoff. Edits the simulator target in SITL or the PX4 firmware target in HITL. Editable while connected and disarmed; does not change hover pitch.">Takeoff pitch° <input id="af-takeoff" type="number" step="any" value="25" disabled></label>
           <label title="Nose-up pitch of the airframe in hover. PX4 treats this attitude as level: the geometry is exported rotated into that frame and SENS_BOARD_Y_OFF is set to match.">Hover pitch° <input id="af-hover" type="number" step="1" min="-90" max="90"></label>
-          <label title="Calculated automatically from the enabled landing feet. Actual resting pitch can differ slightly as the legs compress.">Landed pitch° (auto) <input id="af-landed" type="number" step="1" min="-90" max="90"></label>
+          <label title="Nose-up pitch the aircraft stands at on its legs. Typing an angle re-solves the legs ahead of the CG (the rear feet stay: they are the pivot it rotates off); editing the legs reads it back from the feet. Actual resting pitch can differ slightly as the legs compress.">Park pitch° <input id="af-landed" type="number" step="1" min="-90" max="90"></label>
         </div>
       
         </div>

@@ -451,6 +451,25 @@ bindNumber('af-ixx', v => airframe.mass.inertia[0] = v);
 bindNumber('af-iyy', v => airframe.mass.inertia[1] = v);
 bindNumber('af-izz', v => airframe.mass.inertia[2] = v);
 bindNumber('af-hover', v => airframe.hover_pitch_deg = v);
+// Park pitch: the server re-solves the legs ahead of the CG (the rear feet stay, they are the pivot). Whatever
+// is still waiting to be pushed goes first, so the legs are solved on the design as it is on screen.
+$('#af-landed').addEventListener('change', async (e) => {
+  const pitch = parseFloat(e.target.value);
+  if (!Number.isFinite(pitch)) { e.target.value = airframe.landed_pitch_deg || 0; return; }
+  try {
+    clearTimeout(pushTimer);
+    await api('/api/airframe', { airframe, keep_state: true });
+    const res = await api('/api/airframe/park', { pitch_deg: pitch });
+    airframe.legs = res.airframe.legs;
+    airframe.landed_pitch_deg = res.airframe.landed_pitch_deg;
+    airframe.px4_overrides = res.airframe.px4_overrides;
+    renderLegTable(); scene.setAirframe(airframe); fillMassCard();
+    showProblems(res.problems);
+  } catch (err) {
+    e.target.value = airframe.landed_pitch_deg || 0;
+    showProblems([`park pitch ${pitch}°: ${err.message}`]);
+  }
+});
 
 bindNumber('af-bx', v => airframe.body.size[0] = v);
 bindNumber('af-by', v => airframe.body.size[1] = v);
@@ -1057,7 +1076,7 @@ function updateFooter() {
     landButton.title = manualPrototype ? 'Manual prototype has no automatic landing; use RC throttle and attitude controls.' : (nativeNoseLift && pilotHandover) ? 'Before liftoff: lower the nose again. In the air: the module takes the motors back; lower the throttle to descend, the nose is lowered on rear-leg contact' : nativeNoseLift ? 'From native hover: descend onto rear legs, lower the nose at 4 degrees/s, then disarm' : 'Land';
   }
   $('#af-hover').disabled = !!status.armed;
-  $('#af-landed').readOnly = true;
+  $('#af-landed').disabled = !!status.armed;
   const targetInput = $('#af-takeoff');
   // One nose-lift target, and it is the firmware's: the module that raises the nose in SITL is the same
   // module that raises it on the aircraft, so there is no simulator-side figure to keep beside it.

@@ -80,3 +80,35 @@ def test_reset_puts_the_vehicle_down_at_once_and_never_refuses(monkeypatch):
     assert 'already in progress' not in ' '.join(r['steps'])
     time.sleep(1.4)
     assert len(relaunches) == 2                # and the newer press relaunched behind it
+
+
+def _tripod():
+    """Front foot ahead of the CG, two rear feet behind it: the V4 stand, at its CAD hard points."""
+    from airframe_designer.geometry.airframe import quad_x
+    from airframe_designer.geometry.gear import Leg
+    af = quad_x()
+    af.legs = [Leg(name="F", attach=[0.573, 0.0, -0.42], length=0.0677, foot_radius=0.01),
+               Leg(name="RL", attach=[-0.395, -0.595, -0.03], length=0.03, foot_radius=0.01),
+               Leg(name="RR", attach=[-0.395, 0.595, -0.03], length=0.03, foot_radius=0.01)]
+    af.mass.cg = [-0.2, 0.0, -0.43]
+    return af
+
+
+@pytest.mark.parametrize("park", [-20, -10, 0, 10])
+def test_park_pitch_moves_only_the_front_leg(park):
+    """Typing a park angle stands the aircraft at it; the rear feet it rotates off do not move."""
+    from airframe_designer.geometry.landing import set_park_pitch
+    af = _tripod()
+    rear = [l.foot() for l in af.legs[1:]]
+    assert set_park_pitch(af, park) == pytest.approx(park, abs=0.02)
+    assert [l.foot() for l in af.legs[1:]] == rear
+    assert af.legs[0].length == pytest.approx(0.42 + 0.968 * math.tan(math.radians(park)), abs=1e-3)
+
+
+def test_a_park_the_legs_cannot_reach_changes_nothing():
+    from airframe_designer.geometry.landing import set_park_pitch
+    af = _tripod()
+    before = [l.length for l in af.legs], af.landed_pitch_deg
+    with pytest.raises(ValueError, match="leg F would be"):
+        set_park_pitch(af, -30)                  # the front leg would have to be negative
+    assert ([l.length for l in af.legs], af.landed_pitch_deg) == before

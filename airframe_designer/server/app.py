@@ -20,6 +20,7 @@ from starlette.concurrency import run_in_threadpool
 from ..geometry.airframe import Airframe, PRESETS, blank
 from ..sim.wind import WindModel
 from ..geometry.gear import generate_legs
+from ..geometry.landing import set_park_pitch
 from ..geometry import cad as cadmod
 from ..geometry.paths import list_paths, apply_variables
 from ..analysis import static as design
@@ -308,6 +309,23 @@ def build_app(state: AppState) -> FastAPI:
         # files starting with _ are the app's own (the scratch file an unnamed design is written to)
         files = sorted(p.name for p in AIRFRAME_DIR.glob("*.json") if not p.name.startswith("_"))
         return {"presets": list(PRESETS), "files": files}
+
+    @app.post("/api/airframe/park")
+    async def set_park(body: dict):
+        """Stand the aircraft at a park pitch: the legs ahead of the CG change length, the rear feet stay."""
+        try:
+            pitch = float(body.get("pitch_deg"))
+        except (TypeError, ValueError):
+            return JSONResponse({"ok": False, "error": "pitch_deg must be a number"}, status_code=400)
+        af = sim.airframe.copy()
+        try:
+            set_park_pitch(af, pitch)
+        except ValueError as e:
+            return JSONResponse({"ok": False, "error": str(e)}, status_code=409)
+        sim.set_airframe(af)
+        autosave(af)
+        hc = af.hover_check()
+        return json_safe({"ok": True, "airframe": af.to_dict(), "problems": af.validate() + hc["problems"], "hover": hc})
 
     @app.post("/api/airframe/load")
     async def load_airframe(body: dict):
